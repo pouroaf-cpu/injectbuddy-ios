@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build & Unit Tests
+    runs-on: macos-14
+
+    env:
+      # Xcode 15.4 ships a current iOS 17 simulator runtime on macos-14 runners.
+      DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Recreate Config/Secrets.xcconfig from secrets
+        working-directory: app
+        env:
+          SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          mkdir -p Config
+          cat > Config/Secrets.xcconfig <<EOF
+          SUPABASE_HOST = ${SUPABASE_HOST}
+          SUPABASE_ANON_KEY = ${SUPABASE_ANON_KEY}
+          EOF
+
+      - name: Generate Xcode project
+        working-directory: app
+        run: xcodegen generate
+
+      - name: Cache Swift Package Manager
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('app/project.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Build & run unit tests
+        working-directory: app
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project InjectBuddy.xcodeproj \
+            -scheme InjectBuddy \
+            -destination 'generic/platform=iOS Simulator' \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: app/TestResults.xcresult
+          if-no-files-found: ignore

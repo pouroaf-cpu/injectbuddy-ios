@@ -16,6 +16,10 @@ struct InjectBuddyApp: App {
                 .environment(\.backend, backend)
                 .tint(Theme.accent)
                 .preferredColorScheme(settings.theme.colorScheme)
+                .onOpenURL { url in
+                    // Discord OAuth callback deep-link fallback.
+                    Task { await auth.handleOAuthCallback(url: url) }
+                }
         }
     }
 }

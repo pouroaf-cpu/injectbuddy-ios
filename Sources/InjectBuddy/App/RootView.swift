@@ -6,6 +6,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var auth: AuthStore
+    @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
         ZStack {
@@ -20,8 +21,16 @@ struct RootView: View {
                 MainShell()
                     .transition(.opacity)
             }
+
+            // First-run medical disclaimer — gates the whole app until acknowledged.
+            if !settings.hasAcceptedDisclaimer {
+                DisclaimerGate { settings.hasAcceptedDisclaimer = true }
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
         }
         .animation(.easeInOut(duration: 0.25), value: auth.phase)
+        .animation(.easeInOut(duration: 0.25), value: settings.hasAcceptedDisclaimer)
     }
 }
 

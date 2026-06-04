@@ -1,0 +1,68 @@
+name: TestFlight
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  beta:
+    name: Archive & Upload to TestFlight
+    runs-on: macos-14
+
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Set up Ruby + fastlane (bundler)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: app
+
+      - name: Recreate Config/Secrets.xcconfig from secrets
+        working-directory: app
+        env:
+          SUPABASE_HOST: ${{ secrets.SUPABASE_HOST }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          mkdir -p Config
+          cat > Config/Secrets.xcconfig <<EOF
+          SUPABASE_HOST = ${SUPABASE_HOST}
+          SUPABASE_ANON_KEY = ${SUPABASE_ANON_KEY}
+          EOF
+
+      - name: Cache Swift Package Manager
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('app/project.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Build & upload to TestFlight
+        working-directory: app
+        env:
+          # App Store Connect API key (key auth — not Match / Apple ID password).
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          # Apple Developer Team ID, used for automatic signing of the archive.
+          DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+          # Used by the Fastfile to set the build number deterministically.
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        run: bundle exec fastlane beta

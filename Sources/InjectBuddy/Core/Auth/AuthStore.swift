@@ -84,11 +84,25 @@ final class AuthStore: ObservableObject {
     func signInWithDiscord() async {
         lastError = nil
         do {
-            // supabase-swift drives an ASWebAuthenticationSession for OAuth on iOS.
-            try await client.auth.signInWithOAuth(provider: .discord)
+            // supabase-swift drives an ASWebAuthenticationSession for OAuth on iOS and
+            // completes on the registered callback scheme (see SupabaseConfig.oauthRedirectURL
+            // + Info.plist CFBundleURLTypes + the Supabase dashboard redirect allow-list).
+            try await client.auth.signInWithOAuth(
+                provider: .discord,
+                redirectTo: SupabaseConfig.oauthRedirectURL
+            )
         } catch {
-            lastError = Self.message(error)
+            // User-cancelled web auth surfaces as an error; treat cancel as a no-op.
+            if !Self.isUserCancellation(error) { lastError = Self.message(error) }
         }
+    }
+
+    /// Deep-link fallback: if the OAuth callback arrives as a URL the app opens
+    /// (rather than being captured by the in-flight ASWebAuthenticationSession),
+    /// finish the sign-in here. Wired from InjectBuddyApp's `.onOpenURL`.
+    func handleOAuthCallback(url: URL) async {
+        do { try await client.auth.session(from: url) }
+        catch { /* not an auth callback, or already handled — ignore */ }
     }
 
     func signOut() async {
@@ -117,5 +131,13 @@ final class AuthStore: ObservableObject {
 
     private static func message(_ error: Error) -> String {
         error.localizedDescription
+    }
+
+    /// True when the user dismissed the OAuth web sheet (ASWebAuthenticationSession
+    /// canceledLogin) — not a real failure, so we shouldn't show an error.
+    private static func isUserCancellation(_ error: Error) -> Bool {
+        let ns = error as NSError
+        return ns.domain == "com.apple.AuthenticationServices.WebAuthenticationSession"
+            && ns.code == 1
     }
 }

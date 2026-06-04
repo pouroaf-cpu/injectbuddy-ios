@@ -28,10 +28,17 @@ final class SettingsStore: ObservableObject {
     @Published var units: UnitSystem { didSet { save(.units, units.rawValue) } }
     @Published var syringeScale: SyringeScale { didSet { save(.syringe, syringeScale.rawValue) } }
 
+    /// First-run medical disclaimer acceptance. The app gates behind this once
+    /// (App Review expects a prominent "not medical advice" acknowledgement).
+    @Published var hasAcceptedDisclaimer: Bool {
+        didSet { defaults.set(hasAcceptedDisclaimer, forKey: Key.disclaimer.rawValue) }
+    }
+
     private enum Key: String {
         case theme = "ib_theme_pref"
         case units = "ib_units"
         case syringe = "ib_syringe_scale"
+        case disclaimer = "ib_disclaimer_accepted_v1"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -39,6 +46,7 @@ final class SettingsStore: ObservableObject {
         theme = AppThemePreference(rawValue: defaults.string(forKey: Key.theme.rawValue) ?? "") ?? .system
         units = UnitSystem(rawValue: defaults.string(forKey: Key.units.rawValue) ?? "") ?? .metric
         syringeScale = SyringeScale(rawValue: defaults.string(forKey: Key.syringe.rawValue) ?? "") ?? .u100
+        hasAcceptedDisclaimer = defaults.bool(forKey: Key.disclaimer.rawValue)
     }
 
     private let defaults: UserDefaults

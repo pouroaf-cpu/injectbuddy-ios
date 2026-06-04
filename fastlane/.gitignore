@@ -1,0 +1,5 @@
+report.xml
+Preview.html
+test_output
+# Decoded App Store Connect API key — must never be committed.
+*.p8

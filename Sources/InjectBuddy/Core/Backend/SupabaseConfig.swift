@@ -20,6 +20,11 @@ enum SupabaseConfig {
         return u
     }
 
+    /// OAuth deep-link callback. Must be registered BOTH in Info.plist (CFBundleURLTypes —
+    /// scheme `com.injectbuddy.ios`) AND in the Supabase dashboard → Auth → URL Configuration →
+    /// Redirect URLs. Used by Discord sign-in.
+    static let oauthRedirectURL = URL(string: "com.injectbuddy.ios://login-callback")!
+
     private static func infoValue(_ key: String) -> String {
         guard let v = Bundle.main.object(forInfoDictionaryKey: key) as? String,
               !v.isEmpty, !v.contains("YOUR_") else {
