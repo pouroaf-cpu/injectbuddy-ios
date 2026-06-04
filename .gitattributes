@@ -1,0 +1,7 @@
+# Authored on Windows, built on macOS — keep LF everywhere so Xcode/swift see clean files.
+* text=auto eol=lf
+*.swift text eol=lf
+*.yml text eol=lf
+*.plist text eol=lf
+*.xcconfig text eol=lf
+*.md text eol=lf

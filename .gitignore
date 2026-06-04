@@ -1,0 +1,28 @@
+# ── Secrets (never commit) ──────────────────────────────────────────────
+Config/Secrets.xcconfig
+
+# ── Xcode (project is generated from project.yml via XcodeGen) ───────────
+*.xcodeproj
+*.xcworkspace
+!default.xcworkspace
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+.build/
+
+# ── Swift Package Manager ───────────────────────────────────────────────
+Package.resolved
+.swiftpm/
+
+# ── macOS / misc ────────────────────────────────────────────────────────
+.DS_Store
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
