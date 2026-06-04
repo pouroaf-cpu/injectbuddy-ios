@@ -26,10 +26,10 @@ final class AuthStore: ObservableObject {
     init() {
         watchTask = Task { [weak self] in
             // authStateChanges emits the initial session too, so this both restores
-            // a persisted login and reacts to later sign-in/out.
-            guard let stream = self?.client.auth.authStateChanges else { return }
-            for await change in stream {
-                await self?.apply(session: change.session)
+            // a persisted login and reacts to later sign-in/out. Source the stream from
+            // the global (not self) to avoid a retain cycle that would block deinit.
+            for await (_, session) in await SupabaseProvider.client.auth.authStateChanges {
+                await self?.apply(session: session)
             }
         }
     }
@@ -97,12 +97,11 @@ final class AuthStore: ObservableObject {
         }
     }
 
-    /// Deep-link fallback: if the OAuth callback arrives as a URL the app opens
-    /// (rather than being captured by the in-flight ASWebAuthenticationSession),
-    /// finish the sign-in here. Wired from InjectBuddyApp's `.onOpenURL`.
-    func handleOAuthCallback(url: URL) async {
-        do { try await client.auth.session(from: url) }
-        catch { /* not an auth callback, or already handled — ignore */ }
+    /// Deep-link handler for OAuth redirects + email-confirmation links. supabase-swift
+    /// parses the URL and updates the session (no-op for unrelated URLs). Wired from
+    /// InjectBuddyApp's `.onOpenURL`. `handle` is synchronous and non-throwing.
+    func handleOAuthCallback(url: URL) {
+        client.auth.handle(url)
     }
 
     func signOut() async {

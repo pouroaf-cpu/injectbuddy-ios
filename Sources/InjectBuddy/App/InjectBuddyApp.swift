@@ -17,8 +17,8 @@ struct InjectBuddyApp: App {
                 .tint(Theme.accent)
                 .preferredColorScheme(settings.theme.colorScheme)
                 .onOpenURL { url in
-                    // Discord OAuth callback deep-link fallback.
-                    Task { await auth.handleOAuthCallback(url: url) }
+                    // Discord OAuth callback + email-confirmation deep links.
+                    auth.handleOAuthCallback(url: url)
                 }
         }
     }

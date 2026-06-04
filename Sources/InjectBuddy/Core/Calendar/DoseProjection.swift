@@ -160,7 +160,10 @@ enum DoseProjection {
 
             // Emit occurrences within [windowStart, windowEnd).
             while true {
-                let offsetDays = Int((Double(step) * interval).rounded())
+                // Floor (not round-half-away) so a 3.5-day interval yields the
+                // conventional alternating 3/4-day pattern (0,3,7,10,14 — e.g. Mon/Thu),
+                // matching the web schedule rather than 0,4,7,11,14.
+                let offsetDays = Int(Double(step) * interval)
                 guard let occDay = calendar.date(byAdding: .day, value: offsetDays, to: startDay) else { break }
                 if occDay >= windowEnd { break }
                 if occDay >= windowStart {

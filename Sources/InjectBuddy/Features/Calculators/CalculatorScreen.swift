@@ -232,6 +232,12 @@ private struct NumberField: View {
         return min(max(d, range.lowerBound), range.upperBound)
     }
     private func format(_ d: Double) -> String {
-        d == d.rounded() ? String(Int(d)) : String(d)
+        if d == d.rounded() { return String(Int(d)) }
+        // Trim to ≤4 decimals and drop trailing zeros so the field never shows
+        // float noise like "0.30000000000000004".
+        var s = String(format: "%.4f", d)
+        while s.hasSuffix("0") { s.removeLast() }
+        if s.hasSuffix(".") { s.removeLast() }
+        return s
     }
 }
