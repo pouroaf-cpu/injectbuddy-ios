@@ -10,7 +10,9 @@ import Foundation
 protocol BackendClient: Sendable {
     // Protocols (saved_dosages)
     func savedDosages() async throws -> [SavedDosage]
+    func savedDosage(id: String) async throws -> SavedDosage?                 // one row, for confirm-start
     func saveDosage(_ dosage: NewSavedDosage) async throws -> String          // returns new id
+    func updateStartDate(id: String, startDate: String?) async throws
     func deleteDosage(id: String) async throws
 
     // Cycles

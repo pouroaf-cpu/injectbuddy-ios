@@ -14,6 +14,8 @@ final class CalculatorViewModel: ObservableObject {
     @Published var values: CalculatorValues { didSet { recompute() } }
     @Published private(set) var result: CalculatorResult = .empty
     @Published var saveState: SaveState = .idle
+    /// Row id from the last successful save, for the confirm-start-day step.
+    @Published var savedId: String?
 
     /// Syringe scale supplied by the screen from SettingsStore; affects TRT units.
     var scale: SyringeScale = .u100 { didSet { if scale != oldValue { recompute() } } }
@@ -64,7 +66,9 @@ final class CalculatorViewModel: ObservableObject {
             startDate: Self.todayString()
         )
         do {
-            _ = try await backend.saveDosage(body)
+            // Keep the new id: the screen hands it to the confirm-start-day step, which
+            // reads the row back and lets the start day be corrected off today's default.
+            savedId = try await backend.saveDosage(body)
             saveState = .saved
         } catch {
             saveState = .failed(error.localizedDescription)

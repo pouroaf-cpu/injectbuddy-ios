@@ -39,6 +39,14 @@ struct RouteContent: View {
             DashboardScreen()
         case .calendar:
             CalendarScreen()
+        case .tools:
+            ToolsScreen()
+        case .add:
+            AddScreen()
+        case .addCategory(let category):
+            AddCategoryScreen(category: category)
+        case .addConfirm(let dosageId):
+            ConfirmStartScreen(dosageId: dosageId)
         case .settings:
             SettingsScreen()
         case .calculator(let slug):

@@ -23,7 +23,9 @@ struct MockBackendClient: BackendClient {
     private func wait() async { if delay > 0 { try? await Task.sleep(nanoseconds: delay) } }
 
     func savedDosages() async throws -> [SavedDosage] { await wait(); return dosages }
+    func savedDosage(id: String) async throws -> SavedDosage? { await wait(); return dosages.first { $0.id == id } }
     func saveDosage(_ dosage: NewSavedDosage) async throws -> String { await wait(); return UUID().uuidString }
+    func updateStartDate(id: String, startDate: String?) async throws { await wait() }
     func deleteDosage(id: String) async throws { await wait() }
     func cyclesWithItems() async throws -> [CycleWithItems] { await wait(); return cycles }
     func doseLog(since: String?) async throws -> [DoseLogPin] { await wait(); return pins }

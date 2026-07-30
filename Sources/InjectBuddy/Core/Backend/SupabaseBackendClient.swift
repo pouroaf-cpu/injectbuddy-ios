@@ -22,6 +22,33 @@ struct SupabaseBackendClient: BackendClient {
             .value
     }
 
+    /// One protocol by id, for the confirm-start-day screen. `maybeSingle` so a row
+    /// that was deleted between saving and confirming returns nil instead of throwing.
+    /// No user_id filter: RLS already scopes this to the caller, exactly as above.
+    func savedDosage(id: String) async throws -> SavedDosage? {
+        try await client
+            .from("saved_dosages")
+            .select("id, calculator_type, label, config, created_at, start_date, is_active")
+            .eq("id", value: id)
+            .limit(1)
+            .execute()
+            .value
+            .first
+    }
+
+    /// Lets the start day be CHANGED after the fact. CalculatorViewModel.save already
+    /// writes start_date on insert, but hardcoded to today — so a protocol the user
+    /// actually began three weeks ago gets projected from the wrong day and every
+    /// occurrence DoseProjection places on the calendar is shifted. Confirming the day
+    /// is the fix; this is the write behind it. Nil clears it, matching the web PATCH.
+    func updateStartDate(id: String, startDate: String?) async throws {
+        _ = try await client
+            .from("saved_dosages")
+            .update(["start_date": startDate])
+            .eq("id", value: id)
+            .execute()
+    }
+
     func saveDosage(_ dosage: NewSavedDosage) async throws -> String {
         let row: InsertedID = try await client
             .from("saved_dosages")

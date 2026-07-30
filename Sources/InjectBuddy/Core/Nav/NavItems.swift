@@ -79,6 +79,91 @@ enum CalculatorSlug: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Saving
+
+extension CalculatorSlug {
+    /// Can this calculator produce a protocol the app can store?
+    ///
+    /// Mirrors the web exactly: of its 23 calculators, 19 POST to /api/dosages and 4
+    /// never do — bmi, plotter, freetest and ftv compute and display only. Of the 14
+    /// slugs this app has, three of those four are present, so 11 can save.
+    ///
+    /// This is what keeps dead ends out of the Add funnel: a picker that offers a
+    /// calculator with no save path walks the user into a wall at the last step.
+    var canSaveProtocol: Bool {
+        switch self {
+        case .bmi, .freeTestIndex, .cyclePlotter: return false
+        default: return true
+        }
+    }
+}
+
+// MARK: - Categories
+
+/// The Add funnel's first question, "what are you adding?".
+///
+/// Mirrors the web's IB_NAV.groups (public/nav-items.js) — same four buckets, same
+/// keys — so the two products sort calculators the same way. Order matches the web
+/// Add page rather than the nav dropdowns.
+///
+/// NOTE: `steroid` is empty on iOS today. The web has steroid / blend / bioavailability
+/// in it; this app has none of the three, because CalculatorSlug carries 14 of the
+/// web's 23. `visibleCases` therefore hides it rather than offering an empty category —
+/// see TASK 18, the catalogue gap is real work, not a bug in the funnel.
+enum CalculatorCategory: String, CaseIterable, Identifiable, Hashable {
+    case glp1
+    case hormone
+    case peptide
+    case steroid
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .glp1: return "GLP-1"
+        case .hormone: return "Testosterone & hormones"
+        case .peptide: return "Peptides"
+        case .steroid: return "Steroids"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .glp1: return "Semaglutide, tirzepatide, retatrutide"
+        case .hormone: return "TRT, microdosing, HCG"
+        case .peptide: return "BPC-157, blends, reconstitution"
+        case .steroid: return "Steroid dosing and oil blends"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .glp1: return "pills"
+        case .hormone: return "syringe"
+        case .peptide: return "testtube.2"
+        case .steroid: return "flask"
+        }
+    }
+
+    /// Every calculator in this category, savable or not.
+    var members: [CalculatorSlug] {
+        switch self {
+        case .glp1:    return [.semaglutide, .tirzepatide, .retatrutide, .bmi]
+        case .hormone: return [.trt, .eod, .microdose, .hcg, .freeTestIndex]
+        case .peptide: return [.peptide, .reconstitution, .bpc157, .bpc157blend]
+        case .steroid: return []
+        }
+    }
+
+    /// What the Add funnel offers — members that can actually finish the flow.
+    var savableMembers: [CalculatorSlug] { members.filter(\.canSaveProtocol) }
+
+    /// Categories worth showing in the funnel. Hides any that would open on nothing.
+    static var visibleCases: [CalculatorCategory] {
+        allCases.filter { !$0.savableMembers.isEmpty }
+    }
+}
+
 // MARK: - App routes
 
 /// Everything the content NavigationStack can show. Hashable so it works as a
@@ -86,6 +171,12 @@ enum CalculatorSlug: String, CaseIterable, Identifiable, Hashable {
 enum AppRoute: Hashable {
     case dashboard
     case calendar
+    case tools
+    case add
+    /// Category chosen; pick the calculator. Second step of the Add funnel.
+    case addCategory(CalculatorCategory)
+    /// Last step: a protocol exists, confirm the day it starts.
+    case addConfirm(dosageId: String)
     case calculator(CalculatorSlug)
     case settings
 
@@ -93,6 +184,10 @@ enum AppRoute: Hashable {
         switch self {
         case .dashboard: return "Dashboard"
         case .calendar: return "Calendar"
+        case .tools: return "Tools"
+        case .add: return "Add"
+        case .addCategory(let c): return c.title
+        case .addConfirm: return "Start day"
         case .settings: return "Settings"
         case .calculator(let slug): return slug.title
         }
@@ -102,8 +197,54 @@ enum AppRoute: Hashable {
         switch self {
         case .dashboard: return "square.grid.2x2"
         case .calendar: return "calendar"
+        case .tools: return "flask"
+        case .add: return "plus"
+        case .addCategory(let c): return c.icon
+        case .addConfirm: return "calendar.badge.clock"
         case .settings: return "gearshape"
         case .calculator(let slug): return slug.icon
+        }
+    }
+}
+
+// MARK: - Bottom tabs
+
+/// The five slots of the bottom bar, mirroring the web's ib-bottomnav.js:
+/// Dashboard · Calendar · Log dose (raised hero) · Tools · Add.
+///
+/// `log` is a slot, not a destination — selecting it opens the log sheet and the
+/// current tab stays put. MainShell intercepts it; see the binding there.
+enum MainTab: Hashable, CaseIterable {
+    case dashboard, calendar, log, tools, add
+
+    var title: String {
+        switch self {
+        case .dashboard: return "Dashboard"
+        case .calendar: return "Calendar"
+        case .log: return "Log dose"
+        case .tools: return "Tools"
+        case .add: return "Add"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .dashboard: return "house"
+        case .calendar: return "calendar"
+        case .log: return "syringe"
+        case .tools: return "flask"
+        case .add: return "plus"
+        }
+    }
+
+    /// The root route this tab shows. nil for `log`, which has no screen of its own.
+    var route: AppRoute? {
+        switch self {
+        case .dashboard: return .dashboard
+        case .calendar: return .calendar
+        case .tools: return .tools
+        case .add: return .add
+        case .log: return nil
         }
     }
 }

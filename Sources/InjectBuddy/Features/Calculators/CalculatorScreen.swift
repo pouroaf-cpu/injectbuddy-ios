@@ -67,14 +67,22 @@ struct CalculatorScreen: View {
         VStack(spacing: Theme.Spacing.sm) {
             ResultCard(result: vm.result)
 
+            // Titled "Add" to match the web, where the bottom nav's Add slot owns
+            // saving. Kept ON the calculator for now rather than moved to the tab bar:
+            // that needs the calculator to publish its readiness up to the shell (the
+            // iOS analogue of the web's html.ib-add-ready), which is TASK 15 proper.
+            // Success no longer jumps to the dashboard — it goes to confirm the start
+            // day, which otherwise silently defaults to today.
             PrimaryButton(
-                title: vm.saveState == .saved ? "Saved ✓" : "Save as protocol",
+                title: vm.saveState == .saved ? "Added ✓" : "Add",
                 isLoading: vm.saveState == .saving,
                 isEnabled: vm.result.isValid
             ) {
                 Task {
                     await vm.save(backend: backend)
-                    if vm.saveState == .saved { navigator.select(.dashboard) }
+                    if vm.saveState == .saved, let id = vm.savedId {
+                        navigator.push(.addConfirm(dosageId: id))
+                    }
                 }
             }
 
