@@ -82,7 +82,11 @@ extension CalculatorEngine {
             ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.volumeMl) : nil)
 
         case .bpc157:
-            let r = bpc157(concMcgMl: v.number("concMcgMl"), dose: v.number("dose"))
+            // mcg/mL from vial + water, the web's own derivation (mg × 1000 ÷ mL), so
+            // the saved config carries the two real inputs rather than the result.
+            let bawMl = v.number("bawMl")
+            let conc = bawMl > 0 ? (v.number("vialMg") * 1000) / bawMl : 0
+            let r = bpc157(concMcgMl: conc, dose: v.number("dose"))
             return CalculatorResult(rows: [
                 ResultRow(label: "Draw", value: "\(fmt(r.drawMl, 3)) mL", emphasis: true),
                 ResultRow(label: "Units (U-100)", value: fmtInt(r.units), emphasis: true),

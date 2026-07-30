@@ -75,11 +75,20 @@ final class CalculatorViewModel: ObservableObject {
         }
     }
 
-    /// Encode the current field values into a JSONValue object using each field's
-    /// storage key — matching the shape the web writes to saved_dosages.config.
+    /// Encode the current field values into the config shape the web writes to
+    /// saved_dosages.config.
+    ///
+    /// The rendered fields alone are NOT that shape — the web saves state this form has
+    /// no control for (barrel size, dosing mode, the unused half of a mode pair), and a
+    /// couple of iOS field keys are internal. So the field values are filtered through
+    /// configOmittedKeys and then completed by configExtras; see the long note on both
+    /// in CalculatorCatalog. Getting this wrong does not just look untidy: the web
+    /// restores a protocol by key, and /api/dosages de-duplicates by fingerprinting the
+    /// whole object, so a short config silently double-inserts.
     func configJSON() -> JSONValue {
         var obj: [String: JSONValue] = [:]
-        for field in spec.fields {
+        let omitted = CalculatorCatalog.configOmittedKeys(for: slug)
+        for field in spec.fields where !omitted.contains(field.key) {
             switch field.kind {
             case .number, .picker, .stepperDays:
                 obj[field.key] = .number(values.number(field.key))
@@ -88,6 +97,11 @@ final class CalculatorViewModel: ObservableObject {
             case .toggle:
                 obj[field.key] = .bool(values.bool(field.key))
             }
+        }
+        // Extras win: where a key is both a field and an extra, the extra is the one
+        // carrying the web's name and type.
+        for (key, value) in CalculatorCatalog.configExtras(for: slug, values: values) {
+            obj[key] = value
         }
         return .object(obj)
     }

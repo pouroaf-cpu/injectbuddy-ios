@@ -105,6 +105,103 @@ enum CalculatorCatalog {
         .init(label: "1×/week", value: 1),
     ]
 
+    // MARK: - Cross-platform config shape
+    //
+    // saved_dosages.config must be BYTE-EQUIVALENT to what the web writes for the same
+    // protocol. Two things depend on it:
+    //   1. The web reads a protocol back into its calculator by key. A missing `mode`
+    //      or `nDays` means it cannot restore what was saved on the phone.
+    //   2. /api/dosages de-duplicates by fingerprinting the WHOLE config object
+    //      (route.ts sorts keys and compares). A config missing keys never matches an
+    //      equivalent web row, so saving the same protocol on both platforms inserts
+    //      twice instead of returning the existing id.
+    //
+    // The generic spec model only knows the fields it renders, and the web saves state
+    // the phone has no control for — barrel size, the dosing mode, the unused half of a
+    // mode pair. These two functions close that gap: `configOmittedKeys` drops iOS-only
+    // field keys, `configExtras` supplies the rest.
+    //
+    // Values are the web's own defaults for anything iOS does not model, taken from the
+    // corresponding page's useState in public/app.js. That is deliberate: it makes an
+    // iOS save identical to an untouched web save with the same inputs, which is exactly
+    // what the fingerprint needs. Where iOS DOES know the answer — the dosing mode it
+    // actually evaluated — the real value is written, not a default.
+
+    /// Field keys that exist for the iOS UI but are not part of the web's config.
+    static func configOmittedKeys(for slug: CalculatorSlug) -> Set<String> {
+        switch slug {
+        // The picker stores a Double; the web's `doseUnit` is the string 'mcg'/'mg'.
+        // Emitted with the right name and type by configExtras below.
+        case .peptide: return ["doseUnitMcg"]
+        // An index into SteroidCatalog — an iOS implementation detail. The web keys
+        // the compound by its slug string.
+        case .steroid: return ["compound"]
+        default: return []
+        }
+    }
+
+    /// Keys the web writes that the iOS form has no field for.
+    static func configExtras(for slug: CalculatorSlug, values v: CalculatorValues) -> [String: JSONValue] {
+        switch slug {
+        case .trt:
+            // evaluate() runs TRT in perweek mode, so that is the honest value here.
+            // nDays/mlDrawn are the unused half of the mode pair; web defaults.
+            return ["mode": .string("perweek"), "nDays": .number(3.5),
+                    "mlDrawn": .number(0.5), "syringeMl": .number(1)]
+
+        case .eod:
+            // Web's EOD lives on the MicrodoseTRT page — 0.3 mL barrel, not 1.
+            return ["syringeMl": .number(0.3)]
+
+        case .microdose:
+            return ["mode": .string("ndays"), "injPerWeek": .number(0),
+                    "mlDrawn": .number(0.5), "syringeMl": .number(0.3),
+                    "esterType": .string("")]
+
+        case .hcg:
+            return ["syringeMl": .number(0.5), "mode": .string("perweek"),
+                    "nDays": .number(3.5), "injPerWeek": .number(2)]
+
+        case .semaglutide, .tirzepatide, .retatrutide:
+            return ["syringeMl": .number(1), "mode": .string("perweek"),
+                    "nDays": .number(7), "injPerWeek": .number(1)]
+
+        case .peptide:
+            // peptideType has no iOS field yet, so "" is the truthful answer: nothing
+            // was chosen. Add the picker and this becomes a real value (TASK 16/17).
+            return ["syringeMl": .number(1),
+                    "doseUnit": .string(v.number("doseUnitMcg") == 1 ? "mcg" : "mg"),
+                    "peptideType": .string("")]
+
+        case .reconstitution:
+            return ["pepUnit": .string("mg")]
+
+        case .bpc157, .bpc157blend:
+            return ["syringeMl": .number(1)]
+
+        case .steroid:
+            let idx = Int(v.number("compound"))
+            let compound = SteroidCatalog.all.indices.contains(idx)
+                ? SteroidCatalog.all[idx] : SteroidCatalog.all[0]
+            // Injectable-only for now (see the spec below), so form/mode are known.
+            // The oral trio (dose/tab/split) are the web's own empty defaults.
+            return ["slug": .string(compound.key),
+                    "form": .string("injectable"),
+                    "mode": .string("ndays"),
+                    "esterKey": .string(compound.defaultEster?.key ?? ""),
+                    "injPerWeek": .number(2),
+                    "mlDrawn": .number(0.5),
+                    "syringeMl": .number(1),
+                    "dose": .string(""),
+                    "tab": .string(""),
+                    "split": .string("1")]
+
+        case .bmi, .freeTestIndex, .cyclePlotter:
+            // Never saved — canSaveProtocol is false.
+            return [:]
+        }
+    }
+
     static func spec(for slug: CalculatorSlug) -> CalculatorSpec {
         switch slug {
 
@@ -182,8 +279,15 @@ enum CalculatorCatalog {
             ])
 
         case .bpc157:
+            // Vial + water rather than a pre-computed concentration, matching the web.
+            // This was the one calculator whose INPUT MODEL differed, not just its key
+            // names: the web saves {vialMg, bawMl, dose, syringeMl} and a concentration
+            // cannot be split back into a vial size and a water volume, so no amount of
+            // key mapping could have reconciled it. The engine is untouched — evaluate
+            // derives mcg/mL from these two before calling it.
             return CalculatorSpec(slug: slug, savedType: "bpc157", saveTitle: "BPC-157", fields: [
-                .number("concMcgMl", "Concentration", unit: "mcg/mL", default: 2500, range: 0...20000, step: 100),
+                .number("vialMg", "Vial size", unit: "mg", default: 5, range: 0...100, step: 1),
+                .number("bawMl", "Bac water", unit: "mL", default: 2, range: 0...30, step: 0.5),
                 .number("dose", "Dose per injection", unit: "mcg", default: 250, range: 0...5000, step: 50),
             ])
 
