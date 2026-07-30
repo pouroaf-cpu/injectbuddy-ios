@@ -119,6 +119,41 @@ extension CalculatorEngine {
                 ResultRow(label: "TT (nmol/L)", value: fmt(r.ttNmol, 2)),
             ], isValid: r.isValid, scheduleLine: nil)
 
+        case .steroid:
+            // The compound picker carries an index into SteroidCatalog.all (the generic
+            // picker field stores a Double). Out of range falls back to the first
+            // compound rather than returning .empty, so a stale saved config still
+            // renders something honest instead of a blank card.
+            let idx = Int(v.number("compound"))
+            let compound = SteroidCatalog.all.indices.contains(idx)
+                ? SteroidCatalog.all[idx]
+                : SteroidCatalog.all[0]
+            let ester = compound.defaultEster
+            let r = steroidInjectable(strength: v.number("strength"),
+                                      mgWeek: v.number("mgWeek"),
+                                      mode: .ndays,
+                                      nDays: v.number("nDays"),
+                                      injPerWeek: 0,
+                                      mlDrawn: 0,
+                                      esterFactor: compound.esterFactor(for: ester),
+                                      unitsPerML: scale.unitsPerML)
+            let unitLabel = scale == .u100 ? "Units (U-100)" : "Units (U-40)"
+            var rows = [
+                ResultRow(label: "Draw per injection", value: "\(fmt(r.mlPerInj, 3)) mL", emphasis: true),
+                ResultRow(label: unitLabel, value: fmt(r.unitsPerInj, 1), emphasis: true),
+                ResultRow(label: "Dose per injection", value: "\(fmt(r.mgPerInj, 2)) mg"),
+                ResultRow(label: "Injections / week", value: fmt(r.freqPerWeek, 2)),
+                ResultRow(label: "Weekly total", value: "\(fmt(r.weeklyTotal, 1)) mg"),
+            ]
+            // Active weekly is the steroid-specific number — the ester is dead weight by
+            // mass, so this is the hormone actually delivered. Shown only when it differs,
+            // since for an esterFactor of 1 it just repeats the line above.
+            if compound.esterFactor(for: ester) < 1 {
+                rows.append(ResultRow(label: "Active weekly", value: "\(fmt(r.activeWeek, 1)) mg"))
+            }
+            return CalculatorResult(rows: rows, isValid: r.isValid,
+                                    scheduleLine: r.isValid ? volumeMeta(r.mlPerInj) : nil)
+
         case .cyclePlotter:
             // Handled by the bespoke CyclePlotterScreen, not the generic evaluator.
             return .empty

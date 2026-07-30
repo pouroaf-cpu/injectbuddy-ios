@@ -25,6 +25,10 @@ enum CalculatorSlug: String, CaseIterable, Identifiable, Hashable {
     case freeTestIndex  = "freetest"
     case microdose      = "microdose"
     case cyclePlotter   = "plotter"
+    /// The web's /steroid-dosage-calculator/ hub. One screen, 12 compounds behind a
+    /// picker (SteroidCatalog) — matching the web, which is likewise one data-driven
+    /// page rather than a calculator per compound.
+    case steroid        = "steroid"
 
     var id: String { rawValue }
 
@@ -45,6 +49,7 @@ enum CalculatorSlug: String, CaseIterable, Identifiable, Hashable {
         case .freeTestIndex: return "Free T Index"
         case .microdose: return "TRT Microdose"
         case .cyclePlotter: return "Cycle Plotter"
+        case .steroid: return "Steroid Dosage"
         }
     }
 
@@ -61,6 +66,7 @@ enum CalculatorSlug: String, CaseIterable, Identifiable, Hashable {
         case .reconstitution: return "Recon"
         case .microdose: return "Micro"
         case .cyclePlotter: return "Plotter"
+        case .steroid: return "Steroid"
         default: return title
         }
     }
@@ -75,6 +81,7 @@ enum CalculatorSlug: String, CaseIterable, Identifiable, Hashable {
         case .bmi: return "figure.stand"
         case .freeTestIndex: return "waveform.path.ecg"
         case .cyclePlotter: return "chart.xyaxis.line"
+        case .steroid: return "pills.circle"
         }
     }
 }
@@ -85,8 +92,8 @@ extension CalculatorSlug {
     /// Can this calculator produce a protocol the app can store?
     ///
     /// Mirrors the web exactly: of its 23 calculators, 19 POST to /api/dosages and 4
-    /// never do — bmi, plotter, freetest and ftv compute and display only. Of the 14
-    /// slugs this app has, three of those four are present, so 11 can save.
+    /// never do — bmi, plotter, freetest and ftv compute and display only. Of the 15
+    /// slugs this app has, three of those four are present, so 12 can save.
     ///
     /// This is what keeps dead ends out of the Add funnel: a picker that offers a
     /// calculator with no save path walks the user into a wall at the last step.
@@ -106,10 +113,11 @@ extension CalculatorSlug {
 /// keys — so the two products sort calculators the same way. Order matches the web
 /// Add page rather than the nav dropdowns.
 ///
-/// NOTE: `steroid` is empty on iOS today. The web has steroid / blend / bioavailability
-/// in it; this app has none of the three, because CalculatorSlug carries 14 of the
-/// web's 23. `visibleCases` therefore hides it rather than offering an empty category —
-/// see TASK 18, the catalogue gap is real work, not a bug in the funnel.
+/// NOTE: `steroid` carries the Steroid Dosage hub (12 compounds) but NOT the web's
+/// other two steroid tools — Blend (oilblend) and Bioavailability. Their maths is not
+/// ported, and a calculator that shows a confidently wrong number in this niche is
+/// worse than one that is absent, so they stay out until the formulas are carried
+/// across (TASK 18). `visibleCases` still guards against a category emptying out.
 enum CalculatorCategory: String, CaseIterable, Identifiable, Hashable {
     case glp1
     case hormone
@@ -151,7 +159,7 @@ enum CalculatorCategory: String, CaseIterable, Identifiable, Hashable {
         case .glp1:    return [.semaglutide, .tirzepatide, .retatrutide, .bmi]
         case .hormone: return [.trt, .eod, .microdose, .hcg, .freeTestIndex]
         case .peptide: return [.peptide, .reconstitution, .bpc157, .bpc157blend]
-        case .steroid: return []
+        case .steroid: return [.steroid]
         }
     }
 

@@ -220,6 +220,30 @@ enum CalculatorCatalog {
         case .cyclePlotter:
             // Bespoke screen — no generic fields.
             return CalculatorSpec(slug: slug, savedType: "plotter", saveTitle: "Cycle Plotter", fields: [])
+
+        case .steroid:
+            // Injectable path only, for now. The web screen also has an ORAL form
+            // (mg/day ÷ split → tablets) for the seven oral compounds, and the engine
+            // side of that is ported — CalculatorEngine.steroidOral — but the generic
+            // field/spec model here renders ONE set of inputs, and the web swaps the
+            // whole input set on a form toggle. Wiring that needs a bespoke screen
+            // rather than a spec, so orals are held back rather than shipped showing
+            // syringe fields that mean nothing for a tablet.
+            //
+            // `compound` is an index into SteroidCatalog.all rather than a string,
+            // because the generic picker field carries a Double. The screen resolves
+            // it back to a compound, and configJSON writes the index — which is why
+            // the saved config here will NOT yet match the web's shape (see below).
+            return CalculatorSpec(slug: slug, savedType: "steroid", saveTitle: "Steroid Dosage", fields: [
+                .picker("compound", "Compound",
+                        options: SteroidCatalog.all.enumerated().map { idx, c in
+                            .init(label: c.displayName, value: Double(idx))
+                        },
+                        default: 0),
+                .number("strength", "Vial strength", unit: "mg/mL", default: 200, range: 0...500, step: 5),
+                .number("mgWeek", "Weekly dose", unit: "mg", default: 300, range: 0...2000, step: 5),
+                .number("nDays", "Inject every", unit: "days", default: 3.5, range: 0.5...14, step: 0.5),
+            ])
         }
     }
 }
