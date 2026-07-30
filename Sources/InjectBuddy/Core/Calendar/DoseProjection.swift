@@ -101,9 +101,10 @@ enum DoseProjection {
         switch slug {
         case .semaglutide, .tirzepatide, .retatrutide:
             return 7                       // GLP-1 weekly
-        case .trt, .microdose, .peptide, .hcg, .bpc157, .bpc157blend:
+        case .trt, .microdose, .peptide, .hcg, .bpc157, .bpc157blend, .steroid:
             // Reasonable default cadence when the config omits an explicit one:
-            // TRT/peptide families are most commonly twice-weekly.
+            // TRT/peptide families are most commonly twice-weekly. Injectable
+            // steroids sit here too — the catalogue's own nDays default is 3.5.
             return 3.5
         case .eod:
             return 2

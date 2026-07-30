@@ -243,6 +243,7 @@ enum DashboardColor {
         case .hcg: return Color(hex: 0xF59E0B)        // amber
         case .peptide, .reconstitution: return Color(hex: 0x3B82F6) // blue
         case .bpc157, .bpc157blend: return Color(hex: 0x34D399)     // green
+        case .steroid: return Color(hex: 0xF43F5E)                  // rose
         case .bmi, .freeTestIndex, .cyclePlotter: return Theme.secondaryLabel
         }
     }
