@@ -269,6 +269,38 @@ Status legend: ⬜ To do · 🔄 In progress · ✅ Done (archived)
 - **Supersedes:** the "confirm the golden tests still pass" clause in TASK 19.
 - **Status:** ⬜ To do
 
+## TASK 21 — Plotter: adopt the compound bible, drop the local tmax table   🔴 P0   ⬜
+- **Issue:** The iOS plotter diverges from the web plotter in TWO independent ways, so the same
+  protocol draws a different curve on phone and website:
+  1. **Different model.** `pk.js:91-97` derives `ka = ln2 / max(0.01, halfLife*0.25)` — `tmax`
+     appears nowhere in it. `CalculatorEngine.swift:313-314` instead solves `ka` from a per-compound
+     `tmax` via `pkSolveKa`. **No `tmax` value in `CalculatorCatalog.swift:42-55` has a citation** —
+     they were typed in.
+  2. **Different numbers.** `CalculatorCatalog` is a FOURTH half-life table and disagrees with
+     `spec/compounds.json`: Test C `5.0` vs `6.0` days, Test U `20` vs `21`.
+- **Decision (operator, 2026-08-01):** one bible in Supabase (`public.compounds`), exported at build
+  time to `spec/compounds.json`, bundled by both platforms. Neither reads it at runtime — offline
+  must keep working and the conformance suite must stay provable. Full rationale and the migration:
+  web repo `spec/COMPOUND-BIBLE.md`.
+- **Fix (iOS side):**
+  - Delete the `tmax` column and the hardcoded compound list from `CalculatorCatalog.swift`; load the
+    exported `compounds.json` from the vendored corpus bundle instead.
+  - Replace `pkSolveKa` usage with the two-branch rule: use a sourced `tmax` when present and tiered
+    above `unverified`, else fall back to `ka = ln2 / max(0.01, halfLife*0.25)`. **Every compound is
+    on the fallback on day one** — no `tmax` is cited yet — so this must reproduce `pk.js` exactly.
+  - Honour the null contract: `half_life_days == nil` means not established. Do not render a number,
+    do not plot a curve. Currently unenforced on both platforms.
+  - Conformance against `pk-kernel.json` (84 cases) and `pk-series.json` must pass. Those corpora
+    move when the web side regenerates — **do not start until `SPEC_VERSION` has been bumped**, or
+    you will port to a corpus that is about to change.
+- **Sequencing:** web steps 4-6 in `spec/COMPOUND-BIBLE.md` land together, THEN this. Blocking on the
+  web change is correct here — porting first means chasing a moving target.
+- **Affected:** `Core/Calculator/CalculatorCatalog.swift`, `Core/Calculator/CalculatorEngine.swift`
+  (`pkSolveKa`, `pkBuildEntries`), `Features/Calculators/CyclePlotterViewModel.swift`
+- **Relationship to TASK 20:** TASK 20 builds the conformance runner; this is the first real defect
+  it will catch. Do TASK 20 first — without it there is nothing to prove this fix by.
+- **Status:** ⬜ To do
+
 ---
 
 ## ✅ Done (last 10)
