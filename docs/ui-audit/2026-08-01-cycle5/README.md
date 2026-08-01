@@ -64,3 +64,34 @@ What this means:
 - The sweep needs redoing one slug at a time with the confirm-start-day screen
   verified per step, not a colour scan. That is slow but it is the only way it is
   worth anything.
+
+## Slug config shapes — diffed against the live table, no saves
+
+The sweep was cancelled in favour of diffing every iOS slug's key set against the
+shapes the **web** actually wrote across 99 rows. Stronger than the sweep would have
+been: the sweep compared iOS against `CalculatorCatalog`, which is the thing under
+test. This compares iOS against production data.
+
+| Slug | Result |
+|---|---|
+| `trt` `microdose` `peptide` `semaglutide` `bpc157` `steroid` | **MATCH** as shipped |
+| `hcg` | **DIFF, fixed** — emitted `mode`/`nDays`/`injPerWeek`; web rows carry none |
+| `tirzepatide` `retatrutide` | **DIFF, fixed** — same three keys, inherited from a shared `case` |
+| `eod` `reconstitution` `bpc157blend` | **Cannot validate** — no web rows exist for these |
+
+**Both flagged suspicions came back clean.** `steroid`, the widest surface at 13 keys
+and one of the two `configOmittedKeys` cases, matches exactly — the `compound` → `slug`
+translation works. `peptide` matches too, and its `doseUnitMcg` → `doseUnit` translation
+emits a **string** `'mcg'`/`'mg'`, not the picker's Double.
+
+**The real bug was elsewhere:** the three GLP-1 slugs share one `configExtras` case in
+iOS, but do **not** share a config shape on the web — semaglutide rows carry the mode
+pair, tirzepatide and retatrutide rows do not. Grouping them is what made two of three
+mismatch. HCG had the same fault: it inherited the injectable family's mode pair, which
+the web never writes for it.
+
+Caveat carried forward: `retatrutide`'s 3-key shape was described as *dominant*, so a
+minority of rows may differ. The fix targets the dominant shape.
+
+Not applicable to iOS at all: `bioavailability`, `femalehrt`, `oilblend` have no iOS
+calculator, so their shapes were not checked. That is a feature gap, not a config bug.

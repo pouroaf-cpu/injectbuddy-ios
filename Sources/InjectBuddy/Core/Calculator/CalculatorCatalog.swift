@@ -199,12 +199,22 @@ enum CalculatorCatalog {
                     "mlDrawn": .number(0.5), "esterType": .string("")]
 
         case .hcg:
-            return ["mode": .string("perweek"),
-                    "nDays": .number(3.5), "injPerWeek": .number(2)]
+            // The web's HCG rows carry ONLY bacWaterMl/dose/syringeMl/vialIU — no
+            // mode, nDays or injPerWeek. Verified against the live table, not against
+            // this file. Emitting the injectable family's mode pair here made every
+            // iOS HCG save a different config from the equivalent web row.
+            return [:]
 
-        case .semaglutide, .tirzepatide, .retatrutide:
+        // The three GLP-1 slugs do NOT share a config shape on the web, despite
+        // sharing a spec shape here. Semaglutide rows carry the mode pair; tirzepatide
+        // and retatrutide rows carry only conc/dose/syringeMl. Grouping them in one
+        // case is what made two of the three mismatch.
+        case .semaglutide:
             return ["mode": .string("perweek"),
                     "nDays": .number(7), "injPerWeek": .number(1)]
+
+        case .tirzepatide, .retatrutide:
+            return [:]
 
         case .peptide:
             // peptideType has no iOS field yet, so "" is the truthful answer: nothing
