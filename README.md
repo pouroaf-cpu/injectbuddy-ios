@@ -4,6 +4,10 @@ Native iOS app (Swift / SwiftUI, iOS 16+) for InjectBuddy — opens straight int
 dashboard, with all 14 dosage calculators in a side drawer. Thin client over the existing InjectBuddy
 Supabase backend; calculator math is ported to a local, offline `CalculatorEngine`.
 
+> **Picking this up?** Read [`docs/START-HERE.md`](docs/START-HERE.md) — session
+> log, every issue hit and how it was fixed, and where to continue.
+> [`docs/ui-audit/BOARD.md`](docs/ui-audit/BOARD.md) is the authoritative state.
+
 ## Requirements
 
 - macOS 13+ with **Xcode 15+**
