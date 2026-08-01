@@ -100,6 +100,18 @@ correctness either.** Green them for the right reason before trusting any of it.
       xcodebuild test -project InjectBuddy.xcodeproj -scheme InjectBuddy \
         -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
         -only-testing:InjectBuddyUITests
+- **A capture run MUTATES GLOBAL DEVICE STATE, and the next suite inherits it.**
+  `xcrun simctl ui booted content_size accessibility-extra-extra-extra-large` is
+  set on the *device*, not the run. Leaving it set made all four wiring assertions
+  fail on the next invocation — at AX5 the calculator reflows and the tests are
+  addressing a different layout. It looked like the app had broken; nothing had.
+  **Always reset with `content_size large` after an AX5 sweep**, in the same shell
+  command, so a crash cannot leave the device dressed for the wrong test.
+- **An append-only log is a record of capture EVENTS, not a promise that every
+  file is still on disk.** Superseded frames are removed from the working tree so
+  that a folder called "current" contains only current frames — the row plus its
+  commit is the durable artifact, and `git show <sha>:<path>` retrieves any of
+  them. A folder holding two full sets is a folder nobody trusts.
 - **The capture sweep is opt-in and separate.** `CaptureCurrentState` skips
   unless `TEST_RUNNER_CAPTURE=1`, so a normal run is not two minutes of
   screenshots. It sets `continueAfterFailure = false` deliberately: with it true,

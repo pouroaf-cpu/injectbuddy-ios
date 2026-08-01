@@ -41,6 +41,22 @@ struct GreetingHeadline: View {
             .tracking(Theme.Typeface.greetingTracking)
             .fixedSize(horizontal: false, vertical: true)
             .foregroundStyle(Theme.tealTextStrong)
+            // The ONLY capped element in the app, and the rule it follows is in
+            // DESIGN-PARITY §10: content scales without limit, decorative chrome may
+            // be capped, and the test is whether a user acts on it. A greeting
+            // carries no dose, no date and no state — nothing is lost reading it
+            // smaller, and once the tokens started tracking Dynamic Type it took
+            // roughly 40% of the dashboard at AX5 and pushed the next dose off
+            // screen. Compare IB2245743.
+            //
+            // Do NOT cite this on anything a user acts on. The calculator names were
+            // considered for the same treatment and rejected (DECISIONS D3) —
+            // navigation into a dosing screen, and AX5 users are exactly who needs
+            // them legible.
+            //
+            // VoiceOver is untouched: `dynamicTypeSize` caps the rendered size only,
+            // and the accessibility label below is the full string either way.
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .accessibilityLabel(text)
     }
 }

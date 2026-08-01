@@ -264,6 +264,59 @@ byte-identical to an earlier one.
 failure as the "refreshed" set which came back byte-identical with matching
 checksums, except that time a human noticed afterwards. The run now stops.
 
+## 17. Greeting capped at `accessibility1` `[win, provisional]`
+
+**Decided:** win, while the human was away. Overturnable on review.
+
+**What:** `GreetingHeadline` carries `.dynamicTypeSize(...DynamicTypeSize.accessibility1)`.
+It is the only capped element in the app.
+
+**Reasoning:** the greeting is chrome, not content — no dose, no date, no state,
+nothing a user acts on. Measured consequence of leaving it uncapped once the
+tokens started scaling: at AX5 it took three lines, and the Next dose card's
+`Mark taken` CTA was **cut off by the bottom of the screen**. A user at AX5 could
+not see the action for today's dose without scrolling, on the home screen,
+because of a decorative string. `IB2245743` before, `IB2245746` after.
+
+**Rejected:** a shorter greeting string at large sizes. Two strings for one
+element is a second thing to keep in sync, and the short form would be the one
+nobody ever looks at.
+
+**The rule, not the one-off:** written into `DESIGN-PARITY §10` — content scales
+without limit, decorative chrome may be capped, and the test is whether a user
+acts on it. Without that, the next person caps something that matters and cites
+this decision. Calculator names were considered under the same argument and
+rejected (D3).
+
+**Reverses if:** the human prefers a greeting-first home screen at accessibility
+sizes.
+
+## 18. `NumberField` reflows above AX1 — and this was finding F1 again
+
+**Decided:** mac.
+
+**What:** above `.accessibility1` the field row changes from
+`[ value ][ unit ][ − ][ + ]` on one line to the value on its own full-width line
+with the unit and steppers underneath.
+
+**Why it is a safety fix, not a layout tweak:** the unit carries `.fixedSize()` —
+correct, a unit must never truncate — and the steppers are 44pt each, so at AX5
+the unit took most of the width and **the value was what got squeezed**. The
+weekly dose rendered as `1…`. In a dosing calculator `1…` could be 100, 150 or
+1000 mg/week and nothing on screen disambiguates it. Separately, the field's font
+was a frozen `.system(size: 17)` at the call site, which the Theme re-baseline
+could not reach, so the dose number stayed 17pt while `mg/mL` grew past it — the
+value became the smallest text on the most safety-critical screen in the app.
+
+F1 banned `lineLimit` on a value+unit pair. This reached the same place through
+**layout** instead, which is why that ban was necessary and not sufficient. Both
+now hold: nothing truncates because nothing has to share a line with something
+`.fixedSize()`.
+
+**Found by** capturing the TRT calculator at AX5 for the first time — the screen
+that had never been surveyed at large text, and the screen the original truncation
+bug lived on.
+
 ---
 
 ## Deferred checks — for the next audit, not now

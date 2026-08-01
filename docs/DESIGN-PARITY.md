@@ -261,3 +261,38 @@ prominent control in the app also became its highest-contrast one.
 
 Teal is not diminished: it keeps the wordmark, the greeting, "Next dose", "+ Add",
 the selected tab item, the protocol spines, the tints and the welcome curves.
+
+## 10. Dynamic Type — what may be capped (settled 2026-08-02)
+
+**Content scales without limit. Decorative chrome may be capped. The test is
+whether a user acts on it.**
+
+Written as a rule rather than as a one-off, because without it the next person
+caps something that matters and cites the greeting as precedent.
+
+| | Capped? | Why |
+|---|---|---|
+| Greeting (`GreetingHeadline`) | **yes**, `...accessibility1` | Carries no dose, no date, no state. Nothing is lost reading it smaller. |
+| Calculator names in Tools | **never** | Navigation into a dosing screen. AX5 users are exactly who needs them legible. |
+| Any value, unit, dose, date or status | **never** | It is the thing the user acts on. |
+| Screen titles | **never** | See §9 — a title never truncates and never shrinks out of the way. |
+
+The greeting is currently the only capped element in the app. It earned it by
+measurement, not by taste: once the type tokens began tracking Dynamic Type
+(`Theme.Typeface`, 2026-08-02), the greeting took roughly 40% of the dashboard at
+AX5 and pushed the Next dose card's primary CTA off the bottom of the screen. A
+user at AX5 could not see the action for today's dose without scrolling, on the
+home screen, because of a decorative string. Compare `IB2245743` (before the cap)
+with `IB2245746` (after).
+
+Capping the rendered size does **not** touch VoiceOver: the accessibility label is
+the full string either way.
+
+Two things this rule does not license:
+
+1. **`lineLimit` is still banned** on a value+unit pair and on a screen title. A
+   cap changes how large text gets; `lineLimit` decides which characters the user
+   never sees. They are not the same lever.
+2. **A cap is not a fix for a layout that cannot take large text.** `NumberField`
+   at AX5 truncated a dose to `1…` because the unit beside it was `.fixedSize()`
+   and took the row. The fix was to reflow the row, not to stop the text growing.

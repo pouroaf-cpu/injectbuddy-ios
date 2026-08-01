@@ -685,13 +685,93 @@ private struct NumberField: View {
 
     private var focused: Bool { focusedKey.wrappedValue == key }
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private var isAccessibilitySize: Bool { typeSize >= .accessibility1 }
+
+    // AUDIT FINDING, 2026-08-02, and it is finding F1 again on a different control.
+    //
+    // The row is `[ value ][ unit ][ − ][ + ]` on one line. `mg/week` carries
+    // `.fixedSize()` — correct, a unit must never truncate — and the steppers are
+    // 44pt each. At AX5 the unit alone took most of the width, so the VALUE was what
+    // got squeezed, and the weekly dose rendered as `1…`. In a dosing calculator a
+    // field showing `1…` could be 100, 150 or 1000 mg/week and nothing on screen
+    // disambiguates it. F1 banned `lineLimit` on a value+unit pair; this reached the
+    // same place through layout instead, which is why the ban was necessary but not
+    // sufficient.
+    //
+    // Above AX1 the row reflows: the field takes the full width on its own line, and
+    // the unit and steppers move underneath. Nothing truncates because nothing has
+    // to share a line with something `.fixedSize()`.
     var body: some View {
+        Group {
+            if isAccessibilitySize { stacked } else { inline }
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .fieldChrome(isFocused: focused)
+        .onTapGesture { focusedKey.wrappedValue = key }
+    }
+
+    private var stacked: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            field
+            HStack(spacing: Theme.Spacing.sm) {
+                if let unit {
+                    Text(unit)
+                        .font(Theme.Typeface.cardMeta)
+                        .foregroundStyle(Theme.secondaryLabel)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: Theme.Spacing.sm)
+                steppers
+            }
+        }
+        .padding(.vertical, Theme.Spacing.sm)
+    }
+
+    private var inline: some View {
         HStack(spacing: Theme.Spacing.sm) {
+            field
+            if let unit {
+                Text(unit)
+                    .font(Theme.Typeface.cardMeta)
+                    .foregroundStyle(Theme.secondaryLabel)
+                    .fixedSize()
+            }
+            steppers
+        }
+    }
+
+    @ViewBuilder
+    private var steppers: some View {
+        if let step {
+            // A bare `Stepper` renders 46 x 32pt — 12pt under the HIG floor
+            // (finding F6). Two explicit buttons give each half 44 x 44pt and let us
+            // put a real gap between −/+, which act in opposite directions on a dose.
+            HStack(spacing: Theme.Spacing.sm) {
+                stepButton("minus", id: "step_down_\(key)") {
+                    value = clamp(value - step); text = format(value)
+                }
+                stepButton("plus", id: "step_up_\(key)") {
+                    value = clamp(value + step); text = format(value)
+                }
+            }
+        }
+    }
+
+    private var field: some View {
+        Group {
             TextField("0", text: $text)
                 .accessibilityIdentifier("field_\(key)")
                 .keyboardType(.decimalPad)
                 .focused(focusedKey, equals: key)
-                .font(.system(size: 17, weight: .semibold))
+                // Was `.system(size: 17, weight: .semibold)` — a FROZEN size at a
+                // call site, which the Theme re-baseline could not reach. Once the
+                // unit beside it started scaling, the dose number stayed 17pt while
+                // `mg/mL` grew to fill the row: at AX5 the vial strength read a
+                // small `200` beside a huge `mg/mL`, and the weekly dose truncated
+                // to `1…`. The value the user acts on became the smallest text on
+                // the most safety-critical screen in the app, and then disappeared.
+                .font(Theme.Typeface.cardTitle)
                 .foregroundStyle(Theme.ink)
                 .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
                 // Without this the padding belongs to the container, not the
@@ -753,30 +833,7 @@ private struct NumberField: View {
                     }
                 }
 
-            if let unit {
-                Text(unit)
-                    .font(Theme.Typeface.cardMeta)
-                    .foregroundStyle(Theme.secondaryLabel)
-                    .fixedSize()
-            }
-            if let step {
-                // A bare `Stepper` renders 46 × 32pt — 12pt under the HIG floor
-                // (finding F6). Two explicit buttons give each half 44 × 44pt and
-                // let us put a real gap between −/+, which act in opposite
-                // directions on a dose.
-                HStack(spacing: Theme.Spacing.sm) {
-                    stepButton("minus", id: "step_down_\(key)") {
-                        value = clamp(value - step); text = format(value)
-                    }
-                    stepButton("plus", id: "step_up_\(key)") {
-                        value = clamp(value + step); text = format(value)
-                    }
-                }
-            }
         }
-        .padding(.horizontal, Theme.Spacing.md)
-        .fieldChrome(isFocused: focused)
-        .onTapGesture { focusedKey.wrappedValue = key }
     }
 
     /// `id` is per FIELD, not per symbol. Every ranged field on a screen renders a

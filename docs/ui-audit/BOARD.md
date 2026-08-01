@@ -124,6 +124,20 @@ Things a cold session will hit within minutes and not understand:
 
 ## 1. Open — assigned
 
+- [ ] **The pinned result bar leaves one field visible at AX5.** `IB2245748`:
+      on the TRT calculator only `Vial strength` is above the bar, and the
+      `Weekly dose` label is clipped mid-glyph by its top edge. F11 and F12 both
+      addressed this family and both were closed against a layout with frozen type;
+      the bar now competes with fields that scale. §5.8 again — closing a finding
+      protects the code that existed when you closed it.
+
+- [ ] **Dashboard at AX5 fails the reachability test.** Not the greeting
+      percentage — the greeting is the diagnosis. The bug is that the Next dose
+      card's `Mark taken` CTA was off the bottom of the screen at AX5, so the
+      action for today's dose needed a scroll on the home screen. Capping the
+      greeting (`DESIGN-PARITY §10`) fixed this instance; the rule it produces is
+      in §5.19 and every screen still needs checking against it.
+
 - [ ] **Tools at AX5 reads as broken.** `IB2245731`, and unchanged from
       `2026-08-01-current/10-tools-ax5.png`. Six things in one frame:
       `Semaglu-tide` hyphenated mid-word, `Tirzepatide` wrapping to an orphaned
@@ -317,6 +331,21 @@ Safety and accessibility
       empty-state action and error-banner Retry, both found unprompted;
       danger `#FF5757` 3.11 → `#A31313` 7.90:1.
 - [x] **Over-capacity barrel warning** uses icon **and** text, never colour alone.
+- [x] **F1 AGAIN, through layout instead of `lineLimit` — a dose truncated to
+      `1…` at AX5.** `NumberField` laid out `[ value ][ unit ][ − ][ + ]` on one
+      line. The unit carries `.fixedSize()` (correct — a unit must never truncate)
+      and the steppers are 44pt each, so at AX5 the unit took the row and **the
+      value** was squeezed. `1…` on a weekly dose could be 100, 150 or 1000
+      mg/week. Compounding it, the field's font was a frozen
+      `.system(size: 17)` at the call site, which the `Theme` re-baseline could not
+      reach — so the dose number stayed 17pt while `mg/mL` grew past it and the
+      value became the smallest text on the screen. Fixed by reflowing above AX1
+      (value on its own full-width line, unit and steppers beneath) and moving the
+      field to a scaling token. Evidence: `IB2245748`, the first capture of this
+      screen at AX5 ever taken.
+      **The lesson is about the old fix, not the new one:** F1 banned `lineLimit`
+      on a value+unit pair and that ban was necessary and not sufficient. Layout
+      reached the same place without it.
 - [x] **The field displayed a number the engine did not use — SECOND breach of
       that invariant.** `mgWeek` is `0...1000`; focusing a populated field did not
       select it, so typing 250 onto 100 gave `100250`, and `clamp` then handed the
@@ -499,4 +528,24 @@ Parity and chrome
    backgrounded home screen, except that this one flattered the fix, which is why
    it was easy to miss. Hardware keyboard, Reduce Motion, a non-standard device
    scale — none of them announce themselves. Re-shot as `IB2245735`.
+19. **Report layout as a percentage of the viewport, never in lines.** "The
+   greeting takes three lines" is comparable to nothing. "The greeting takes 31% of
+   the content area at AX5" is comparable across screens, across type sizes, and
+   against the same screen next week. Measure it off the framebuffer — a vertical
+   band profile of the PNG — rather than from the view hierarchy, because that
+   measures what the user sees rather than what the layout claims. Two denominators:
+   full frame height (how the screen feels) and the content area between fixed
+   header and tab bar (what you can actually change). Put the numbers in the
+   screenshot log next to the serial, so drift is a diff rather than a re-derivation.
+20. **The primary action must be reachable without scrolling at every supported
+   type size.** Binary, not negotiable, and it is the rule with teeth: a percentage
+   tells you *why* a screen is wrong, reachability tells you *that* it is. The AX5
+   dashboard failed this today while every metric we had said it was fine — we had
+   been arguing the percentage and missing the reachability all day. Decorative
+   chrome over ~20% of the content area is a softer companion finding: it prompts a
+   look, it does not force a fix.
+21. **A capture run leaves the device dressed for the wrong test.** `simctl ui
+   content_size` is device state, not run state. An AX5 sweep left it set and the
+   next wiring run failed all four assertions against a reflowed layout — it read
+   as "the app broke" and nothing had. Reset it in the same command that sets it.
 

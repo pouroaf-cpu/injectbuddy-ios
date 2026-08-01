@@ -79,10 +79,48 @@ final class CaptureCurrentState: XCTestCase {
 
     private func openTRT() {
         tab("Tools")
-        let candidates = app.staticTexts.matching(identifier: "TRT Dose")
-        XCTAssertTrue(candidates.firstMatch.waitForExistence(timeout: 8))
-        candidates.allElementsBoundByIndex.first { $0.isHittable }?.tap()
-        XCTAssertTrue(app.textFields["field_mgWeek"].waitForExistence(timeout: 8))
+
+        // Scroll until the row is actually hittable, rather than swiping a fixed
+        // number of times and hoping. At AX5 the calculator names wrap so hard that
+        // four rows fill the display, so TRT sits well below the fold — that is why
+        // this capture failed twice, once by photographing the Tools screen under
+        // the calculator's filename and once by failing the run. Bounded, and a
+        // failure here is a RED TEST rather than a missing file: an absent frame
+        // reads as "nothing to see", and this is the most safety-critical screen in
+        // the app and the only one that was never surveyed at large text.
+        // Do NOT wait for existence first. At AX5 the list is lazy and the row is not
+        // instantiated at all until it is scrolled near — `waitForExistence` on it
+        // fails with "does not exist" while the row is perfectly reachable two swipes
+        // away. Re-query inside the loop instead, and treat absent and present-but-
+        // off-screen as the same condition: keep scrolling.
+        var row: XCUIElement?
+        for attempt in 0..<12 {
+            row = app.staticTexts.matching(identifier: "TRT Dose")
+                .allElementsBoundByIndex
+                .first { $0.isHittable }
+            if row != nil { break }
+            // Tools is a `List`, which XCUITest surfaces as a collectionView or a
+            // table depending on the style — NOT a scrollView. Asking only for
+            // scrollViews found nothing to scroll and failed on attempt 0, on a
+            // screen that scrolls perfectly well by hand.
+            let scrollable = (app.collectionViews.allElementsBoundByIndex
+                              + app.tables.allElementsBoundByIndex
+                              + app.scrollViews.allElementsBoundByIndex)
+                .first { $0.isHittable && $0.frame.minX >= 0 }
+            guard let list = scrollable else {
+                XCTFail("Nothing scrollable on screen after \(attempt) attempts.")
+                return
+            }
+            list.swipeUp()
+        }
+
+        guard let trt = row else {
+            XCTFail("TRT Dose never became hittable after 12 scrolls.")
+            return
+        }
+        trt.tap()
+        XCTAssertTrue(app.textFields["field_mgWeek"].waitForExistence(timeout: 8),
+                      "Tapped TRT Dose and did not land on the calculator.")
     }
 
     /// Default type size. Numbering matches `2026-08-01-current` so the two sets
@@ -148,12 +186,6 @@ final class CaptureCurrentState: XCTestCase {
         tab("Tools")
         shot("10-tools-ax5.png")
 
-        // At AX5 the calculator names wrap so hard that four rows fill the screen,
-        // so the TRT row is below the fold and openTRT() cannot see it. Scroll into
-        // the list before asking for it, and let the assertion inside openTRT() stop
-        // the run if it is still not there — do not shoot whatever happens to be on
-        // screen and call it the calculator.
-        app.swipeUp()
         openTRT()
         shot("12-calculator-trt-ax5.png")
     }
