@@ -39,6 +39,16 @@ one: the auth flow already exists and is not being rebuilt.
       round on the way in (180 lb must return 180 lb). Step 3 collects value+unit
       pairs, the exact shape that truncated before, so it reflows at AX5.
 
+- [~] **Calculator quick buttons — CODE DONE, VISUALLY UNVERIFIED.** Builds, tests
+      green. Barrel is now a 4-button segmented row instead of a menu; dose fields
+      carry one-tap values (TRT weekly 100/200/300/400/500, and per-calculator sets
+      for EOD, microdose, HCG, peptide, BPC-157, steroid); the TRT and steroid
+      weekly-dose steppers step in **10s** rather than 1s. Vial strength
+      deliberately has no quick values — it is set once per vial, not per dose.
+      Typing still works everywhere. Not screenshotted: the Mac's GUI session
+      dropped again mid-verification (Finder also reports 0 windows), so taps are
+      dead and the calculator cannot be navigated to.
+
 - [ ] **Measure Settings and the confirm-start-day screen.** The only two screens
       the control inventory did not reach (a drawer mis-tap landed on BMI). Both
       are stock `Form`/`List` and are *probably* the same 44 pt list-row treatment

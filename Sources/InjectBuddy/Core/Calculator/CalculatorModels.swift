@@ -17,14 +17,22 @@ struct CalculatorInput: Identifiable, Equatable {
     let kind: Kind
     /// Optional helper text shown under the field.
     var help: String?
+    /// Optional one-tap values shown as buttons under a numeric field. For dose
+    /// fields, where a user picks from a handful of round numbers far more often
+    /// than they type an arbitrary one. Typing still works — these are a shortcut,
+    /// never the only way in.
+    var quick: [Double] = []
 
     var id: String { key }
 
     enum Kind: Equatable {
         /// A numeric entry. `unit` is shown as a suffix; `range`/`step` hint the UI.
         case number(unit: String?, defaultValue: Double, range: ClosedRange<Double>?, step: Double?)
-        /// A segmented/menu picker of labeled options carrying a Double value.
+        /// A menu picker of labeled options carrying a Double value.
         case picker(options: [PickerOption], defaultValue: Double)
+        /// The same, rendered as an always-visible row of buttons rather than a
+        /// menu. For short option sets that are worth one tap — the syringe barrel.
+        case segmented(options: [PickerOption], defaultValue: Double)
         /// A picker of string-valued options (e.g. ester type).
         case stringPicker(options: [String], defaultValue: String)
         /// A boolean toggle.
@@ -43,10 +51,18 @@ struct CalculatorInput: Identifiable, Equatable {
     // Convenience constructors keep the catalog terse.
     static func number(_ key: String, _ label: String, unit: String? = nil,
                        default def: Double, range: ClosedRange<Double>? = nil,
-                       step: Double? = nil, help: String? = nil) -> CalculatorInput {
+                       step: Double? = nil, help: String? = nil,
+                       quick: [Double] = []) -> CalculatorInput {
         CalculatorInput(key: key, label: label,
                         kind: .number(unit: unit, defaultValue: def, range: range, step: step),
-                        help: help)
+                        help: help, quick: quick)
+    }
+
+    static func segmented(_ key: String, _ label: String,
+                          options: [PickerOption], default def: Double,
+                          help: String? = nil) -> CalculatorInput {
+        CalculatorInput(key: key, label: label,
+                        kind: .segmented(options: options, defaultValue: def), help: help)
     }
 
     static func picker(_ key: String, _ label: String,
@@ -90,6 +106,7 @@ struct CalculatorValues: Equatable {
             switch f.kind {
             case let .number(_, def, _, _):           v.numbers[f.key] = def
             case let .picker(_, def):                  v.numbers[f.key] = def
+            case let .segmented(_, def):               v.numbers[f.key] = def
             case let .stepperDays(def, _):             v.numbers[f.key] = def
             case let .stringPicker(_, def):            v.strings[f.key] = def
             case let .toggle(def):                     v.bools[f.key] = def

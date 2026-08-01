@@ -257,53 +257,58 @@ enum CalculatorCatalog {
             // config keys mirror web: strength, mgWeek, injPerWeek, mode, esterType.
             return CalculatorSpec(slug: slug, savedType: "trt", saveTitle: "TRT Dose", fields: [
                 .number("strength", "Vial strength", unit: "mg/mL", default: 200, range: 1...500, step: 1),
-                .number("mgWeek", "Weekly dose", unit: "mg/week", default: 100, range: 0...1000, step: 1),
+                .number("mgWeek", "Weekly dose", unit: "mg/week", default: 100, range: 0...1000, step: 10,
+                        quick: [100, 200, 300, 400, 500]),
                 .picker("injPerWeek", "Frequency", options: trtFreqOptions, default: 2),
                 .stringPicker("esterType", "Ester", options: CalcConst.esterTypes, default: "Testosterone Enanthate"),
-                .picker("syringeMl", "Syringe barrel",
-                        options: barrelOptions, default: defaultBarrel(for: slug)),
+                .segmented("syringeMl", "Syringe barrel",
+                           options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .eod:
             return CalculatorSpec(slug: slug, savedType: "eod", saveTitle: "TRT & EOD", fields: [
                 .number("strength", "Vial strength", unit: "mg/mL", default: 200, range: 1...500, step: 1),
-                .number("mgWeek", "Weekly dose", unit: "mg/week", default: 70, range: 0...1000, step: 1,
-                        help: "Hardcoded every-other-day interval (3.5 injections/week)."),
+                .number("mgWeek", "Weekly dose", unit: "mg/week", default: 70, range: 0...1000, step: 10,
+                        help: "Hardcoded every-other-day interval (3.5 injections/week).",
+                        quick: [70, 100, 150, 200, 250]),
                 .stringPicker("esterType", "Ester", options: CalcConst.esterTypes, default: "Testosterone Enanthate"),
-                .picker("syringeMl", "Syringe barrel",
-                        options: barrelOptions, default: defaultBarrel(for: slug)),
+                .segmented("syringeMl", "Syringe barrel",
+                           options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .microdose:
             // micro defaults to small strength + every-N-days mode.
             return CalculatorSpec(slug: slug, savedType: "microdose", saveTitle: "TRT Microdose", fields: [
                 .number("strength", "Vial strength", unit: "mg/mL", default: 10, range: 1...100, step: 1),
-                .number("mgWeek", "Weekly dose", unit: "mg/week", default: 5, range: 0...100, step: 0.5),
+                .number("mgWeek", "Weekly dose", unit: "mg/week", default: 5, range: 0...100, step: 0.5,
+                        quick: [5, 10, 15, 20, 25]),
                 .number("nDays", "Inject every", unit: "days", default: 3, range: 1...7, step: 1),
-                .picker("syringeMl", "Syringe barrel",
-                        options: barrelOptions, default: defaultBarrel(for: slug)),
+                .segmented("syringeMl", "Syringe barrel",
+                           options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .hcg:
             return CalculatorSpec(slug: slug, savedType: "hcg", saveTitle: "HCG", fields: [
                 .number("vialIU", "Vial size", unit: "IU", default: 5000, range: 0...20000, step: 100),
                 .number("bacWaterMl", "Bac water", unit: "mL", default: 1, range: 0...10, step: 0.5),
-                .number("dose", "Dose per injection", unit: "IU", default: 250, range: 0...5000, step: 50),
-                .picker("syringeMl", "Syringe barrel",
-                        options: barrelOptions, default: defaultBarrel(for: slug)),
+                .number("dose", "Dose per injection", unit: "IU", default: 250, range: 0...5000, step: 50,
+                        quick: [250, 500, 1000, 1500, 2000]),
+                .segmented("syringeMl", "Syringe barrel",
+                           options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .peptide:
             return CalculatorSpec(slug: slug, savedType: "peptide", saveTitle: "Peptide", fields: [
                 .number("peptideMg", "Peptide in vial", unit: "mg", default: 50, range: 0...100, step: 1),
                 .number("bawMl", "Bac water", unit: "mL", default: 10, range: 0...30, step: 0.5),
-                .number("dosePerInj", "Dose per injection", default: 500, range: 0...10000, step: 50),
+                .number("dosePerInj", "Dose per injection", default: 500, range: 0...10000, step: 50,
+                        quick: [250, 500, 750, 1000, 2000]),
                 .picker("doseUnitMcg", "Dose unit", options: [
                     .init(label: "mcg", value: 1), .init(label: "mg", value: 0),
                 ], default: 1),
                 .number("injPerWeek", "Injections/week", unit: "×", default: 1, range: 1...14, step: 1),
-                .picker("syringeMl", "Syringe barrel",
-                        options: barrelOptions, default: defaultBarrel(for: slug)),
+                .segmented("syringeMl", "Syringe barrel",
+                           options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .reconstitution:
@@ -318,8 +323,8 @@ enum CalculatorCatalog {
                         help: "mg/mL after reconstitution."),
                 .picker("dose", "Dose", options: CalcConst.doseOptions(CalcConst.semaDoses), default: 0.5,
                         help: "mg per weekly injection."),
-                .picker("syringeMl", "Syringe barrel",
-                        options: barrelOptions, default: defaultBarrel(for: slug)),
+                .segmented("syringeMl", "Syringe barrel",
+                           options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .tirzepatide:
@@ -328,8 +333,8 @@ enum CalculatorCatalog {
                         help: "mg/mL after reconstitution."),
                 .picker("dose", "Dose", options: CalcConst.doseOptions(CalcConst.tirzDoses), default: 5,
                         help: "mg per weekly injection."),
-                .picker("syringeMl", "Syringe barrel",
-                        options: barrelOptions, default: defaultBarrel(for: slug)),
+                .segmented("syringeMl", "Syringe barrel",
+                           options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .retatrutide:
@@ -338,8 +343,8 @@ enum CalculatorCatalog {
                         help: "mg/mL after reconstitution."),
                 .picker("dose", "Dose", options: CalcConst.doseOptions(CalcConst.retaDoses), default: 1,
                         help: "mg per weekly injection."),
-                .picker("syringeMl", "Syringe barrel",
-                        options: barrelOptions, default: defaultBarrel(for: slug)),
+                .segmented("syringeMl", "Syringe barrel",
+                           options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .bpc157:
@@ -352,9 +357,10 @@ enum CalculatorCatalog {
             return CalculatorSpec(slug: slug, savedType: "bpc157", saveTitle: "BPC-157", fields: [
                 .number("vialMg", "Vial size", unit: "mg", default: 5, range: 0...100, step: 1),
                 .number("bawMl", "Bac water", unit: "mL", default: 2, range: 0...30, step: 0.5),
-                .number("dose", "Dose per injection", unit: "mcg", default: 250, range: 0...5000, step: 50),
-                .picker("syringeMl", "Syringe barrel",
-                        options: barrelOptions, default: defaultBarrel(for: slug)),
+                .number("dose", "Dose per injection", unit: "mcg", default: 250, range: 0...5000, step: 50,
+                        quick: [200, 250, 500, 750, 1000]),
+                .segmented("syringeMl", "Syringe barrel",
+                           options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .bpc157blend:
@@ -365,8 +371,8 @@ enum CalculatorCatalog {
                 .number("tbVial", "TB-500 in vial", unit: "mcg", default: 5000, range: 0...20000, step: 250),
                 .number("tbWater", "TB-500 bac water", unit: "mL", default: 2, range: 0...10, step: 0.5),
                 .number("tbDose", "TB-500 dose", unit: "mcg", default: 2000, range: 0...5000, step: 50),
-                .picker("syringeMl", "Syringe barrel",
-                        options: barrelOptions, default: defaultBarrel(for: slug)),
+                .segmented("syringeMl", "Syringe barrel",
+                           options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .bmi:
@@ -413,10 +419,11 @@ enum CalculatorCatalog {
                         },
                         default: 0),
                 .number("strength", "Vial strength", unit: "mg/mL", default: 200, range: 0...500, step: 5),
-                .number("mgWeek", "Weekly dose", unit: "mg", default: 300, range: 0...2000, step: 5),
+                .number("mgWeek", "Weekly dose", unit: "mg", default: 300, range: 0...2000, step: 10,
+                        quick: [200, 300, 400, 500, 600]),
                 .number("nDays", "Inject every", unit: "days", default: 3.5, range: 0.5...14, step: 0.5),
-                .picker("syringeMl", "Syringe barrel",
-                        options: barrelOptions, default: defaultBarrel(for: slug)),
+                .segmented("syringeMl", "Syringe barrel",
+                           options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
         }
     }

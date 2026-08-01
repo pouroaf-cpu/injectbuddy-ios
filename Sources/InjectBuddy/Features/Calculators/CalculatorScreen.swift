@@ -329,6 +329,11 @@ private struct FieldRow: View {
     let field: CalculatorInput
     @ObservedObject var vm: CalculatorViewModel
 
+    private var fieldUnit: String? {
+        if case let .number(unit, _, _, _) = field.kind { return unit }
+        return nil
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             Text(field.label)
@@ -336,6 +341,12 @@ private struct FieldRow: View {
                 .foregroundStyle(Theme.secondaryLabel)
 
             content
+
+            if !field.quick.isEmpty {
+                QuickValueRow(values: field.quick,
+                              unit: fieldUnit,
+                              selection: vm.numberBinding(field.key))
+            }
 
             if let help = field.help {
                 Text(help).font(.caption2).foregroundStyle(Theme.secondaryLabel)
@@ -386,6 +397,9 @@ private struct FieldRow: View {
             .padding(.horizontal, Theme.Spacing.md)
             .fieldChrome()
 
+        case let .segmented(options, _):
+            SegmentedRow(options: options, selection: vm.numberBinding(field.key))
+
         case let .stringPicker(options, _):
             Picker(field.label, selection: vm.stringBinding(field.key)) {
                 ForEach(options, id: \.self) { opt in Text(opt).tag(opt) }
@@ -412,6 +426,86 @@ private struct FieldRow: View {
         case let .stepperDays(_, range):
             Stepper(value: vm.numberBinding(field.key), in: range, step: 1) {
                 Text("\(Int(vm.values.number(field.key))) days")
+            }
+        }
+    }
+}
+
+// MARK: - Quick values
+
+/// One-tap values under a numeric field. A dose is picked from a handful of round
+/// numbers far more often than it is typed, and typing still works — this is a
+/// shortcut, never the only way in. Selection is shown by fill AND weight, not by
+/// colour alone.
+private struct QuickValueRow: View {
+    let values: [Double]
+    let unit: String?
+    @Binding var selection: Double
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Theme.Spacing.sm) {
+                ForEach(values, id: \.self) { value in
+                    let isOn = abs(selection - value) < 0.0001
+                    Button { selection = value } label: {
+                        Text(Self.format(value))
+                            .font(isOn ? Theme.Typeface.cardMeta.weight(.bold)
+                                       : Theme.Typeface.cardMeta)
+                            .foregroundStyle(isOn ? .white : Theme.tealTextStrong)
+                            .padding(.horizontal, Theme.Spacing.md)
+                            .frame(minWidth: 60, minHeight: Theme.minTarget)
+                            .background(
+                                RoundedRectangle(cornerRadius: Theme.Radius.control)
+                                    .fill(isOn ? Theme.navy : Theme.accentSoft)
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(unit.map { "\(Self.format(value)) \($0)" } ?? Self.format(value))
+                    .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        // The row scrolls, so it never truncates a value at large text sizes.
+        .scrollDisabled(false)
+    }
+
+    static func format(_ d: Double) -> String {
+        d == d.rounded() ? String(Int(d)) : String(format: "%g", d)
+    }
+}
+
+// MARK: - Segmented row
+
+/// Always-visible options instead of a menu — one tap rather than open-then-pick.
+/// Used for the syringe barrel, where there are four choices and the user changes
+/// them while holding the syringe.
+private struct SegmentedRow: View {
+    let options: [CalculatorInput.PickerOption]
+    @Binding var selection: Double
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            ForEach(options) { opt in
+                let isOn = abs(selection - opt.value) < 0.0001
+                Button { selection = opt.value } label: {
+                    Text(opt.label)
+                        .font(isOn ? Theme.Typeface.cardMeta.weight(.bold)
+                                   : Theme.Typeface.cardMeta)
+                        .foregroundStyle(isOn ? .white : Theme.tealTextStrong)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity, minHeight: Theme.minTarget)
+                        .background(
+                            RoundedRectangle(cornerRadius: Theme.Radius.control)
+                                .fill(isOn ? Theme.navy : Theme.accentSoft)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
             }
         }
     }

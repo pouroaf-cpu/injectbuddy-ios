@@ -91,7 +91,7 @@ final class CalculatorViewModel: ObservableObject {
         let omitted = CalculatorCatalog.configOmittedKeys(for: spec.slug)
         for field in spec.fields where !omitted.contains(field.key) {
             switch field.kind {
-            case .number, .picker, .stepperDays:
+            case .number, .picker, .segmented, .stepperDays:
                 obj[field.key] = .number(values.number(field.key))
             case .stringPicker:
                 obj[field.key] = .string(values.string(field.key))
