@@ -18,6 +18,13 @@ struct CalculatorScreen: View {
     @StateObject private var keyboard = KeyboardObserver()
     @Environment(\.dynamicTypeSize) private var typeSize
 
+    /// Which field is being edited, keyed by `CalculatorInput.key`.
+    ///
+    /// Hoisted out of `NumberField` so the screen — which is what owns the keyboard
+    /// toolbar — can tell WHICH field's quick values to put above the keypad. See
+    /// `keyboardAccessory`.
+    @FocusState private var focusedKey: String?
+
     init(slug: CalculatorSlug) {
         self.slug = slug
         _vm = StateObject(wrappedValue: CalculatorViewModel(slug: slug))
@@ -44,7 +51,7 @@ struct CalculatorScreen: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 ForEach(vm.spec.fields) { field in
                     if shouldShow(field) {
-                        FieldRow(field: field, vm: vm)
+                        FieldRow(field: field, vm: vm, focusedKey: $focusedKey)
                     }
                 }
 
@@ -68,8 +75,74 @@ struct CalculatorScreen: View {
         }
         .background(Theme.canvas)
         .safeAreaInset(edge: .bottom) { resultBar }
+        .toolbar { ToolbarItemGroup(placement: .keyboard) { keyboardAccessory } }
         .onAppear { vm.scale = settings.syringeScale }
         .onChange(of: settings.syringeScale) { vm.scale = $0 }
+    }
+
+    // MARK: - Keyboard accessory
+    //
+    // MEASURED DEFECT, 2026-08-02: with the keypad up, the focused field's
+    // quick-value row is not reachable. The occluding element is NOT the keyboard —
+    // it is the pinned result bar, which sits above the keyboard and covers the
+    // strip the chips are in. Weekly dose is the SECOND field on the TRT screen and
+    // its chips were already behind the bar; every field below it is worse. A
+    // XCUITest tap on `quick_mgWeek_400` reported success and moved nothing.
+    //
+    // Collapsing the bar further was the other candidate and is the wrong trade: the
+    // live result is the reason this screen isn't the PWA's "Show result" flow. The
+    // toolbar puts the chips above the keyboard by construction, so it cannot depend
+    // on where a field happens to sit in the form.
+    //
+    // It also supplies the only way out of a `.decimalPad`, which has no return key —
+    // before this, dismissing the keypad meant tapping some other control.
+
+    @ViewBuilder
+    private var keyboardAccessory: some View {
+        // A DIFFERENT identifier namespace from the in-scroll row on purpose. Both
+        // rows exist in the tree while editing, and two elements answering to
+        // `quick_mgWeek_400` is an ambiguous query, which fails at resolution
+        // without ever reaching the assertion.
+        if let key = focusedKey,
+           let field = vm.spec.fields.first(where: { $0.key == key }),
+           !field.quick.isEmpty {
+            QuickValueRow(key: key,
+                          values: field.quick,
+                          unit: Self.unit(of: field),
+                          selection: vm.numberBinding(key),
+                          idPrefix: "kb_quick_")
+        }
+        Spacer()
+        // `kb_done` answers to TWO elements and nothing on this side removes the
+        // second one. Measured: an Other at (348.0, 539.0, 38.0, 44.0) — the label's
+        // natural width — and a Button at (345.0, 539.0, 44.0, 44.0), the min-target
+        // frame. Putting the identifier first instead of last changed nothing;
+        // `accessibilityElement(children: .ignore)` changed nothing, to the pixel.
+        // A keyboard `ToolbarItemGroup` bridges each item to a UIKit bar button, and
+        // the identifier is published on both the bridged control and the hosted
+        // SwiftUI content. So the TEST names the element type for this one control
+        // (see `unique(_:type:)`), rather than the app pretending to a uniqueness it
+        // does not have. `children: .ignore` is kept because it is still the right
+        // VoiceOver shape — one control, one stop — not because it fixed this.
+        Button {
+            focusedKey = nil
+        } label: {
+            Text("Done")
+                .font(Theme.Typeface.cardMeta.weight(.semibold))
+                .foregroundStyle(Theme.tealTextStrong)
+                .frame(minWidth: Theme.minTarget, minHeight: Theme.minTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Done")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("kb_done")
+    }
+
+    private static func unit(of field: CalculatorInput) -> String? {
+        if case let .number(unit, _, _, _) = field.kind { return unit }
+        return nil
     }
 
     private var isAccessibilitySize: Bool { typeSize >= .accessibility1 }
@@ -179,6 +252,20 @@ private struct ResultCard: View {
         }
     }
 
+    /// Identifier namespace for THIS instance's rows.
+    ///
+    /// Both cards are on screen at once — the pinned bar and the copy inside the
+    /// scroll — and both used to emit `result_<label>`. Measured: `result_Weekly
+    /// total` resolved to two elements (y=641 hittable, y=896 not), and an ambiguous
+    /// XCUIElement fails at resolution without ever reaching its assertion. That, not
+    /// the ViewThatFits gap, is what killed `testQuickChip_fieldAndResultBothFollow`.
+    ///
+    /// `result_` names the PINNED bar deliberately: it is the surface the user always
+    /// sees, so a test written against it is a test written against what is on
+    /// screen. Both cards render the same `CalculatorResult` value, so they cannot
+    /// disagree — the ambiguity was in addressing them, never in the numbers.
+    private var idPrefix: String { isPinned ? "result_" : "detail_result_" }
+
     private var overCapacity: Bool {
         guard let barrelMl, let draw = result.drawMl, result.isValid else { return false }
         // Tolerate float noise; a draw exactly equal to the barrel still fits.
@@ -213,7 +300,8 @@ private struct ResultCard: View {
                 // One line, still label + value + unit, still unable to truncate:
                 // ViewThatFits stacks it rather than clipping the unit.
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                    SecondaryResultRow(label: primary.label, value: primary.value)
+                    SecondaryResultRow(label: primary.label, value: primary.value,
+                                       identifier: idPrefix + primary.label)
                     if let note = capacityNote { CapacityWarning(text: note) }
                 }
             } else if result.isValid {
@@ -231,9 +319,11 @@ private struct ResultCard: View {
                 // a third mode.
                 ForEach(visibleRows) { row in
                     if row.emphasis {
-                        PrimaryResultRow(label: row.label, value: row.value)
+                        PrimaryResultRow(label: row.label, value: row.value,
+                                         identifier: idPrefix + row.label)
                     } else {
-                        SecondaryResultRow(label: row.label, value: row.value)
+                        SecondaryResultRow(label: row.label, value: row.value,
+                                           identifier: idPrefix + row.label)
                     }
                 }
                 // Was an orphaned grey string with no label — at AX sizes it read
@@ -243,7 +333,8 @@ private struct ResultCard: View {
                 // a louder channel when it matters — the over-capacity warning fires
                 // with icon and text — so its quiet "Ideal" earns no pinned space.
                 if let line = result.scheduleLine, !isPinned {
-                    SecondaryResultRow(label: "Volume", value: line)
+                    SecondaryResultRow(label: "Volume", value: line,
+                                       identifier: idPrefix + "Volume")
                 }
                 if let note = capacityNote {
                     CapacityWarning(text: note)
@@ -306,6 +397,7 @@ private struct CapacityWarning: View {
 private struct PrimaryResultRow: View {
     let label: String
     let value: String
+    let identifier: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -314,7 +406,7 @@ private struct PrimaryResultRow: View {
                 .foregroundStyle(Theme.navy)
                 .fixedSize(horizontal: false, vertical: true)
             Text(value)
-                .accessibilityIdentifier("result_\(label)")
+                .accessibilityIdentifier(identifier)
                 .font(Theme.Typeface.display)
                 .tracking(Theme.Typeface.displayTracking)
                 .monospacedDigit()
@@ -331,21 +423,36 @@ private struct PrimaryResultRow: View {
 private struct SecondaryResultRow: View {
     let label: String
     let value: String
+    let identifier: String
+
+    /// ONE definition of the value, used by both `ViewThatFits` branches.
+    ///
+    /// The identifier used to sit on the side-by-side branch only, so it vanished at
+    /// exactly the sizes the stacked branch exists for. Hoisting it onto the
+    /// `ViewThatFits` is worse, not better: SwiftUI propagates accessibility
+    /// modifiers from a non-element container down to every descendant, so the LABEL
+    /// text would answer to `result_<label>` as well as the value, and an assertion
+    /// on `.label` would be a coin toss that passes most of the time. A shared
+    /// subview is the only form that yields exactly one element and cannot drift.
+    private var valueText: some View {
+        Text(value)
+            .font(Theme.Typeface.resultLabel.weight(.semibold))
+            .accessibilityIdentifier(identifier)
+            .monospacedDigit()
+            .foregroundStyle(Theme.ink)
+    }
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
                 Text(label).font(Theme.Typeface.resultLabel).foregroundStyle(Theme.secondaryLabel)
                 Spacer(minLength: Theme.Spacing.sm)
-                Text(value).font(Theme.Typeface.resultLabel.weight(.semibold))
-                    .accessibilityIdentifier("result_\(label)")
-                    .monospacedDigit().foregroundStyle(Theme.ink)
+                valueText
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text(label).font(Theme.Typeface.resultLabel).foregroundStyle(Theme.secondaryLabel)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(value).font(Theme.Typeface.resultLabel.weight(.semibold))
-                    .monospacedDigit().foregroundStyle(Theme.ink)
+                valueText
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -358,6 +465,7 @@ private struct SecondaryResultRow: View {
 private struct FieldRow: View {
     let field: CalculatorInput
     @ObservedObject var vm: CalculatorViewModel
+    var focusedKey: FocusState<String?>.Binding
 
     private var fieldUnit: String? {
         if case let .number(unit, _, _, _) = field.kind { return unit }
@@ -415,7 +523,7 @@ private struct FieldRow: View {
         switch field.kind {
         case let .number(unit, _, range, step):
             NumberField(key: field.key, value: vm.numberBinding(field.key),
-                        unit: unit, range: range, step: step)
+                        unit: unit, range: range, step: step, focusedKey: focusedKey)
 
         case let .picker(options, _):
             Picker(field.label, selection: vm.numberBinding(field.key)) {
@@ -474,6 +582,11 @@ private struct QuickValueRow: View {
     let values: [Double]
     let unit: String?
     @Binding var selection: Double
+    /// `quick_` for the row under the field, `kb_quick_` for the copy in the
+    /// keyboard toolbar. Both are on screen while a field is being edited, and one
+    /// identifier answering to two elements is an ambiguous query — it fails at
+    /// resolution, before any assertion runs.
+    var idPrefix: String = "quick_"
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -494,7 +607,7 @@ private struct QuickValueRow: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("quick_\(key)_\(Self.format(value))")
+                    .accessibilityIdentifier("\(idPrefix)\(key)_\(Self.format(value))")
                     .accessibilityLabel(unit.map { "\(Self.format(value)) \($0)" } ?? Self.format(value))
                     .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
                 }
@@ -557,35 +670,79 @@ private struct NumberField: View {
     let step: Double?
 
     @State private var text: String = ""
-    @FocusState private var focused: Bool
+    /// Shared with every other field on the screen so the keyboard toolbar knows
+    /// which field's quick values to show. `focused` below is the local reading.
+    var focusedKey: FocusState<String?>.Binding
+
+    private var focused: Bool { focusedKey.wrappedValue == key }
 
     var body: some View {
         HStack(spacing: Theme.Spacing.sm) {
             TextField("0", text: $text)
                 .accessibilityIdentifier("field_\(key)")
                 .keyboardType(.decimalPad)
-                .focused($focused)
+                .focused(focusedKey, equals: key)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Theme.ink)
                 .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
                 // Without this the padding belongs to the container, not the
                 // field, so only the ~20pt text frame focused it (finding F7).
                 .contentShape(Rectangle())
+                // ── THE INVARIANT ───────────────────────────────────────────────
+                // This field may never display a number the engine did not use.
+                //
+                // It has now been broken twice. First by a quick-value chip that
+                // wrote the binding while the text stayed put — field 100, engine
+                // 300. Then by `clamp`: typing into a populated `mgWeek` field gave
+                // text "100250" while `value` was silently clamped to the spec
+                // ceiling of 1000, so the screen showed 100250 mg/week beside a
+                // 2.500 mL draw computed from 1000. Measured 2026-08-02, on the real
+                // build, at default type size.
+                //
+                // Two breaches on two different paths means the first fix was a patch
+                // on one path. So the rule is enforced on BOTH edges below —
+                // text -> value and value -> text — rather than at either call site.
                 .onChange(of: text) { newValue in
-                    if let d = Double(newValue) { value = clamp(d) }
-                    else if newValue.isEmpty { value = 0 }
+                    guard !newValue.isEmpty else { value = 0; return }
+                    // Unparseable is mid-entry ("." on its own). Leave the value
+                    // alone; do not guess at what is being typed.
+                    guard let typed = Double(newValue) else { return }
+                    let clamped = clamp(typed)
+                    value = clamped
+                    // Clamping used to be silent. If the engine refused the number,
+                    // the field says so — visibly snapping mid-entry is the cost, and
+                    // in a dosing app it beats a display that is 100x the dose.
+                    if clamped != typed { text = format(clamped) }
                 }
                 // Anything that writes the binding from OUTSIDE this field — a quick
-                // value button, a preset, a restored protocol — must be reflected in
-                // the text, or the field displays one number while the calculator
-                // uses another. Caught exactly that: tapping the 300 quick button
-                // left "100" in the field while the result computed 300 mg/week.
-                // Skipped while focused so it can never fight live typing.
+                // value chip, a stepper, a preset, a restored protocol — must be
+                // reflected in the text.
+                //
+                // This no longer skips while focused. It used to, so that formatting
+                // could not fight live typing, but that also meant the keyboard
+                // toolbar's chips changed the engine and not the display — the
+                // original bug, reachable again. The echo of the user's own keystroke
+                // is identified precisely instead: if the text already parses to this
+                // value there is nothing to correct, which leaves partial input like
+                // "0." and "0.30" untouched (both parse equal to their value).
                 .onChange(of: value) { newValue in
+                    if Double(text) == newValue { return }
                     let formatted = format(newValue)
-                    if !focused && text != formatted { text = formatted }
+                    if text != formatted { text = formatted }
                 }
                 .onAppear { text = format(value) }
+                // Focusing a populated field selects its contents, so typing
+                // REPLACES rather than appends. Without it, typing 250 into a field
+                // showing 100 gives 100250 — which is how the clamp breach above was
+                // reached in the first place. Async because the field is not yet the
+                // first responder on the same runloop pass as the focus change.
+                .onChange(of: focused) { isFocused in
+                    guard isFocused else { return }
+                    DispatchQueue.main.async {
+                        UIApplication.shared.sendAction(#selector(UIResponder.selectAll(_:)),
+                                                        to: nil, from: nil, for: nil)
+                    }
+                }
 
             if let unit {
                 Text(unit)
@@ -599,17 +756,25 @@ private struct NumberField: View {
                 // let us put a real gap between −/+, which act in opposite
                 // directions on a dose.
                 HStack(spacing: Theme.Spacing.sm) {
-                    stepButton("minus") { value = clamp(value - step); text = format(value) }
-                    stepButton("plus") { value = clamp(value + step); text = format(value) }
+                    stepButton("minus", id: "step_down_\(key)") {
+                        value = clamp(value - step); text = format(value)
+                    }
+                    stepButton("plus", id: "step_up_\(key)") {
+                        value = clamp(value + step); text = format(value)
+                    }
                 }
             }
         }
         .padding(.horizontal, Theme.Spacing.md)
         .fieldChrome(isFocused: focused)
-        .onTapGesture { focused = true }
+        .onTapGesture { focusedKey.wrappedValue = key }
     }
 
-    private func stepButton(_ symbol: String, _ action: @escaping () -> Void) -> some View {
+    /// `id` is per FIELD, not per symbol. Every ranged field on a screen renders a
+    /// −/+ pair with the same "Decrease"/"Increase" labels, so `buttons["Increase"]
+    /// .firstMatch` resolves to whichever field is highest in the tree — on TRT that
+    /// is vial strength, and a test stepped that while asserting on weekly dose.
+    private func stepButton(_ symbol: String, id: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .bold))
@@ -622,6 +787,7 @@ private struct NumberField: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
         .accessibilityLabel(symbol == "minus" ? "Decrease" : "Increase")
     }
 

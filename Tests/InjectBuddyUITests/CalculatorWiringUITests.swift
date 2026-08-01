@@ -112,9 +112,56 @@ final class CalculatorWiringUITests: XCTestCase {
         trt.tap()
     }
 
+    // MARK: - Addressing
+
+    /// Resolves an identifier and PROVES it is unique first.
+    ///
+    /// `result_Weekly total` used to match two elements — the pinned bar and the
+    /// copy inside the scroll — and an ambiguous `XCUIElement` fails when it is
+    /// resolved, before any assertion runs. That is why these tests once died
+    /// without printing their own messages, and why "it failed" was read as "the
+    /// element is missing". Counting first turns that into a named failure.
+    /// `type` defaults to `.any`, which is the honest query: one identifier, one
+    /// element, whatever kind it is. It is narrowed in exactly one place —
+    /// `kb_done` — because a keyboard `ToolbarItemGroup` bridges its items to UIKit
+    /// and publishes the identifier on both the bridged bar button and the hosted
+    /// SwiftUI label. That duplication is not removable from the app side; it was
+    /// measured, and the narrowing is recorded here rather than applied quietly
+    /// everywhere. Narrowing this by habit is how `firstMatch` hid a stepper bug for
+    /// a session.
+    @discardableResult
+    private func unique(_ identifier: String,
+                        type: XCUIElement.ElementType = .any,
+                        file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        let matches = app.descendants(matching: type).matching(identifier: identifier)
+        if matches.count != 1 {
+            // Name the duplicates. "found 2" sends you back to the simulator; this
+            // says which two, which is usually enough to see the cause.
+            let detail = matches.allElementsBoundByIndex
+                .map { "type=\($0.elementType.rawValue) label=\"\($0.label)\" frame=\($0.frame)" }
+                .joined(separator: " | ")
+            XCTFail("\(identifier) should address exactly one element, found \(matches.count): \(detail)",
+                    file: file, line: line)
+        }
+        return matches.element(boundBy: 0)
+    }
+
+    /// "300.0 mg" -> 300.0. Fails loudly rather than returning nil, because a row
+    /// that has lost its number is the thing under test.
+    private func number(in element: XCUIElement,
+                        file: StaticString = #filePath, line: UInt = #line) -> Double? {
+        let digits = element.label.components(separatedBy: " ").first ?? ""
+        let value = Double(digits)
+        XCTAssertNotNil(value, "Could not read a number out of \"\(element.label)\".",
+                        file: file, line: line)
+        return value
+    }
+
     // MARK: - The gate
 
-    /// Chip → field → result must all agree. The desync, as an assertion.
+    /// PROVES: a quick-value chip moves the field, the engine and the result row
+    /// together, and `result_Weekly total` addresses exactly one element while it
+    /// does so.
     func testQuickChip_fieldAndResultBothFollow() {
         openTRTCalculator()
 
@@ -129,13 +176,16 @@ final class CalculatorWiringUITests: XCTestCase {
         // And the UNIT, not just the number. "0.250" and "0.250 mL" are different
         // claims, and losing the unit at AX5 was the worst finding of the audit — a
         // test asserting a naked number would not have caught it.
-        let weeklyTotal = app.staticTexts["result_Weekly total"]
+        let weeklyTotal = unique("result_Weekly total")
         XCTAssertTrue(weeklyTotal.waitForExistence(timeout: 5), "No weekly total row.")
         XCTAssertEqual(weeklyTotal.label, "300.0 mg",
                        "The RESULT disagrees with the field, or has lost its unit.")
     }
 
-    /// The stepper must move by the configured step, not by one.
+    /// PROVES: the ± pair belonging to `mgWeek` moves `mgWeek` by its configured
+    /// step of 10 — not that *some* stepper on the screen moved *something*.
+    /// `buttons["Increase"].firstMatch` resolved to vial strength's stepper, so the
+    /// old version incremented one field and asserted on another.
     func testStep_movesByTen() {
         openTRTCalculator()
 
@@ -144,16 +194,30 @@ final class CalculatorWiringUITests: XCTestCase {
         app.buttons["quick_mgWeek_300"].tap()
         XCTAssertEqual(field.value as? String, "300")
 
-        app.buttons["Increase"].firstMatch.tap()
-        XCTAssertEqual(field.value as? String, "310",
-                       "Step moved by the wrong amount.")
+        // The other field must not move. Without this the test still passes if the
+        // identifiers are ever wired to the wrong pair.
+        let strength = app.textFields["field_strength"]
+        let strengthBefore = strength.value as? String
 
-        app.buttons["Decrease"].firstMatch.tap()
+        unique("step_up_mgWeek").tap()
+        XCTAssertEqual(field.value as? String, "310", "Step moved by the wrong amount.")
+
+        unique("step_down_mgWeek").tap()
         XCTAssertEqual(field.value as? String, "300")
+
+        XCTAssertEqual(strength.value as? String, strengthBefore,
+                       "Stepping the weekly dose changed the vial strength.")
     }
 
-    /// type → chip → type. The exact sequence that broke: an external write, then
-    /// focus, then another external write.
+    /// PROVES: with the keypad up, the quick values are REACHABLE and the field
+    /// follows them.
+    ///
+    /// Both halves were broken. `typeText` appended to the existing value because
+    /// focusing a populated field did not select it, and the chip the test reached
+    /// for was underneath the pinned result bar — where `tap()` reported success and
+    /// moved nothing. A tap that passes is not evidence of an interaction; only a
+    /// state change is. The chip now comes from the keyboard toolbar, which is the
+    /// one a user can actually reach while typing.
     func testTypeThenChip_neverDesyncs() {
         openTRTCalculator()
 
@@ -162,13 +226,52 @@ final class CalculatorWiringUITests: XCTestCase {
 
         field.tap()
         field.typeText("250")
+        XCTAssertEqual(field.value as? String, "250",
+                       "Typing appended to the existing value instead of replacing it.")
 
-        app.buttons["quick_mgWeek_400"].tap()
+        let chip = unique("kb_quick_mgWeek_400")
+        XCTAssertTrue(chip.isHittable,
+                      "The keyboard toolbar's quick values are not reachable with the keypad up.")
+        chip.tap()
+
         XCTAssertEqual(field.value as? String, "400",
                        "Chip after typing did not update the field.")
 
-        let weeklyTotal = app.staticTexts["result_Weekly total"]
+        // Dismiss the keypad before reading the pinned bar: with the keyboard up
+        // that bar is deliberately collapsed to the primary row (finding F11), so
+        // the weekly-total cross-check is not on it. Tapping Done is also the only
+        // way out of a decimal pad, so this exercises that too.
+        unique("kb_done", type: .button).tap()
+
+        let weeklyTotal = unique("result_Weekly total")
         XCTAssertEqual(weeklyTotal.label, "400.0 mg",
                        "Result disagrees with the field after chip-following-type.")
+    }
+
+    /// PROVES THE INVARIANT: the field never displays a number the engine did not
+    /// use. Asserted as an agreement between what is on screen and what was
+    /// computed — not against the literal "1000", which would pin the symptom and
+    /// go stale the moment a spec range changes.
+    ///
+    /// Reached by typing past `mgWeek`'s ceiling of 1000. Before the fix the field
+    /// read 100250 while the result bar showed a 2.500 mL draw computed from 1000.
+    func testOverRange_fieldNeverShowsANumberTheEngineRejected() {
+        openTRTCalculator()
+
+        let field = app.textFields["field_mgWeek"]
+        XCTAssertTrue(field.waitForExistence(timeout: 8))
+
+        field.tap()
+        field.typeText("100250")   // spec range is 0...1000
+        unique("kb_done", type: .button).tap()    // the pinned bar carries the total only when expanded
+
+        let shown = Double((field.value as? String) ?? "")
+        XCTAssertNotNil(shown, "The field is not showing a number at all.")
+
+        let weeklyTotal = unique("result_Weekly total")
+        let computed = number(in: weeklyTotal)
+
+        XCTAssertEqual(shown, computed,
+                       "The field shows \(shown as Any) while the engine used \(computed as Any).")
     }
 }
