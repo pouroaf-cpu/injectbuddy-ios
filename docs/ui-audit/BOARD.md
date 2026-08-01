@@ -15,37 +15,27 @@ Session of 2026-08-01. Branch `feature/tabview-shell`. Latest `edf59d2`.
 
 ---
 
-## 0. BLOCKER — first-run CTA renders wrong. Root cause NOT established.
+## 0. Rig failure, not an app bug — and the observation it contaminated
 
-- [ ] **On a clean install the DisclaimerGate's "I understand" button renders at
-      ~20% opacity with no visible label, and the gate does not dismiss.**
-      Found by `simctl erase` — the first time this app has been run from clean all
-      session, because every capture until now was on an already-signed-in,
-      already-accepted install.
+- [x] **"The DisclaimerGate cannot be dismissed" was WRONG. It was the input path.**
+      Separated by testing the two paths independently on the same device:
+      - **Keyboard works** — `Cmd-Shift-H` backgrounded the app to the home screen.
+      - **Mouse does not** — clicking the InjectBuddy icon on the home screen did
+        nothing, and neither did a swipe-to-home.
+      - The helper is fine: `AXIsProcessTrusted()` is `true` and the cursor
+        physically moves, so `CGEvent` posts at OS level. The Simulator stopped
+        accepting *synthesized clicks* after the `simctl erase` + restart.
+      So no tap ever reached the button. Claiming a first-run lockout from that was
+      attributing a tooling failure to the app — the exact error class §5.1 exists
+      for, made twice in one session.
 
-      **Measured, settled frame** (two screenshots 6 s apart, byte-identical, so
-      nothing is mid-transition):
-      - Button fill `#CCD2DE` at pt 730.7–802.3, 72 pt tall.
-      - `#CCD2DE` is `Theme.navy` at **exactly 20% alpha** (solves to a = 0.20 on
-        all three channels).
-      - **No label renders at all.** The heading above measures pure `#000000`
-        at 21:1, so the gate itself is fully opaque — only the button is faded.
-
-      **What that rules out:** not a mid-fade (settled), not the gate's opacity
-      (heading is solid), not an ancestor `.disabled()` (grepped — the only one in
-      the app is `PrimaryButton`'s own). `PrimaryButton`'s disabled path is
-      navy@0.4, which would still show white text; this shows none, so the whole
-      button subtree appears to be at ~0.2, label included.
-
-      **What is NOT established:** whether taps are reaching the device at all. A
-      swipe-up-to-home on the same device also did nothing, which points at the
-      input path rather than the app. Until that is separated, "the gate cannot be
-      dismissed" is NOT a proven claim and should not be repeated as one — an
-      earlier commit message stated it too strongly.
-
-      Next: confirm input independently (a gesture with an unambiguous system-level
-      effect), then re-test the button. Only then is this an app bug rather than a
-      rig failure.
+- [ ] **CONTAMINATED, re-verify on a healthy rig:** the same session measured the
+      gate's CTA at `#CCD2DE` — `Theme.navy` at exactly 20% alpha — with no label,
+      in a frame that was byte-identical 6 s apart. That looked settled, but a
+      Simulator wedged for input may equally be presenting a stale or partial
+      frame, so the rendering observation inherits the same doubt as the tap.
+      **Do not treat it as a defect until it reproduces where clicks land.** It may
+      still be real; it is simply not yet evidence.
 
 ## 1. Open — assigned
 
@@ -101,6 +91,24 @@ one: the auth flow already exists and is not being rebuilt.
       Typing still works everywhere. Not screenshotted: the Mac's GUI session
       dropped again mid-verification (Finder also reports 0 windows), so taps are
       dead and the calculator cannot be navigated to.</details>
+
+- [ ] **Type scale missing on TEN screens, not two.** `AddScreen`,
+      `ConfirmStartScreen`, `CyclePlotterScreen`, `CalendarScreen`, `DisclaimerGate`,
+      `SettingsScreen`, `DrawerView`, `ToolsScreen`, `MainShell`, `RouteContent`.
+      Only Dashboard, `CalculatorScreen`, `LogDoseSheet` and `AuthFlowView` have it —
+      and two of those four only because they were fixed today.
+      So the log sheet was never an outlier; it was the first one anyone looked at.
+      This is §5.7 — attention follows complaints rather than risk — with a number
+      attached, and the number is **10**.
+      Two worth calling out: **`DisclaimerGate` is the first screen any new user
+      sees**, before welcome and before auth, and it is stock system type. And
+      `CyclePlotterScreen` is Swift Charts, whose axis marks, legends and
+      annotations carry their own default typography that will NOT follow `Theme`
+      after a pass — they need explicit styling or the chart stays system-default
+      while the screen around it changes.
+      **One item, not ten. Do not start it** — it is a sweep, and sweeps done in a
+      hurry are where regressions come from. Scope it with the human after
+      onboarding.
 
 - [ ] **Measure Settings and the confirm-start-day screen.** The only two screens
       the control inventory did not reach (a drawer mis-tap landed on BMI). Both
