@@ -220,9 +220,17 @@ Status legend: ⬜ To do · 🔄 In progress · ✅ Done (archived)
   built until their surfaces exist. This is no longer optional for the dashboard to complete.
 - **Status:** ⬜ To do
 
-## TASK 19 — Mac build + verify the REWRITTEN app   🔴 P0   ⬜
+## TASK 19 — Mac build + verify the REWRITTEN app   🔴 P0   🔄 (mac-9d4e) builds clean; verification pending 16/17
 - **Issue:** Nothing in this phase is compilable on Windows, and the app has never been built at all —
   so the first build will surface pre-existing errors and rewrite errors together.
+- **CORRECTION (mac-9d4e, 2026-07-31):** "the app has never been built at all" is false, and was
+  already false when written — it was built on 2026-07-31 with the full Supabase stack linked. Rebuilt
+  twice tonight on the Mac: `xcodebuild -scheme InjectBuddy -destination 'platform=iOS Simulator,
+  name=iPhone 16 Pro' -configuration Debug` → **BUILD SUCCEEDED, zero errors, zero warnings**, at both
+  `c8114b1` and `db512cf`. The Charts modifiers and `M_LN2` that STATUS.md flagged as "confirm on Mac"
+  both compile. Treat this task as re-verify-after-rewrite, not a cold start. It stays 🔄 rather than
+  ✅ only because it runs LAST by design and TASKS 16/17 have not landed — the compile half is done,
+  the simulator-run DoD half is not.
 - **Fix:** Runs LAST, after 14–17. `brew install xcodegen`; fill `Config/Secrets.xcconfig`;
   `xcodegen generate`; build; simulator run. Confirm the 15 golden tests + projection tests still pass
   (they should — the engine is untouched). Then the old TASK 1–8 DoD items flip to ✅ or are retired as
@@ -304,4 +312,34 @@ Status legend: ⬜ To do · 🔄 In progress · ✅ Done (archived)
 ---
 
 ## ✅ Done (last 10)
-_(none yet — TASKS 1–8 stay 🔄 until the Mac build/verify pass; see the note at top.)_
+
+### Auth-verify + offline ("phase 1")   mac-9d4e   2026-07-31   `c8114b1`, `db512cf`
+Not a numbered task — assigned directly over the Win/Mac channel — recorded here because it changed
+shipping behaviour. Committed on `feature/tabview-shell`, **not yet pushed**.
+- **auth-verify:** `AuthFlowView.Mode.verify`. `signUp` reports whether Supabase withheld a session
+  pending confirmation and routes to a "check your email" screen; resend on a 30s cooldown with a
+  per-second countdown, cancelled on disappear.
+- **offline:** `NetworkMonitor` (one app-wide `@StateObject`, hops to the main actor before publishing
+  — `NWPathMonitor` calls back on its own queue). `OfflineBanner` in `MainShell`; `OfflineView` +
+  retry on Dashboard and Calendar; Settings disables networked rows. Three write paths that had no
+  offline handling — `CalculatorScreen` Add, `ConfirmStartScreen` start_date, `LogDoseSheet` log —
+  now gated. **Calculators stay fully live offline; only the save is blocked.**
+- **`CFBundleURLTypes` was missing entirely**, so `com.injectbuddy.ios://login-callback` was never
+  registered and both the confirmation email and the Discord OAuth callback had nowhere to land —
+  while the verify screen told users to click the link. Root cause is a repo trap, not a typo: see
+  "Known traps" below. Fixed in `project.yml`; verified stable across repeat `xcodegen generate`.
+- **Two "empty state that is actually a failed load" bugs.** `LogDoseSheet` said "No protocols yet"
+  when the load had failed for lack of a connection; `ConfirmStartViewModel` did
+  `catch { state = .missing }`, reporting **any** load failure as "That protocol is no longer
+  available" — a false claim about the user's data seconds after they saved it, which invites a
+  duplicate. Both fixed; swept the codebase, exactly two instances, no others.
+
+---
+
+## ⚠️ Known traps (read before editing)
+
+**`Sources/InjectBuddy/Resources/Info.plist` is GENERATED — never hand-edit it.** `project.yml`
+declares an `info:` block, so `xcodegen generate` rewrites the file and silently discards hand edits.
+It ate `CFBundleURLTypes`, `UIApplicationSceneManifest` and `ITSAppUsesNonExemptEncryption` on
+2026-07-31. The build stays green and the app runs — the only symptom is that a confirmation link
+does nothing. Add keys under `targets.InjectBuddy.info.properties` in `project.yml` instead.

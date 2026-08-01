@@ -6,4 +6,10 @@ Claim a row at session START; remove it at session END once your push has succee
 
 | agent-id | start | branch/worktree | files / area | intent | status |
 |----------|-------|-----------------|--------------|--------|--------|
-| mac-9d4e | 2026-07-31 20:28 | feature/tabview-shell @ c8114b1 | Sources/InjectBuddy/{Core/Calculator,Core/Nav,Features/Calculators} | Phase 1 COMMITTED c8114b1 (auth-verify, offline incl. 3 write paths, CFBundleURLTypes moved into project.yml; BUILD SUCCEEDED clean, not yet pushed). Now phase 2 — 6 new calculators (ftv, reverse, glp1titration, femalehrt, nootropic, e2estimator) + unblock blend/bioavailability in NavItems:117-119. NOT touching plotter/tmax (TASK 21 self-blocked on web SPEC_VERSION bump). No subagents recruited. | working |
+
+_Board empty as of 2026-07-31 21:20 — no agent currently holds files._
+
+Cleared here: `mac-9d4e` (phase 1 — auth-verify + offline; commits `c8114b1`, `db512cf` on
+`feature/tabview-shell`, **committed but NOT pushed**, so the normal push-triggered cleanup did not
+apply — the row was cleared on operator instruction instead) and `lemur87` (2026-07-30, stale after
+that session crashed mid-TASK-14/15; its uncommitted work is carried in `c8114b1`).

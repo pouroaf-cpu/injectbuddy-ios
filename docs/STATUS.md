@@ -1,41 +1,60 @@
 # Injectbuddy iOS — Status   (snapshot, ≤50 lines, prune don't append)
 
 ## 🎯 Now
-Native app is **code-complete + launch-prepped on Windows** but **not yet compiled** (no SwiftUI/
-supabase-swift toolchain on Windows). Next step is a Mac: `xcodegen generate` → build → fix-up.
+**It compiles.** Built on the Mac 2026-07-31 — `xcodebuild`, iPhone 16 Pro simulator, Debug, full
+supabase-swift stack linked: **BUILD SUCCEEDED, zero errors, zero warnings**. The "not yet compiled"
+line that stood here (and TASK 19's "never been built at all") was already false when written; it is
+now false twice over. The Charts modifiers and `M_LN2` flagged below as "confirm on Mac" both compile.
+Current work is the Win/Mac paired port: phase 1 (auth-verify + offline) is done and committed on
+`feature/tabview-shell` (`c8114b1`, `db512cf`, **not pushed**); phase 2 is the conformance runner
+(TASK 20) plus the eight unbuilt calculators.
 App in its own **private** repo: github.com/pouroaf-cpu/injectbuddy-ios (`app/`, `main`, head `f3d6e0b`).
 Launch-prep pass added OAuth redirect wiring, a first-run medical-disclaimer gate, asset catalog
 (empty icon slot + teal accent), CI/TestFlight (fastlane + GH Actions), and submission content (in
 the internal `launch/` folder). Supabase RLS verified on all 5 tables the app writes.
 
 ## 📝 Last 3 changes
-- Pre-Mac verification pass (`994f65d`): verified supabase-swift 2.5.1 + PostgREST API vs docs (fixed a
-  build-breaker — `auth.session(from:)` → `auth.handle(url)`); 2 read-only review agents over all 35
-  files (Core/Shell/Auth clean; fixed a twice-weekly projection rounding bug); all 14 golden vectors
-  independently re-passed in Node (`tools/verify-math.js`).
-- Launch-prep (`f3d6e0b`): OAuth redirect wiring (URL scheme + onOpenURL), first-run disclaimer gate,
-  asset catalog (icon slot + AccentColor), CI/TestFlight (fastlane + GH Actions), submission content
-  in `launch/` (ASO, App Privacy map, privacy policy, review notes). RLS verified on the app's tables.
-- Built the whole app (`646f115`): scaffold + Core + Shell + Auth + Dashboard + Calendar + Settings +
-  CalculatorEngine (ported from web app.js) + 14 calculator screens + Cycle Plotter + golden tests.
-- Math ported verbatim from `Injectbuddy/public/app.js` (see `CALC-MATH.md`); 14 golden vectors asserted.
+- **First Mac build + phase 1** (`c8114b1`, `db512cf`, mac-9d4e, 2026-07-31): auth-verify screen with
+  resend/cooldown; offline (`NetworkMonitor`, banner, `OfflineView`, and the three write paths that
+  had none — calculators stay live offline, only saves are gated). Fixed `CFBundleURLTypes` being
+  absent, which left `com.injectbuddy.ios://login-callback` unregistered so the confirmation email and
+  Discord callback both went nowhere; root cause was `xcodegen` regenerating Info.plist over hand
+  edits — see TASKS.md "Known traps". Fixed two empty-states that were really failed loads (one told
+  users a protocol they'd just saved "is no longer available"). BUILD SUCCEEDED, zero warnings.
+- Pre-Mac verification (`994f65d`): supabase-swift 2.5.1 + PostgREST verified vs docs (fixed
+  `auth.session(from:)` → `auth.handle(url)`); review pass over all 35 files; 14 golden vectors
+  re-passed in Node (`tools/verify-math.js` — **Windows-side only, not in this repo**).
+- Launch-prep (`f3d6e0b`): OAuth redirect wiring, disclaimer gate, asset catalog, CI/TestFlight,
+  submission content in `launch/`. RLS verified on the app's tables.
 
-## ⏭️ Next priorities  (all require a Mac — none verifiable on Windows)
-- [ ] On a Mac: `brew install xcodegen`; `cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig`
-      (fill SUPABASE_HOST + SUPABASE_ANON_KEY); `xcodegen generate`; build in Xcode; run in simulator.
-- [ ] Fix-up pass is now SMALL: supabase-swift/PostgREST verified vs 2.5.1 docs + adversarial review done.
-      Still confirm on Mac: **Charts** modifiers in CyclePlotterScreen and `M_LN2` (both expected fine).
-- [ ] Verify the 14 golden tests + projection tests pass; confirm DoD (unauthed→auth, authed→dashboard,
-      drawer lists 14 calcs + Dashboard + Calendar, swipe/scrim dismiss).
-- [ ] TASK 9 — fastlane + CI are written; needs the GitHub secrets + App Store Connect setup in
-      `app/SIGNING.md`, then a first CI smoke run.
-- [ ] Human finalize of `launch/` content: fill the `<<CONFIRM>>` items (entity name, support email,
-      jurisdiction, hosted privacy URL, demo reviewer account), add the 1024 app-icon art, run an App
-      Store competitor search.
+## ⏭️ Next priorities
+- [x] ~~Mac toolchain + first build~~ — done 2026-07-31, clean. Charts + `M_LN2` both fine.
+- [ ] Push `c8114b1`/`db512cf` — committed locally on `feature/tabview-shell`, not yet on the remote.
+- [ ] TASK 20 conformance runner, then the 8 unbuilt calculators (ftv, reverse, glp1titration,
+      femalehrt, nootropic, e2estimator + unblock blend/bioavailability, which NavItems:117-119 still
+      holds back on a "maths hasn't landed" comment that is now stale — blend.json is 16 cases,
+      bioavailability.json 18). Order is settled: `spec/vectors` (10 corpora, **299** cases — the
+      README's "272" is stale prose, confirmed 299/299 conformant against the live web reference)
+      first, `fixtures/` (300) second, one runner, hard `specVersion` assert.
+- [ ] Simulator-run DoD for TASK 19 (unauthed→auth, authed→dashboard, nav, dismiss gestures) — the
+      compile half is done, this half is not.
+- [ ] TASK 9 — fastlane + CI written; needs GitHub secrets + ASC setup (`SIGNING.md`), then a CI run.
+- [ ] Human finalize of `launch/`: the `<<CONFIRM>>` items (entity, support email, jurisdiction,
+      privacy URL, demo account), 1024 icon art, App Store competitor search.
 - [ ] Supabase prod config (dashboard): add `com.injectbuddy.ios://login-callback` to Auth → Redirect
       URLs (Discord OAuth won't complete without it); enable leaked-password protection (advisor WARN).
 
 ## ⚠️ Known issues / don't-touch
+- **`Sources/InjectBuddy/Resources/Info.plist` is generated by `xcodegen` — never hand-edit it.**
+  Hand edits vanish on the next `generate` with no error. Full detail in TASKS.md "Known traps".
+- **Do not touch `CalculatorCatalog.swift:42-55` (the `tmax` table) or the plotter maths.** TASK 21 is
+  self-blocked: the compound-bible migration is written but unapplied, `SPEC_VERSION` is still 1, and
+  web steps 4-6 must land together. When they do, `pk-kernel` + `pk-series` move — 139 of 299 cases.
+  The table is knowingly divergent from `spec/compounds.json` today (Test C 5.0 vs 6.0 days, Test U
+  20 vs 21); that divergence is expected, not a bug to fix locally.
+- **Never edit anything under `design-refs/spec/`** (VENDORED.md rule 1) — fixes go upstream to the web
+  repo. A local edit forks the contract, which is what `specVersion` exists to prevent. The snapshot
+  was verified byte-identical to web HEAD `b07fe48f` on 2026-08-01, so it is current, not stale.
 - `saved_dosages.calculator_type` MUST stay = `CalculatorSlug.rawValue` (trt/eod/bpc157/…) so protocols
   match the web. Verify each calc's saved type against app.js during the Mac pass if any look off.
 - Web `/api/*` use cookie auth → unusable from a native bearer-token client. App talks to Supabase
