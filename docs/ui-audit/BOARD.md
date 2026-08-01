@@ -63,9 +63,33 @@ Four things sit outside it.
       calculator field, but separator-delimited list rows on white versus bordered
       boxes with a `#8E8E93` stroke and 10 pt radius. The "height matches, radius
       and border don't, still looks wrong" case.
-- [ ] **Toggle is ≈31 pt** — system `UISwitch` at its fixed size. Under 44 and
-      off-family in every property. The only control here that cannot be resized
-      without replacing it outright.
+- [ ] **The log sheet never received the type scale at all.** Raised by the human
+      as "that log a dose screen looks stupid, is that font right?" — and it is
+      not. `grep -c "Theme.Typeface" LogDoseSheet.swift` returns **0**: it is the
+      only screen still rendering stock system typography.
+      - `WHICH PROTOCOL?` is stock grey `#85858B` (3.29:1) where every other
+        section eyebrow is navy `#001D5C` semibold 13.5.
+      - Rows are plain 17 pt regular and **dose-first** — "85mg/wk ·
+        Testosterone Enanthate" — the exact single-line dose-first pattern that
+        caused the dashboard truncation bug, still shipping here.
+      - **`Cancel` is `#0FBCAD` at 2.13:1** — a live contrast failure, the same
+        teal-as-text pairing removed everywhere else in the app.
+      This is a bug, not a preference: the human read it as wrong from a
+      screenshot without knowing any of the above.
+- [ ] **Toggle: only the ~51×31 pt switch is tappable — CONFIRMED BEHAVIOURALLY,
+      and it is a real touch-target violation.** The "isn't the whole row the
+      target?" hypothesis assumed a `Form` row; this is not one. It is a bare
+      `Toggle(...).labelsHidden().frame(maxWidth: .infinity, alignment: .leading)`
+      in the calculator's own `VStack` (`CalculatorScreen.swift:374`), and
+      `maxWidth: .infinity` widens the *layout* frame without extending the hit
+      area — there is no `contentShape`.
+      Tested on BMI "Imperial units": tapping the row at x=250 pt, same y as the
+      switch, did **nothing**; tapping the switch at x=30 pt flipped it (metric →
+      imperial, BMI 24.69 → 25.82). So 31 pt tall is genuinely all a user can hit.
+      **Fix is NOT to replace the `UISwitch`** — that would be off-platform and
+      lose the system's accessibility behaviour, and `DESIGN-PARITY §6` keeps
+      native controls native. Give the row a 44 pt `contentShape` that toggles the
+      binding, and keep the system switch inside it.
 - [ ] **`PrimaryButton` renders two heights at AX5** — 91.3 pt on the calculator,
       71.7 pt in the log sheet, from the same component. The log sheet places it
       in a `List` row with `.listRowInsets(EdgeInsets())`, which constrains it, so
