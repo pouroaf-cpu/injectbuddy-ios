@@ -537,6 +537,16 @@ private struct NumberField: View {
                     if let d = Double(newValue) { value = clamp(d) }
                     else if newValue.isEmpty { value = 0 }
                 }
+                // Anything that writes the binding from OUTSIDE this field — a quick
+                // value button, a preset, a restored protocol — must be reflected in
+                // the text, or the field displays one number while the calculator
+                // uses another. Caught exactly that: tapping the 300 quick button
+                // left "100" in the field while the result computed 300 mg/week.
+                // Skipped while focused so it can never fight live typing.
+                .onChange(of: value) { newValue in
+                    let formatted = format(newValue)
+                    if !focused && text != formatted { text = formatted }
+                }
                 .onAppear { text = format(value) }
 
             if let unit {

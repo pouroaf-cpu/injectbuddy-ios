@@ -9,6 +9,9 @@ import SwiftUI
 struct AuthFlowView: View {
     enum Mode { case login, signUp, reset, verify }
 
+    /// Which form to open on — the welcome screen's two CTAs land on different ones.
+    var initialMode: Mode = .login
+
     @EnvironmentObject private var auth: AuthStore
     @State private var mode: Mode = .login
     @State private var email = ""
@@ -27,6 +30,10 @@ struct AuthFlowView: View {
     private static let resendCooldownSeconds = 30
 
     var body: some View {
+        content.onAppear { mode = initialMode }
+    }
+
+    private var content: some View {
         ScrollView {
             VStack(spacing: Theme.Spacing.lg) {
                 Spacer(minLength: Theme.Spacing.xl)

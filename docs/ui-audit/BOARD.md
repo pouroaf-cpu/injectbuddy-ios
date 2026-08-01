@@ -28,18 +28,36 @@ one: the auth flow already exists and is not being rebuilt.
       new user ever sees. Type scale + palette + the 44 pt field family. Secondary
       labels off `#0FBCAD` (2.13–2.38:1) onto `#075E56`. **Behaviour unchanged** —
       validation, cooldown, Discord OAuth and verify all work.
-- [ ] **1. Animated welcome screen.** Occupies `.loading`, fronts `.signedOut`.
+- [~] **1. Animated welcome screen — BUILT, launch frame verified.** Occupies
+      `.loading`, fronts `.signedOut` with the two CTAs. Drifting serum-concentration
+      curves in a single `Canvas` inside `TimelineView(.animation)`; the mark draws
+      via `Path.trim`; staggered fade+rise 60ms apart, 450ms, ease-out; solid fills
+      only. Measured: wordmark **7.34:1**, and the band behind the copy samples pure
+      `#FAFAFB` on both sides — **the curves do not cross the text block**, which was
+      the rule that outranks the aesthetics. Still to verify: the signed-out CTA
+      path and the mid-transition text measurement.
+      <details><summary>original brief</summary>
+- [x] **1. Animated welcome screen.** Occupies `.loading`, fronts `.signedOut`.
       **Animation duration is a ceiling, never a floor** — a returning signed-in
       user must never wait on it. Solid fills only, no multi-stop gradient on text
       (measured, §3). Reduce Motion → final state immediately. Text measured
-      **mid-transition**, not only at rest.
+      **mid-transition**, not only at rest.</details>
 - [ ] **3. Five-step onboarding.** Mirrors the PWA's `STEP_META`. Three NOT NULL
       columns plus a NOT NULL array — **a skipped step writes the DEFAULT, never a
       null**. `onboarding_completed_at` set only on completion. Store metric, don't
       round on the way in (180 lb must return 180 lb). Step 3 collects value+unit
       pairs, the exact shape that truncated before, so it reflows at AX5.
 
-- [~] **Calculator quick buttons — CODE DONE, VISUALLY UNVERIFIED.** Builds, tests
+- [x] **Calculator quick buttons — VERIFIED.** Tapping 400 sets the field to 400
+      and the result to 400.0 mg/week; the barrel row renders four buttons with the
+      selection navy-filled. Caught a real bug doing it: the quick button wrote the
+      binding but `NumberField`'s local text state did not follow, so the field
+      displayed **100 while the calculator computed 300**. A dosing field showing a
+      different number from the one being used is not a styling defect. Fixed by
+      syncing text on external value changes, skipped while focused so it cannot
+      fight live typing. `2026-08-01-quickbuttons/`.
+      <details><summary>original</summary>
+- [x] **Calculator quick buttons — code done.** Builds, tests
       green. Barrel is now a 4-button segmented row instead of a menu; dose fields
       carry one-tap values (TRT weekly 100/200/300/400/500, and per-calculator sets
       for EOD, microdose, HCG, peptide, BPC-157, steroid); the TRT and steroid
@@ -47,7 +65,7 @@ one: the auth flow already exists and is not being rebuilt.
       deliberately has no quick values — it is set once per vial, not per dose.
       Typing still works everywhere. Not screenshotted: the Mac's GUI session
       dropped again mid-verification (Finder also reports 0 windows), so taps are
-      dead and the calculator cannot be navigated to.
+      dead and the calculator cannot be navigated to.</details>
 
 - [ ] **Measure Settings and the confirm-start-day screen.** The only two screens
       the control inventory did not reach (a drawer mis-tap landed on BMI). Both

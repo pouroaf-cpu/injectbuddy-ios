@@ -8,15 +8,29 @@ struct RootView: View {
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var settings: SettingsStore
 
+    /// Nil while the welcome screen is showing; set when a CTA picks a form.
+    @State private var authMode: AuthFlowView.Mode?
+
     var body: some View {
         ZStack {
             switch auth.phase {
             case .loading:
-                LaunchView()
+                // The welcome screen IS the launch state. It is sized to however
+                // long auth actually takes — if the session resolves in 200ms this
+                // is on screen for 200ms. The animation never gates the phase.
+                WelcomeView()
                     .transition(.opacity)
             case .signedOut:
-                AuthFlowView()
+                if let mode = authMode {
+                    AuthFlowView(initialMode: mode)
+                        .transition(.opacity)
+                } else {
+                    WelcomeView(
+                        onCreateAccount: { authMode = .signUp },
+                        onSignIn: { authMode = .login }
+                    )
                     .transition(.opacity)
+                }
             case .signedIn:
                 MainShell()
                     .transition(.opacity)
@@ -30,6 +44,7 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: auth.phase)
+        .animation(.easeInOut(duration: 0.25), value: authMode)
         .animation(.easeInOut(duration: 0.25), value: settings.hasAcceptedDisclaimer)
     }
 }
