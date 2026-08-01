@@ -80,7 +80,7 @@ struct MainShell: View {
             TabView(selection: tabSelection) {
                 ForEach(MainTab.allCases, id: \.self) { tab in
                     tabStack(for: tab)
-                        .tabItem { Label(tab.title, systemImage: tab.icon) }
+                        .tabItem { tabLabel(for: tab) }
                         .tag(tab)
                 }
             }
@@ -150,6 +150,31 @@ struct MainShell: View {
     /// pt ~753, so it overhangs by ~18pt. 22 matches the lift constant below and
     /// leaves a little margin.
     static let heroOverhang: CGFloat = 22
+
+    /// The centre slot gets its TITLE ONLY — no icon.
+    ///
+    /// Giving every tab `Label(title, systemImage:)` meant the log slot rendered its
+    /// own syringe glyph, and `heroButton` was then drawn over it. The circle did not
+    /// fully cover the glyph: a sliver of the plunger protruded below the circle's
+    /// bottom edge, directly above the "Log dose" label, so the slot read as two
+    /// buttons — one of them a fragment. That is exactly what it looked like.
+    ///
+    /// Dropping the icon removes the second glyph rather than hiding it. Enlarging
+    /// the circle to cover it would have been tuning a collision instead of deleting
+    /// one, and would re-break at any Dynamic Type size that moves either piece.
+    ///
+    /// Everything else is unchanged and deliberate: the tab item is still the real
+    /// tap target (`tabSelection` bounces `.log` into the sheet), the text label
+    /// stays so the slot matches its four neighbours, and VoiceOver still sees one
+    /// control — the circle remains `accessibilityHidden`.
+    @ViewBuilder
+    private func tabLabel(for tab: MainTab) -> some View {
+        if tab == .log {
+            Text(tab.title)
+        } else {
+            Label(tab.title, systemImage: tab.icon)
+        }
+    }
 
     /// Each tab owns a NavigationStack, so pushing a calculator from Add does not
     /// disturb Dashboard's stack and switching tabs preserves where you were.
