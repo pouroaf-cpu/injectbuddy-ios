@@ -125,7 +125,15 @@ one: the auth flow already exists and is not being rebuilt.
       user must never wait on it. Solid fills only, no multi-stop gradient on text
       (measured, §3). Reduce Motion → final state immediately. Text measured
       **mid-transition**, not only at rest.</details>
-- [ ] **3. Five-step onboarding.** Mirrors the PWA's `STEP_META`. Three NOT NULL
+- [ ] **3. Five-step onboarding — AND the Settings surface that edits the same data.
+      One feature, not two.** `DashSettings`' Personalisation tab collects exactly
+      what onboarding collects: nickname, units, measurements, timezone, interests.
+      **Ship onboarding alone and a user sets those once at signup and can never
+      change them** — wrong unit, wrong timezone, changed their mind about what they
+      track, no way back. That is a one-way door and it would be ours.
+      So: onboarding writes the profile, Settings edits it, same fields, same
+      validation, same NOT NULL discipline, field components built once and used in
+      both. Mirrors the PWA's `STEP_META`. Three NOT NULL
       columns plus a NOT NULL array — **a skipped step writes the DEFAULT, never a
       null**. `onboarding_completed_at` set only on completion. Store metric, don't
       round on the way in (180 lb must return 180 lb). Step 3 collects value+unit
@@ -175,6 +183,24 @@ one: the auth flow already exists and is not being rebuilt.
 
 ## 2. Open — unassigned, needs a human decision
 
+- [ ] **Whole sections of the PWA have no iOS screen at all.** The PWA dashboard is
+      six tabs; iOS covers three.
+      | PWA | iOS |
+      |---|---|
+      | `upcoming` | Dashboard — have |
+      | `history` (`DoseHistory`) | **missing entirely** — no route, no screen |
+      | `inventory` (`SupplyAlert`/`MySupply`) | **missing entirely**, and `vial_inventory` is a live table with rows |
+      | `saved` (`ProtocolList`) | folded into the dashboard grid |
+      | `calculators` (`CalcGrid`) | Tools tab |
+      | `settings` (`DashSettings`) | partial |
+      `DashSettings` has six sub-tabs — Account, Profile, Personalisation, Badges,
+      Metrics, Billing & Plan. iOS Settings has Preferences, Discord, Account and
+      display name, so **four of six don't exist**.
+- [ ] **Tapping a protocol card goes nowhere.** The cards render a chevron, which
+      promises navigation, and there is no protocol detail route — `SCREENS.md`
+      specced an edit sheet and even that isn't wired. Worth fixing regardless of
+      the bigger IA question: a chevron that promises and doesn't deliver is a
+      defect on its own.
 - [ ] **Dashboard information architecture.** The PWA dashboard is tabbed
       (`upcoming` / `history` / `inventory` / `saved` / `calculators` /
       `settings`); iOS is one scroll with next-dose plus all protocols. The iOS
@@ -322,26 +348,35 @@ Parity and chrome
    Anything pinned needs clearance where it is pinned.
 5. **A montage is a survey instrument, not a measuring one.** A 12.7pt overlap
    read as "grazing" off a downscaled 4272px image.
-6. **Prefer a container that truncates visibly over one that clips silently.**
+6. **Hiding is not removing.** `allowsHitTesting(false)`, `opacity(0)` and
+   off-screen offsets all stop a user *seeing or touching* an element and leave it
+   in the **accessibility tree**. Anything conditionally shown needs
+   `accessibilityHidden` as well as its visual guard. Found on the closed drawer,
+   where fourteen calculator rows sat at x = -290 and were still swipeable.
+   **Swept the rest** — hero circle, welcome Canvas, calculator toggle switch all
+   already carry `accessibilityHidden(true)`; the offline banners are
+   `allowsHitTesting(false)` but deliberately stay announced, because "You're
+   offline" is meaningful status rather than decoration. No further instances.
+7. **Prefer a container that truncates visibly over one that clips silently.**
    Truncation announces itself — "Testosterone Dosage…" tells you to go looking. A
    clipped container has no ellipsis, so a sheared line reads as a glitch or as the
    whole string. Measured: `.principal` renders two lines and shears the third with
    no visual signal, at every type size. Never accept silent clipping on a title, a
    value, or a unit — the same reason `lineLimit` on a value+unit pair is banned.
-7. **Closing a finding protects the code that existed when you closed it.** New
+8. **Closing a finding protects the code that existed when you closed it.** New
    controls land underneath old bugs. The quick-value row arrived after F11 was
    closed and immediately sat under the pinned result bar — not a regression of the
    fix, a new surface arriving under an old problem. Anything added below the fold
    on the calculator gets checked against the pinned bar as a matter of course.
-8. **The screens nobody complains about are where defects accumulate**, because
+9. **The screens nobody complains about are where defects accumulate**, because
    attention follows complaints rather than risk. The log-dose sheet was a stock
    `.insetGrouped` list at audit time and got the least work of any screen. It then
    turned out to hold a touch-target violation, the app's worst contrast failure
    (2.13:1), no type scale at all, and a latent copy of the truncation bug — four
    for four, on the screen nobody was looking at.
-9. **A component verified in one container is not verified.** `PrimaryButton` was
+10. **A component verified in one container is not verified.** `PrimaryButton` was
    measured on the calculator, scaled correctly, and was trusted. The same component
    in a `List` row did not scale at all.
-10. **If taps die but `simctl` still screenshots, check the login session** before
+11. **If taps die but `simctl` still screenshots, check the login session** before
    touching the Simulator — CoreSimulator is a daemon with no display dependency,
    so the symptom points the wrong way.
