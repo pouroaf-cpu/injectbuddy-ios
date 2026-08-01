@@ -84,33 +84,68 @@ enum Theme {
     // sizing that stop values truncating at accessibility sizes, which is the
     // highest-severity open finding. Revisit once that is closed.
     //
-    // Every face is built with `relativeTo:` so it still scales with Dynamic Type.
+    // ── THE TOKENS SCALE. THEY DID NOT UNTIL 2026-08-02. ────────────────────────
+    //
+    // The line that used to sit here read "Every face is built with `relativeTo:`
+    // so it still scales with Dynamic Type." Not one of them was. Every token was
+    // `Font.system(size:weight:design:)` — a FIXED point size, which SwiftUI does
+    // not apply Dynamic Type to. Only text styles scale.
+    //
+    // Measured rather than reasoned: the dashboard at default (`IB2245723`) and at
+    // AX5 (`IB2245730`) render the greeting and the `PROTOCOLS` eyebrow at
+    // pixel-identical size, while everything on the same screen still using system
+    // text styles — "Next dose", the protocol title, "due today", "Mark taken" —
+    // scales enormously. The screen does not merely fail to grow: the hierarchy
+    // INVERTS. The greeting is the largest text on the screen at default size and
+    // one of the smallest at AX5.
+    //
+    // This mattered more than it looks, because the queued work was "apply the type
+    // scale to the ten screens that don't have it" — and nine of those ten have no
+    // `Theme.Typeface` at all, meaning they use system text styles and scale
+    // CORRECTLY today. That sweep would have replaced working Dynamic Type with
+    // frozen sizes on ten screens, starting with `DisclaimerGate`, the first screen
+    // a new user sees.
+    //
+    // Every token is now a text style plus an explicit weight, so it tracks Dynamic
+    // Type. Most map exactly (display 34 = .largeTitle, cardTitle 17 = .headline,
+    // resultValue 22 = .title2, resultLabel 15 = .subheadline). Two move by ~2pt at
+    // default size — greeting 24 -> 22 and cardMeta 14 -> 15 — which is the price of
+    // the whole scale scaling, and it is cheap.
+    //
+    // RULE: nothing in here may go back to `Font.system(size:)`. A fixed size in a
+    // shared token is invisible at the call site and silently opts that text out of
+    // Dynamic Type. If a design needs a size the text styles do not offer, scale it
+    // with `@ScaledMetric` at the call site rather than freezing it here.
 
     enum Typeface {
-        /// Greeting — PWA 24px / 800 / -0.03em.
-        static let greeting = Font.system(size: 24, weight: .heavy, design: .default)
-        static let greetingTracking: CGFloat = -0.72   // -0.03em × 24pt
+        /// Greeting — PWA 24px / 800 / -0.03em. `.title2` is 22pt at Large.
+        static let greeting = Font.system(.title2, design: .default, weight: .heavy)
+        /// Absolute, so it does not grow with the face. Negligible once the text is
+        /// large; it exists to tighten the default-size rendering.
+        static let greetingTracking: CGFloat = -0.72
 
-        /// Display numeral — the primary metric on a card. Tabular by convention;
-        /// apply `.monospacedDigit()` at the call site.
-        static let display = Font.system(size: 34, weight: .heavy, design: .default)
+        /// Display numeral — the primary metric on a card. `.largeTitle` is 34pt at
+        /// Large, matching the PWA exactly. Tabular by convention; apply
+        /// `.monospacedDigit()` at the call site.
+        static let display = Font.system(.largeTitle, design: .default, weight: .heavy)
         static let displayTracking: CGFloat = -1.02
 
-        /// Section eyebrow — "TODAY", "PROTOCOLS".
-        static let eyebrow = Font.system(size: 13.5, weight: .semibold)
+        /// Section eyebrow — "TODAY", "PROTOCOLS". 13pt at Large.
+        static let eyebrow = Font.system(.footnote, weight: .semibold)
 
-        /// Card title.
-        static let cardTitle = Font.system(size: 17, weight: .bold)
-        /// Card supporting line.
-        static let cardMeta = Font.system(size: 14, weight: .medium)
+        /// Card title. 17pt at Large, exactly as before.
+        static let cardTitle = Font.system(.headline, weight: .bold)
+        /// Card supporting line. 15pt at Large, was a frozen 14.
+        static let cardMeta = Font.system(.subheadline, weight: .medium)
 
-        /// Tab bar label — 13.5px / 600, 700 when active.
-        static let tabLabel = Font.system(size: 13.5, weight: .semibold)
-        static let tabLabelActive = Font.system(size: 13.5, weight: .bold)
+        /// Tab bar label. 12pt at Large, was a frozen 13.5.
+        static let tabLabel = Font.system(.caption, weight: .semibold)
+        static let tabLabelActive = Font.system(.caption, weight: .bold)
 
-        /// Value + unit pairs inside result rows.
-        static let resultValue = Font.system(size: 22, weight: .bold)
-        static let resultLabel = Font.system(size: 15, weight: .medium)
+        /// Value + unit pairs inside result rows. 22pt and 15pt at Large, both
+        /// unchanged from the frozen sizes they replace.
+        static let resultValue = Font.system(.title2, weight: .bold)
+        static let resultLabel = Font.system(.subheadline, weight: .medium)
     }
 
     // MARK: - Spacing / radius

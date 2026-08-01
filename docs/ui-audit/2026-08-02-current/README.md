@@ -1,83 +1,83 @@
-# Current state — 2026-08-02, at `3b8b8b1`
+# Current state — 2026-08-02, after the type-scale re-baseline
 
 iPhone 16 Pro, iOS 18.3, light, sRGB, unscaled. Numbering matches
-`2026-08-01-current` so the two sets read side by side.
+`2026-08-01-current` so the two read side by side. Every frame carries a serial
+and a row in `../SCREENSHOT-LOG.md`.
 
-Every file verified distinct by md5 — a failed tap produces byte-identical
-captures, and this project has been burned by that twice.
+Every file verified distinct by md5 — and the capture harness now fails a run when
+two frames come back byte-identical, rather than leaving that to a checksum
+someone remembers to take.
 
 ## What state the app is in
 
-The `0x`/`1x` frames are the app **after** today's two calculator fixes
-(`3b8b8b1`). The `9x` frames are **before** them, captured earlier the same day
-at `6f7b0ef`, and are kept as the evidence for what was wrong.
+These frames are the app after three changes made today: the two calculator
+defects (the field displaying a number the engine did not use, and the quick-value
+row occluded with the keypad up), and the type-scale re-baseline that made
+`Theme.Typeface` track Dynamic Type at all.
 
-| Defect | At `6f7b0ef` (`9x` frames) | At `3b8b8b1` (`0x`/`1x` frames) |
-|---|---|---|
-| Field displays a number the engine did not use | **live** | fixed |
-| Quick-value row unreachable with the keypad up | **live** | fixed |
-| `Tools` at AX5 reads as broken (hyphenation, orphaned `e`, clipped title, tiny icons) | live | **still live** — queued with the type-scale sweep |
-| Screen-header rule (`DESIGN-PARITY §9`) | live | **still live** |
+| Defect | Status in these frames |
+|---|---|
+| Field displays a number the engine did not use | fixed |
+| Quick-value row unreachable with the keypad up | fixed |
+| Type scale frozen against Dynamic Type | fixed — compare `IB2245743` against the superseded `IB2245730` |
+| `Tools` at AX5 reads as broken | **still live** — `IB2245744` |
+| Screen-header rule (`DESIGN-PARITY §9`) | **still live** |
+| Greeting takes ~40% of the dashboard at AX5 | **new, open** — correct scaling behaviour, open product question |
+
+The pre-fix evidence frames (`IB2245733`, `IB2245734`) and the whole pre-
+type-scale set are superseded; their rows in `../SCREENSHOT-LOG.md` name the
+commit each file can be retrieved from.
 
 ## Frames
 
 | Serial | File | Screen |
 |---|---|---|
-| IB2245723 | `02-dashboard-IB2245723.png` | Dashboard |
-| IB2245724 | `03-calendar-IB2245724.png` | Calendar |
-| IB2245725 | `04-tools-IB2245725.png` | Tools |
-| IB2245726 | `05-add-IB2245726.png` | Add |
-| IB2245727 | `06-calculator-trt-IB2245727.png` | TRT Dose, at rest |
-| IB2245728 | `07-calculator-barrel-row-IB2245728.png` | TRT Dose scrolled — segmented barrel row |
-| IB2245729 | `08-logdose-sheet-IB2245729.png` | Log-dose sheet |
-| IB2245730 | `09-dashboard-ax5-IB2245730.png` | Dashboard at AX5 |
-| IB2245731 | `10-tools-ax5-IB2245731.png` | Tools at AX5 |
-| IB2245732 | `11-calculator-keyboard-toolbar-IB2245732.png` | TRT Dose, weekly dose focused — **superseded, see IB2245735** |
-| IB2245735 | `11b-calculator-keyboard-toolbar-keypad-up-IB2245735.png` | The same screen with the software keypad actually up — **this is the one that proves the fix** |
-| IB2245733 | `90-defect-before-typed-100250-IB2245733.png` | BEFORE — field reads `100250`, draw computed from 1000 |
-| IB2245734 | `91-defect-before-chip-tap-no-effect-IB2245734.png` | BEFORE — after a chip tap that reported success and moved nothing |
+| IB2245736 | `02-dashboard-IB2245736.png` | Dashboard |
+| IB2245737 | `03-calendar-IB2245737.png` | Calendar |
+| IB2245738 | `04-tools-IB2245738.png` | Tools |
+| IB2245739 | `05-add-IB2245739.png` | Add |
+| IB2245740 | `06-calculator-trt-IB2245740.png` | TRT Dose, at rest |
+| IB2245741 | `07-calculator-barrel-row-IB2245741.png` | TRT Dose scrolled — segmented barrel row |
+| IB2245742 | `08-logdose-sheet-IB2245742.png` | Log-dose sheet |
+| IB2245743 | `09-dashboard-ax5-IB2245743.png` | Dashboard at AX5 |
+| IB2245744 | `10-tools-ax5-IB2245744.png` | Tools at AX5 |
+| IB2245745 | `11-calculator-keyboard-toolbar-IB2245745.png` | TRT Dose, weekly dose focused, keypad up |
 
-## Read these two first
+## Read these first
 
-**`IB2245733` / `IB2245734` — the two defects, in one frame each.** The weekly
-dose field reads `100250`. The result bar beside it reads `Draw per injection
-2.500 mL`, which is 1000 ÷ 2 ÷ 200 — the engine used the clamped 1000 and the
-screen never said so. The over-capacity warning underneath is correct, for a
-number the user cannot see.
+**`IB2245743` vs the superseded `IB2245730` — the type scale.** Same screen, same
+accessibility size. In `IB2245730` the greeting is rendered at exactly its
+default-size dimensions, because every token in `Theme.Typeface` was a frozen
+point size; in `IB2245743` it scales. The second frame is also the open question:
+the greeting now takes roughly 40% of the dashboard at AX5. That is Dynamic Type
+working, and it is still worth a decision.
 
-The same frame shows the second defect: the quick-value row is not on screen.
-It is behind the pinned result bar, which starts immediately under the field.
-`IB2245734` is the frame *after* tapping `quick_mgWeek_400`; nothing moved,
-and the tap reported success.
+**`IB2245745` — the keyboard toolbar with the keypad actually up.** The focused
+field's quick values and Done sit above the keypad and clear of the pinned result
+bar, and the inline quick row is hidden while that field is being edited. The
+earlier version of this frame was taken with a hardware keyboard attached, so iOS
+suppressed the keypad and the accessory bar was photographed on the tab bar — a
+position it never occupies in front of a user. The capture now types a character
+and asserts the keyboard is on screen before shooting.
 
-**`IB2245735` — what it looks like now, and the frame that actually proves it.**
-Software keypad up, the focused field's quick values and Done sitting above it and
-clear of the pinned result bar, and the inline quick row hidden while that field is
-being edited.
-
-**`IB2245732` is superseded and kept as the cautionary one.** It shows the same
-screen with **no software keyboard**, because the simulator had a hardware keyboard
-attached and iOS suppressed the keypad — so the accessory bar was photographed
-sitting on the tab bar, in a position it never occupies in front of a user, with
-the pinned bar's relationship to it untested. It looks like evidence and is not.
-Nothing in the image says so. It is still a real state for anyone on a Bluetooth
-keyboard, which is written down in `DECISIONS-2026-08-02` rather than fixed.
-
-One detail worth seeing in `IB2245732` that `IB2245735` no longer shows: the
-selection handles around `100`. That is select-all-on-focus working — typing now
-replaces rather than appends, which is what put `100250` out of reach.
+**`IB2245744` — Tools at AX5, unchanged and still the open finding.**
+`Semaglu-tide` hyphenated mid-word, `Tirzepatide` wrapping to an orphaned `e`,
+`Retatru-tide`, the title clipped against the header, icons that stayed small
+while the text went huge. Worth knowing *why* it looks like this and the dashboard
+did not: `ToolsScreen` uses system text styles, so it has always scaled correctly
+and the layout cannot take it. The dashboard looked fine because it was not
+scaling at all. Opposite problems.
 
 ## Not captured, and why
 
-- **`01-welcome-launch`** — the welcome screen is the signed-out path. Shooting
-  it means signing out, which discards the Keychain session and costs a real
-  Supabase sign-in to get back. Not done mid-block. Yesterday's frame is still
-  representative; nothing on that screen changed today.
-- **`12-calculator-trt-ax5`** — attempted, **discarded**. `openTRT()` could not
-  find the TRT row at AX5, because the labels wrap so hard that only four rows
-  fit and the list has to be scrolled. `continueAfterFailure` was true, so the
-  capture ran anyway and photographed the Tools screen. It is a genuine frame of
-  the wrong screen — exactly the silent-bad-evidence failure the serial rule
-  exists to catch — so it was dropped rather than renamed. No serial was issued.
-- **Drawer and Settings** — standing decision. Those carry the account's real
-  email and avatar.
+- **`01-welcome-launch`** — the welcome screen is the signed-out path. Shooting it
+  means signing out, which discards the Keychain session and costs a real Supabase
+  sign-in to get back. Nothing on that screen changed today.
+- **`12-calculator-trt-ax5`** — attempted twice, captured neither time. At AX5 the
+  Tools list needs more scrolling than the harness does to bring the TRT row into
+  view. The first attempt produced a genuine photograph of the **Tools** screen
+  under a filename claiming the calculator, because `continueAfterFailure` was
+  true; the second attempt **failed the run**, which is the fix working. No serial
+  was issued either time. The AX5 calculator is the gap in this survey.
+- **Drawer and Settings** — standing decision. Those carry the account's real email
+  and avatar.

@@ -212,6 +212,58 @@ screen under a filename claiming the TRT calculator, because navigation failed
 and the run continued. A capture sweep that cannot fail loudly will keep
 producing frames that lie.
 
+## 15. The type scale did not scale, and the queued sweep would have spread it
+
+**Decided:** mac found and fixed it; win approved and asked for it to be recorded
+under its own name rather than neutrally.
+
+**What was wrong:** every token in `Theme.Typeface` was
+`Font.system(size:weight:design:)` — a fixed point size, which SwiftUI does not
+apply Dynamic Type to. The comment directly above the enum claimed the opposite:
+*"Every face is built with `relativeTo:` so it still scales with Dynamic Type."*
+Not one of them was. Internally consistent documentation, wrong against reality —
+the same failure mode as three of yesterday's bugs.
+
+**Evidence:** the dashboard at default (`IB2245723`) and at AX5 (`IB2245730`)
+render the greeting and the `PROTOCOLS` eyebrow at pixel-identical size, while
+everything on the same screen using system text styles scales enormously. The
+hierarchy inverts: the greeting is the largest text on the screen at default and
+one of the smallest at AX5. Fixed and re-measured — `IB2245743` shows it scaling.
+
+**The part worth writing down: the directing side specced a sweep that would have
+degraded accessibility on nine screens, and the building side caught it before it
+ran.** T10 was "apply the type scale to the ten screens that don't have it". Nine
+of those ten have no `Theme.Typeface` at all, which means they use system text
+styles and scale correctly today. The sweep would have replaced working Dynamic
+Type with frozen sizes on every one of them, starting with `DisclaimerGate` — the
+first screen a new user sees — and it would have been reported as a parity win.
+
+**It also reframed the AX5 Tools finding.** `ToolsScreen` looks broken at AX5
+*because it scales correctly and the layout cannot take it*; the dashboard looked
+fine *because it did not scale at all*. Opposite defects, about to be treated by
+one sweep in opposite directions. T10 and T11 are therefore no longer a merged
+sweep: they are a re-baseline followed by a re-survey.
+
+**Cost accepted:** two tokens move ~2pt at default size, greeting 24 → 22 and
+cardMeta 14 → 15. Everything else maps exactly.
+
+**Left open, deliberately:** the greeting at AX5 now takes roughly 40% of the
+dashboard. That is correct Dynamic Type behaviour and it is still a product
+question. It is a §1 item, not a regression of this fix.
+
+## 16. Capture frames must differ from each other
+
+**Decided:** mac.
+
+**What:** `shot()` keeps every frame taken in a run and fails if a new one is
+byte-identical to an earlier one.
+
+**Reasoning:** it caught a real one within a minute of being added —
+`07-calculator-barrel-row` came back identical to `06-calculator-trt` because
+`app.swipeUp()` resolved to a gesture the form never received. That is the same
+failure as the "refreshed" set which came back byte-identical with matching
+checksums, except that time a human noticed afterwards. The run now stops.
+
 ---
 
 ## Deferred checks — for the next audit, not now

@@ -41,10 +41,26 @@ final class CaptureCurrentState: XCTestCase {
                       "Not signed in — capture needs the signed-in app.")
     }
 
-    private func shot(_ name: String) {
+    /// Frames taken so far this run, so an identical one is a failure rather than a
+    /// file. This project has already shipped a "refreshed" set that came back
+    /// byte-identical with matching checksums, because the taps had silently
+    /// failed — the checksums were what eventually caught it, by hand. Doing it
+    /// here means the run stops instead of a human noticing later.
+    private var taken: [String: Data] = [:]
+
+    private func shot(_ name: String,
+                      file: StaticString = #filePath, line: UInt = #line) {
         let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        try? XCUIScreen.main.screenshot().pngRepresentation
-            .write(to: dir.appendingPathComponent(name))
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+
+        if let match = taken.first(where: { $0.value == png })?.key {
+            XCTFail("\(name) is byte-identical to \(match) — the navigation between them did nothing.",
+                    file: file, line: line)
+            return
+        }
+        taken[name] = png
+
+        try? png.write(to: dir.appendingPathComponent(name))
         print("CAPTURE-HOME: \(dir.path)")
     }
 
@@ -87,8 +103,14 @@ final class CaptureCurrentState: XCTestCase {
         openTRT()
         shot("06-calculator-trt.png")
 
-        // NOT scrollViews.firstMatch — that is the off-canvas drawer, at x = -344.
-        app.swipeUp()
+        // NOT `scrollViews.firstMatch` — that is the off-canvas drawer at x = -344 —
+        // and NOT `app.swipeUp()`, which resolved to a gesture the form did not
+        // receive and produced a "scrolled" frame byte-identical to the unscrolled
+        // one. The on-screen scroll view, explicitly.
+        let form = app.scrollViews.allElementsBoundByIndex
+            .first { $0.isHittable && $0.frame.minX >= 0 }
+        XCTAssertNotNil(form, "No on-screen scroll view to scroll.")
+        form?.swipeUp()
         shot("07-calculator-barrel-row.png")
 
         tab("Log dose")
