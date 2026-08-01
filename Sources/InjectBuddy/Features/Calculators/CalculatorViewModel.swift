@@ -83,8 +83,9 @@ final class CalculatorViewModel: ObservableObject {
     /// couple of iOS field keys are internal. So the field values are filtered through
     /// configOmittedKeys and then completed by configExtras; see the long note on both
     /// in CalculatorCatalog. Getting this wrong does not just look untidy: the web
-    /// restores a protocol by key, and /api/dosages de-duplicates by fingerprinting the
-    /// whole object, so a short config silently double-inserts.
+    /// restores a protocol by key, and the database de-duplicates on the WHOLE config
+    /// via a unique index on (user_id, calculator_type, config), so a config that differs
+    /// by even one key is a different protocol rather than the same one.
     func configJSON() -> JSONValue {
         var obj: [String: JSONValue] = [:]
         let omitted = CalculatorCatalog.configOmittedKeys(for: spec.slug)

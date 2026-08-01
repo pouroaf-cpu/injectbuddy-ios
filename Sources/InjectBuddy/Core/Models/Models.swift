@@ -70,7 +70,10 @@ struct SavedDosage: Codable, Identifiable, Equatable {
     }
 }
 
-/// POST body for saving a protocol — POST /api/dosages equivalent (insert into saved_dosages).
+/// Insert body for saving a protocol. iOS writes DIRECTLY to saved_dosages via
+/// PostgREST — it never calls the web's /api/dosages (that route authenticates by
+/// cookie and an iOS client holding a JWT cannot reach it). Dedup is a unique index
+/// on (user_id, calculator_type, config); see SupabaseBackendClient.saveDosage.
 struct NewSavedDosage: Encodable {
     var calculatorType: String
     var label: String?

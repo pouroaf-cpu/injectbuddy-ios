@@ -34,8 +34,14 @@ struct CalculatorScreen: View {
     }
 
     private var form: some View {
+        // GLP-1 specs render two pickers and a barrel; at default type that left
+        // roughly a third of the screen as dead space between the last field and
+        // the pinned result bar, while TRT's five fields filled it. Sizing the
+        // stack to at least the viewport and pushing the disclaimer to the bottom
+        // distributes the slack instead of pooling it in one void.
+        GeometryReader { geo in
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 ForEach(vm.spec.fields) { field in
                     if shouldShow(field) {
                         FieldRow(field: field, vm: vm)
@@ -50,12 +56,15 @@ struct CalculatorScreen: View {
                     ResultCard(result: vm.result, barrelMl: barrelMl)
                 }
 
+                Spacer(minLength: Theme.Spacing.md)
+
                 Text("Maths only — not medical advice.")
                     .font(.caption2)
                     .foregroundStyle(Theme.secondaryLabel)
-                    .padding(.top, Theme.Spacing.sm)
             }
             .padding(Theme.Spacing.md)
+            .frame(minHeight: geo.size.height, alignment: .top)
+        }
         }
         .background(Theme.canvas)
         .safeAreaInset(edge: .bottom) { resultBar }
@@ -146,10 +155,22 @@ private struct ResultCard: View {
         return draw > barrelMl + 0.0005
     }
 
+    /// Two different situations, deliberately worded differently. A draw slightly
+    /// over the barrel is a normal split — 0.6 mL into a 0.5 mL barrel is two
+    /// injections and a legitimate workflow. A draw many times the barrel is almost
+    /// always a mis-set field, and reading it in the same neutral tone as the benign
+    /// case is how a wrong number survives. The threshold is draws-required, not a
+    /// colour or an icon change: both cases carry the same warning triangle, so the
+    /// distinction is in the words, never in the styling alone.
     private var capacityNote: String? {
         guard overCapacity, let barrelMl, let draw = result.drawMl else { return nil }
-        return String(format: "Draw of %.3f mL exceeds the %@ barrel — split the dose or choose a larger barrel.",
-                      draw, barrelLabel(barrelMl))
+        let draws = Int(ceil(draw / barrelMl))
+        if draws >= 4 {
+            return String(format: "Draw of %.3f mL needs %d fills of a %@ barrel. Check the dose and vial strength — that is usually a typo, not a split.",
+                          draw, draws, barrelLabel(barrelMl))
+        }
+        return String(format: "Draw of %.3f mL exceeds the %@ barrel — split it across %d injections or choose a larger barrel.",
+                      draw, barrelLabel(barrelMl), draws)
     }
 
     private func barrelLabel(_ ml: Double) -> String {

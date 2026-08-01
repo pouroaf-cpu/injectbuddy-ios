@@ -114,8 +114,8 @@ enum CalculatorCatalog {
     // CRITICAL: a slug that renders this picker must NOT also list syringeMl in
     // configExtras. configJSON() applies extras AFTER field values and lets them
     // win, so a leftover extra silently overwrites the user's choice — and because
-    // /api/dosages fingerprints the whole config, a wrong value stops an iOS save
-    // matching the equivalent web row and inserts a duplicate instead.
+    // the unique index covers the WHOLE config, a wrong value makes an iOS save a
+    // DIFFERENT protocol from the equivalent web row rather than the same one.
     static let barrelOptions: [CalculatorInput.PickerOption] = [
         .init(label: "0.3 mL (30u)", value: 0.3),
         .init(label: "0.5 mL (50u)", value: 0.5),
@@ -145,10 +145,14 @@ enum CalculatorCatalog {
     // protocol. Two things depend on it:
     //   1. The web reads a protocol back into its calculator by key. A missing `mode`
     //      or `nDays` means it cannot restore what was saved on the phone.
-    //   2. /api/dosages de-duplicates by fingerprinting the WHOLE config object
-    //      (route.ts sorts keys and compares). A config missing keys never matches an
-    //      equivalent web row, so saving the same protocol on both platforms inserts
-    //      twice instead of returning the existing id.
+    //   2. The database de-duplicates on the WHOLE config — a unique index on
+    //      (user_id, calculator_type, config), config stored as jsonb so key order
+    //      and 1-vs-1.0 normalise on storage. A config missing keys is a DIFFERENT
+    //      row from the equivalent web one, so the same protocol saved on both
+    //      platforms exists twice instead of resolving to a single id.
+    //      iOS does NOT go through the web's /api/dosages: that route is
+    //      cookie-authenticated and unreachable from the app. Writes are direct
+    //      PostgREST inserts, and the index is what makes both platforms agree.
     //
     // The generic spec model only knows the fields it renders, and the web saves state
     // the phone has no control for — barrel size, the dosing mode, the unused half of a

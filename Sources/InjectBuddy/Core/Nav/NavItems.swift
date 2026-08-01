@@ -91,7 +91,7 @@ enum CalculatorSlug: String, CaseIterable, Identifiable, Hashable {
 extension CalculatorSlug {
     /// Can this calculator produce a protocol the app can store?
     ///
-    /// Mirrors the web exactly: of its 23 calculators, 19 POST to /api/dosages and 4
+    /// Mirrors the web exactly: of its 23 calculators, 19 save a protocol and 4
     /// never do — bmi, plotter, freetest and ftv compute and display only. Of the 15
     /// slugs this app has, three of those four are present, so 12 can save.
     ///

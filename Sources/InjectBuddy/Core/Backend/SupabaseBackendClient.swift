@@ -51,15 +51,100 @@ struct SupabaseBackendClient: BackendClient {
             .execute()
     }
 
+    /// Save a protocol, returning the id — the EXISTING id when this config has
+    /// already been saved.
+    ///
+    /// Dedup lives in the database as of 2026-08-01:
+    ///     CREATE UNIQUE INDEX saved_dosages_user_calc_config_key
+    ///       ON public.saved_dosages (user_id, calculator_type, config)
+    /// `config` is jsonb, so key order and 1 vs 1.0 normalise on storage. Both
+    /// platforms get identical dedup without either of them reimplementing a
+    /// fingerprint.
+    ///
+    /// Insert-then-recover rather than `.upsert(onConflict:)` on purpose.
+    /// PostgREST's upsert resolves to ON CONFLICT DO UPDATE, which would write
+    /// every column in this payload over the surviving row — including
+    /// `start_date`, which `CalculatorViewModel.save` always sets to TODAY. Re-saving
+    /// an identical protocol would then silently reset a start date the user may have
+    /// corrected on the confirm-start-day screen, shifting every projected occurrence
+    /// on their calendar. Returning the existing row untouched is the behaviour the
+    /// web has and the one that cannot corrupt a schedule.
     func saveDosage(_ dosage: NewSavedDosage) async throws -> String {
-        let row: InsertedID = try await client
+        // user_id must be on the INSERT. Every read on this table omits it because
+        // RLS scopes selects for us, and the same assumption was carried into the
+        // write — where it does not hold. The INSERT policy is a WITH CHECK on
+        // user_id = auth.uid(), so a row without it is rejected outright:
+        //   "new row violates row-level security policy for table saved_dosages"
+        // Sourced from the live session rather than threaded down from the view, so
+        // there is exactly one place that can get it wrong.
+        let userId = try await client.auth.session.user.id.uuidString.lowercased()
+        let owned = OwnedSavedDosage(dosage, userId: userId)
+        do {
+            let row: InsertedID = try await client
+                .from("saved_dosages")
+                .insert(owned, returning: .representation)
+                .select("id")
+                .single()
+                .execute()
+                .value
+            return row.id
+        } catch {
+            guard Self.isUniqueViolation(error),
+                  let existing = try await existingDosageId(for: dosage) else { throw error }
+            return existing
+        }
+    }
+
+    /// `NewSavedDosage` plus the owning user. Kept private to the data layer: the
+    /// caller describes the protocol, the client decides who it belongs to.
+    private struct OwnedSavedDosage: Encodable {
+        let calculatorType: String
+        let label: String?
+        let config: JSONValue
+        let startDate: String?
+        let userId: String
+
+        init(_ d: NewSavedDosage, userId: String) {
+            calculatorType = d.calculatorType
+            label = d.label
+            config = d.config
+            startDate = d.startDate
+            self.userId = userId
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case calculatorType = "calculator_type"
+            case label
+            case config
+            case startDate = "start_date"
+            case userId = "user_id"
+        }
+    }
+
+    /// The id of an already-saved protocol with this exact config, if there is one.
+    /// jsonb equality is order-insensitive, so comparing against the serialised
+    /// config is safe — it is the same comparison the unique index makes.
+    private func existingDosageId(for dosage: NewSavedDosage) async throws -> String? {
+        guard let configJSON = String(data: try JSONEncoder().encode(dosage.config), encoding: .utf8)
+        else { return nil }
+        let rows: [InsertedID] = try await client
             .from("saved_dosages")
-            .insert(dosage, returning: .representation)
             .select("id")
-            .single()
+            .eq("calculator_type", value: dosage.calculatorType)
+            .eq("config", value: configJSON)
+            .limit(1)
             .execute()
             .value
-        return row.id
+        return rows.first?.id
+    }
+
+    /// Postgres unique-violation. Matched on SQLSTATE where supabase-swift surfaces
+    /// it, with a message fallback so a shape change in the error type degrades to a
+    /// thrown error rather than a wrong answer.
+    private static func isUniqueViolation(_ error: Error) -> Bool {
+        if let pg = error as? PostgrestError, pg.code == "23505" { return true }
+        let text = String(describing: error)
+        return text.contains("23505") || text.contains("saved_dosages_user_calc_config_key")
     }
 
     func deleteDosage(id: String) async throws {
