@@ -105,6 +105,25 @@ struct LabeledDivider: View {
     private var line: some View { Rectangle().fill(Theme.separator).frame(height: 1) }
 }
 
+// MARK: - Protocol label
+
+/// Backend protocol labels arrive DOSE-FIRST — "85mg/wk · Testosterone Enanthate".
+/// Rendered as-is on one line they truncate the compound away, which is what made
+/// seven dashboard cards unreadable and two identical. Every surface that shows a
+/// protocol splits them here so the compound can lead, and so the two call sites
+/// cannot drift apart.
+enum ProtocolLabel {
+    static func split(_ raw: String, fallbackDose: String = "") -> (compound: String, dose: String) {
+        guard let sep = raw.range(of: " · ") else { return (raw, fallbackDose) }
+        let lead = String(raw[raw.startIndex..<sep.lowerBound])
+        let tail = String(raw[sep.upperBound...])
+        // Whichever side carries a digit-and-unit is the dose; the other is the name.
+        let leadIsDose = lead.rangeOfCharacter(from: .decimalDigits) != nil
+            && tail.rangeOfCharacter(from: .decimalDigits) == nil
+        return leadIsDose ? (tail, lead) : (lead, tail)
+    }
+}
+
 // MARK: - Keyboard visibility
 
 /// Publishes whether the software keyboard is on screen.

@@ -230,14 +230,7 @@ struct ProtocolCard: View {
     /// Split them so the compound is the headline and the dose is the meta line.
     /// Labels with no separator are used whole as the compound.
     private var parts: (compound: String, dose: String) {
-        let raw = `protocol`.title
-        guard let sep = raw.range(of: " · ") else { return (raw, `protocol`.subtitle) }
-        let lead = String(raw[raw.startIndex..<sep.lowerBound])
-        let tail = String(raw[sep.upperBound...])
-        // Whichever side carries a digit-and-unit is the dose; the other is the name.
-        let leadIsDose = lead.rangeOfCharacter(from: .decimalDigits) != nil
-            && tail.rangeOfCharacter(from: .decimalDigits) == nil
-        return leadIsDose ? (tail, lead) : (lead, tail)
+        ProtocolLabel.split(`protocol`.title, fallbackDose: `protocol`.subtitle)
     }
 
     private var meta: String {

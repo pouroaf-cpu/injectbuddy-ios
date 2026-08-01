@@ -56,60 +56,14 @@ The calculator family is universal: numeric ± fields and every menu picker,
 including the barrel picker, are **44.0 pt** at default and **77.35 pt** at AX5.
 Four things sit outside it.
 
-- [~] **Log-dose date row — treatment done, TARGET NOT.** The row is now 44.0 pt
-      (borders measured at pt 517.85 → 561.85) with the calculator's field
-      chrome: r10, 1 pt `#8E8E93`, white. So it no longer reads as a stock grey
-      chip.
-      **But the effective tap target is still the system chip.** Tested: tapping
-      the row on the label side, away from the chip, does **not** open the picker.
-      A compact `DatePicker` owns its own hit area and a row cannot take it over —
-      unlike the toggle, where the row could just flip a boolean without needing
-      system UI.
-      **Needs a decision, and it is the same trade §6 covers:** accept Apple's
-      control at Apple's metric, or replace the chip with a custom 44 pt row that
-      presents a graphical picker. I am not making that call silently.
-- [ ] **Log-sheet rows are a different visual language.** Same 44 pt height as a
-      calculator field, but separator-delimited list rows on white versus bordered
-      boxes with a `#8E8E93` stroke and 10 pt radius. The "height matches, radius
-      and border don't, still looks wrong" case.
-- [ ] **The log sheet never received the type scale at all.** Raised by the human
-      as "that log a dose screen looks stupid, is that font right?" — and it is
-      not. `grep -c "Theme.Typeface" LogDoseSheet.swift` returns **0**: it is the
-      only screen still rendering stock system typography.
-      - `WHICH PROTOCOL?` is stock grey `#85858B` (3.29:1) where every other
-        section eyebrow is navy `#001D5C` semibold 13.5.
-      - Rows are plain 17 pt regular and **dose-first** — "85mg/wk ·
-        Testosterone Enanthate" — the exact single-line dose-first pattern that
-        caused the dashboard truncation bug, still shipping here.
-      - **`Cancel` is `#0FBCAD` at 2.13:1** — a live contrast failure, the same
-        teal-as-text pairing removed everywhere else in the app.
-      This is a bug, not a preference: the human read it as wrong from a
-      screenshot without knowing any of the above.
-- [x] **Toggle target FIXED — verified behaviourally.** The row is now a 44 pt
-      `Button` with a `contentShape`, the system switch drawn inside it with
-      `allowsHitTesting(false)` so the row is the single tap handler. Retested at
-      the *same* coordinate that previously did nothing: tapping x=250 pt now
-      flips BMI metric → imperial (24.69 Normal → 25.82 Overweight). Native
-      `UISwitch` kept; `DESIGN-PARITY §6` intact.
-      <details><summary>original finding</summary>
-- [x] **Toggle: only the ~51×31 pt switch is tappable — CONFIRMED BEHAVIOURALLY,
-      and it is a real touch-target violation.** The "isn't the whole row the
-      target?" hypothesis assumed a `Form` row; this is not one. It is a bare
-      `Toggle(...).labelsHidden().frame(maxWidth: .infinity, alignment: .leading)`
-      in the calculator's own `VStack` (`CalculatorScreen.swift:374`), and
-      `maxWidth: .infinity` widens the *layout* frame without extending the hit
-      area — there is no `contentShape`.
-      Tested on BMI "Imperial units": tapping the row at x=250 pt, same y as the
-      switch, did **nothing**; tapping the switch at x=30 pt flipped it (metric →
-      imperial, BMI 24.69 → 25.82). So 31 pt tall is genuinely all a user can hit.
-      **Fix is NOT to replace the `UISwitch`** — that would be off-platform and
-      lose the system's accessibility behaviour, and `DESIGN-PARITY §6` keeps
-      native controls native. Give the row a 44 pt `contentShape` that toggles the
-      binding, and keep the system switch inside it.
-- [ ] **`PrimaryButton` renders two heights at AX5** — 91.3 pt on the calculator,
-      71.7 pt in the log sheet, from the same component. The log sheet places it
-      in a `List` row with `.listRowInsets(EdgeInsets())`, which constrains it, so
-      it stops scaling with Dynamic Type while the calculator's grows.
+- [x] **Log-sheet rows** now carry the calculator's bordered language.
+- [x] **Log sheet type scale, contrast and rows — all done in one pass.** Eyebrow
+      `#85858B` grey → **navy `#001D5C`** semibold (measured). `Cancel`
+      **2.13:1 → 6.86:1** (`#0FBCAD` → `#075E56`), the worst number that was left
+      in the app. Rows now compound-first with no `lineLimit`, using a shared
+      `ProtocolLabel.split` so the dashboard and the sheet cannot drift — the
+      latent form of the truncation bug that hit seven dashboard cards is gone
+      before it triggered. `2026-08-01-logsheet/`.
 
 ## 3. Closed — with the evidence that closed it
 
@@ -182,6 +136,21 @@ Parity and chrome
   anyone can say.
 - **No PWA capture for the calculator or log-dose screens.** Parity on those two
   is structural-only. Do not invent a target.
+- **The log-dose date chip is 34.0 pt tall at default size — ACCEPTED, not missed.**
+  Hit area measured behaviourally, not inferred: tapping 4 pt above the chip's drawn
+  top did nothing, 4 pt below did nothing, and the chip's centre opened the picker.
+  So the effective target equals the drawn size — UIKit is *not* padding it, and the
+  "may be moot" hypothesis is dead.
+  Accepted anyway, for four reasons taken together: it is Apple's own compact
+  `DatePicker`, shipped in Settings, Calendar and Reminders; it already measures
+  **52.7 pt at AX5**, so the shortfall exists only at default size and never for the
+  larger-text users who most need a big target; it is short but ~120 pt **wide**, so
+  it fails in one dimension only, unlike the toggle which was small in both; and
+  `DESIGN-PARITY §6` keeps native controls native — the same trade already made for
+  `UISwitch`, which it would be incoherent to apply to one and not the other.
+  The row around it *is* now 44 pt with the calculator's field treatment, so the
+  visual complaint that started this is fixed. Revisit only if a custom row
+  presenting a graphical picker becomes worth the platform cost.
 - **PII** — the drawer and Settings captures contain a real email and avatar.
   Repo is private. Blocker on ever making it public.
 
@@ -199,6 +168,15 @@ Parity and chrome
    Anything pinned needs clearance where it is pinned.
 5. **A montage is a survey instrument, not a measuring one.** A 12.7pt overlap
    read as "grazing" off a downscaled 4272px image.
-6. **If taps die but `simctl` still screenshots, check the login session** before
+6. **The screens nobody complains about are where defects accumulate**, because
+   attention follows complaints rather than risk. The log-dose sheet was a stock
+   `.insetGrouped` list at audit time and got the least work of any screen. It then
+   turned out to hold a touch-target violation, the app's worst contrast failure
+   (2.13:1), no type scale at all, and a latent copy of the truncation bug — four
+   for four, on the screen nobody was looking at.
+7. **A component verified in one container is not verified.** `PrimaryButton` was
+   measured on the calculator, scaled correctly, and was trusted. The same component
+   in a `List` row did not scale at all.
+8. **If taps die but `simctl` still screenshots, check the login session** before
    touching the Simulator — CoreSimulator is a daemon with no display dependency,
    so the symptom points the wrong way.

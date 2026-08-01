@@ -25,6 +25,45 @@ struct LogDoseSheet: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
 
+    /// One protocol, compound-first, in the calculator's field language.
+    @ViewBuilder
+    private func protocolRow(_ p: SavedDosage) -> some View {
+        let raw = p.label?.isEmpty == false ? p.label! : p.calculatorType
+        let parts = ProtocolLabel.split(raw)
+        let isSelected = selectedId == p.id
+        Button {
+            selectedId = p.id
+        } label: {
+            HStack(spacing: Theme.Spacing.md) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(parts.compound)
+                        .font(Theme.Typeface.cardTitle)
+                        .foregroundStyle(Theme.inkNavy)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !parts.dose.isEmpty {
+                        Text(parts.dose)
+                            .font(Theme.Typeface.cardMeta)
+                            .foregroundStyle(Theme.secondaryLabel)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: Theme.Spacing.sm)
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Theme.tealTextStrong)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.sm)
+            .fieldChrome(isFocused: isSelected)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -51,15 +90,29 @@ struct LogDoseSheet: View {
                         }
                     }
                 } else {
-                    Section("Which protocol?") {
-                        Picker("Protocol", selection: $selectedId) {
-                            ForEach(protocols) { p in
-                                Text(p.label?.isEmpty == false ? p.label! : p.calculatorType)
-                                    .tag(Optional(p.id))
-                            }
+                    Section {
+                        // Was an inline Picker of single-line rows rendering the raw
+                        // dose-first label — "85mg/wk · Testosterone Enanthate" — in
+                        // stock 17pt regular. That is the exact pattern that made
+                        // seven dashboard cards truncate their compound and two render
+                        // identically; it had simply not been triggered here yet.
+                        //
+                        // Replaced with explicit rows so the compound leads, nothing
+                        // carries a lineLimit, and the calculator's bordered field
+                        // language applies. Selection is drawn rather than delegated
+                        // to Picker, which is what allows the row treatment at all.
+                        ForEach(protocols) { p in
+                            protocolRow(p)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.inline)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    } header: {
+                        // Navy semibold, like every other section eyebrow in the app.
+                        // Stock Form headers render grey #85858B at 3.29:1.
+                        Text("Which protocol?".uppercased())
+                            .font(Theme.Typeface.eyebrow)
+                            .foregroundStyle(Theme.navy)
+                            .textCase(nil)
                     }
 
                     Section {
@@ -78,24 +131,11 @@ struct LogDoseSheet: View {
                                                       trailing: Theme.Spacing.md))
                     }
 
-                    Section {
-                        // Was a bare tinted-text row: #0FBCAD on white at 2.38:1,
-                        // which is both the contrast failure and the parity gap.
-                        // PrimaryButton is the app's one CTA treatment — white on
-                        // #075E56, 7.65:1, ≥44pt — so this sheet stops being the
-                        // only screen with an unbranded primary action.
-                        PrimaryButton(
-                            title: "Log dose",
-                            isLoading: isSaving,
-                            isEnabled: selectedId != nil && network.isOnline
-                        ) {
-                            Task { await log() }
-                        }
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                    } footer: {
-                        if !network.isOnline {
+                    if !network.isOnline {
+                        Section {
                             Text("You're offline — logging a dose needs a connection.")
+                                .font(.footnote)
+                                .foregroundStyle(Theme.secondaryLabel)
                         }
                     }
                 }
@@ -104,11 +144,33 @@ struct LogDoseSheet: View {
                     Section { Text(errorMessage).foregroundStyle(.red).font(.callout) }
                 }
             }
+            // The CTA lives OUTSIDE the List. Inside it, in a row with
+            // `.listRowInsets(EdgeInsets())`, the row constrained it and it measured
+            // 71.7pt at AX5 against the calculator's 91.3pt — the same component
+            // rendering two sizes, and the log sheet's simply not scaling with
+            // Dynamic Type. A CTA sized for default text at AX5 is not acceptable.
+            .safeAreaInset(edge: .bottom) {
+                if !isLoading && !protocols.isEmpty {
+                    PrimaryButton(
+                        title: "Log dose",
+                        isLoading: isSaving,
+                        isEnabled: selectedId != nil && network.isOnline
+                    ) {
+                        Task { await log() }
+                    }
+                    .padding(Theme.Spacing.md)
+                    .background(.bar)
+                }
+            }
             .navigationTitle("Log a dose")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
+                    // The app-wide `.tint(Theme.accent)` made this #0FBCAD on
+                    // #F2F2F7 — 2.13:1, the worst number left in the app and the
+                    // same teal-as-text pairing removed everywhere else.
                     Button("Cancel") { dismiss() }
+                        .tint(Theme.tealTextStrong)
                 }
             }
             .task { await load() }
