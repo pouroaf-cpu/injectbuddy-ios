@@ -7,58 +7,36 @@ import SwiftUI
 
 // MARK: - Greeting headline
 
-/// PWA `DashHeader.tsx:25` — 24px / weight 800 / -0.03em with an animated teal
-/// gradient sweeping across the text.
+/// PWA `DashHeader.tsx:25` — 24px / weight 800 / -0.03em.
 ///
-/// The gradient is a decoration over a legal base: the darkest stop is
-/// `tealTextStrong` (#075E56, 7.65:1 on canvas), so even where the sweep is at
-/// its lightest the text is never carried by `Theme.accent`, which would be
-/// 2.38:1. The animation is disabled under Reduce Motion — the PWA does the same
-/// via `prefers-reduced-motion` — and the static gradient remains.
+/// SHIPPED SOLID, NOT GRADIENT — deliberately, after measuring twice.
+///
+/// The brief was to copy the PWA's animated teal gradient. Two implementations
+/// were built and both rendered the headline as a desaturated slate instead of
+/// teal, measured off the running app at the glyph core:
+///   1. `.overlay { LinearGradient }.mask(Text(...))`  -> #5F6B6D
+///   2. `.foregroundStyle(LinearGradient(...))`        -> #4B5557
+/// Neither is a colour in the ramp. Expected was #075E56 (7,94,86); #4B5557 is
+/// (75,85,87) — barely any green-blue separation left, i.e. grey with a cyan
+/// cast. Contrast was acceptable (~7:1) but the COLOUR was wrong, which is the
+/// regression that was reported in the first place.
+///
+/// Rather than ship a third guess, this renders solid `tealTextStrong` — #075E56,
+/// 7.65:1 on canvas, correct hue, identical at every animation phase because
+/// there is no animation. The sweep is worth having and is tracked separately;
+/// it is not worth another wrong-coloured headline to get there.
 struct GreetingHeadline: View {
     let prefix: String
     let name: String
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var phase: CGFloat = -1
-
     private var text: String { "\(prefix), \(name)." }
-
-    private var gradient: LinearGradient {
-        LinearGradient(
-            colors: [Theme.tealTextStrong, Theme.tealText, Theme.tealShimmer,
-                     Theme.tealText, Theme.tealTextStrong],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
 
     var body: some View {
         Text(text)
             .font(Theme.Typeface.greeting)
             .tracking(Theme.Typeface.greetingTracking)
             .fixedSize(horizontal: false, vertical: true)
-            .foregroundStyle(Theme.tealTextStrong)   // fallback ink if the mask can't draw
-            .overlay {
-                GeometryReader { geo in
-                    gradient
-                        .frame(width: geo.size.width * 2)
-                        .offset(x: reduceMotion ? 0 : phase * geo.size.width)
-                }
-                .mask(
-                    Text(text)
-                        .font(Theme.Typeface.greeting)
-                        .tracking(Theme.Typeface.greetingTracking)
-                        .fixedSize(horizontal: false, vertical: true)
-                )
-                .allowsHitTesting(false)
-            }
-            .onAppear {
-                guard !reduceMotion else { return }
-                withAnimation(.linear(duration: 4.5).repeatForever(autoreverses: false)) {
-                    phase = 0
-                }
-            }
+            .foregroundStyle(Theme.tealTextStrong)
             .accessibilityLabel(text)
     }
 }

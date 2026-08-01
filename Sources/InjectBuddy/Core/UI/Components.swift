@@ -158,7 +158,7 @@ struct FieldChrome: ViewModifier {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.control)
-                    .stroke(isFocused ? Theme.tealTextStrong : Theme.line,
+                    .stroke(isFocused ? Theme.tealTextStrong : Theme.fieldBorder,
                             lineWidth: isFocused ? 2 : 1)
             )
     }

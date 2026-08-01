@@ -105,6 +105,40 @@ enum CalculatorCatalog {
         .init(label: "1×/week", value: 1),
     ]
 
+    // MARK: - Syringe barrel
+    //
+    // `syringeMl` was already written to saved_dosages.config by configExtras and
+    // already read by the web (lib/account-schedule.ts), but the phone had no
+    // control for it — the gap this file's note below calls out by name.
+    //
+    // CRITICAL: a slug that renders this picker must NOT also list syringeMl in
+    // configExtras. configJSON() applies extras AFTER field values and lets them
+    // win, so a leftover extra silently overwrites the user's choice — and because
+    // /api/dosages fingerprints the whole config, a wrong value stops an iOS save
+    // matching the equivalent web row and inserts a duplicate instead.
+    static let barrelOptions: [CalculatorInput.PickerOption] = [
+        .init(label: "0.3 mL (30u)", value: 0.3),
+        .init(label: "0.5 mL (50u)", value: 0.5),
+        .init(label: "1 mL (100u)", value: 1),
+        .init(label: "3 mL (IM)", value: 3),
+    ]
+
+    /// The value configExtras used to hardcode for this slug. Used as the picker's
+    /// initial value so a user who never touches the control saves exactly what
+    /// the previous build saved, and the fingerprint is unchanged.
+    static func defaultBarrel(for slug: CalculatorSlug) -> Double {
+        switch slug {
+        case .eod, .microdose: return 0.3
+        case .hcg: return 0.5
+        default: return 1
+        }
+    }
+
+    static func barrelField(for slug: CalculatorSlug) -> CalculatorInput {
+        .picker("syringeMl", "Syringe barrel",
+                options: barrelOptions, default: defaultBarrel(for: slug))
+    }
+
     // MARK: - Cross-platform config shape
     //
     // saved_dosages.config must be BYTE-EQUIVALENT to what the web writes for the same
@@ -146,38 +180,39 @@ enum CalculatorCatalog {
         case .trt:
             // evaluate() runs TRT in perweek mode, so that is the honest value here.
             // nDays/mlDrawn are the unused half of the mode pair; web defaults.
+            // syringeMl is a real field now — see barrelField. Emitting it here too
+            // would overwrite the user's choice (extras win in configJSON).
             return ["mode": .string("perweek"), "nDays": .number(3.5),
-                    "mlDrawn": .number(0.5), "syringeMl": .number(1)]
+                    "mlDrawn": .number(0.5)]
 
         case .eod:
-            // Web's EOD lives on the MicrodoseTRT page — 0.3 mL barrel, not 1.
-            return ["syringeMl": .number(0.3)]
+            // Web's EOD lives on the MicrodoseTRT page, whose barrel default is 0.3 —
+            // now carried by barrelField's default rather than hardcoded here.
+            return [:]
 
         case .microdose:
             return ["mode": .string("ndays"), "injPerWeek": .number(0),
-                    "mlDrawn": .number(0.5), "syringeMl": .number(0.3),
-                    "esterType": .string("")]
+                    "mlDrawn": .number(0.5), "esterType": .string("")]
 
         case .hcg:
-            return ["syringeMl": .number(0.5), "mode": .string("perweek"),
+            return ["mode": .string("perweek"),
                     "nDays": .number(3.5), "injPerWeek": .number(2)]
 
         case .semaglutide, .tirzepatide, .retatrutide:
-            return ["syringeMl": .number(1), "mode": .string("perweek"),
+            return ["mode": .string("perweek"),
                     "nDays": .number(7), "injPerWeek": .number(1)]
 
         case .peptide:
             // peptideType has no iOS field yet, so "" is the truthful answer: nothing
             // was chosen. Add the picker and this becomes a real value (TASK 16/17).
-            return ["syringeMl": .number(1),
-                    "doseUnit": .string(v.number("doseUnitMcg") == 1 ? "mcg" : "mg"),
+            return ["doseUnit": .string(v.number("doseUnitMcg") == 1 ? "mcg" : "mg"),
                     "peptideType": .string("")]
 
         case .reconstitution:
             return ["pepUnit": .string("mg")]
 
         case .bpc157, .bpc157blend:
-            return ["syringeMl": .number(1)]
+            return [:]
 
         case .steroid:
             let idx = Int(v.number("compound"))
@@ -191,7 +226,6 @@ enum CalculatorCatalog {
                     "esterKey": .string(compound.defaultEster?.key ?? ""),
                     "injPerWeek": .number(2),
                     "mlDrawn": .number(0.5),
-                    "syringeMl": .number(1),
                     "dose": .string(""),
                     "tab": .string(""),
                     "split": .string("1")]
@@ -212,6 +246,8 @@ enum CalculatorCatalog {
                 .number("mgWeek", "Weekly dose", unit: "mg/week", default: 100, range: 0...1000, step: 1),
                 .picker("injPerWeek", "Frequency", options: trtFreqOptions, default: 2),
                 .stringPicker("esterType", "Ester", options: CalcConst.esterTypes, default: "Testosterone Enanthate"),
+                .picker("syringeMl", "Syringe barrel",
+                        options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .eod:
@@ -220,6 +256,8 @@ enum CalculatorCatalog {
                 .number("mgWeek", "Weekly dose", unit: "mg/week", default: 70, range: 0...1000, step: 1,
                         help: "Hardcoded every-other-day interval (3.5 injections/week)."),
                 .stringPicker("esterType", "Ester", options: CalcConst.esterTypes, default: "Testosterone Enanthate"),
+                .picker("syringeMl", "Syringe barrel",
+                        options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .microdose:
@@ -228,6 +266,8 @@ enum CalculatorCatalog {
                 .number("strength", "Vial strength", unit: "mg/mL", default: 10, range: 1...100, step: 1),
                 .number("mgWeek", "Weekly dose", unit: "mg/week", default: 5, range: 0...100, step: 0.5),
                 .number("nDays", "Inject every", unit: "days", default: 3, range: 1...7, step: 1),
+                .picker("syringeMl", "Syringe barrel",
+                        options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .hcg:
@@ -235,6 +275,8 @@ enum CalculatorCatalog {
                 .number("vialIU", "Vial size", unit: "IU", default: 5000, range: 0...20000, step: 100),
                 .number("bacWaterMl", "Bac water", unit: "mL", default: 1, range: 0...10, step: 0.5),
                 .number("dose", "Dose per injection", unit: "IU", default: 250, range: 0...5000, step: 50),
+                .picker("syringeMl", "Syringe barrel",
+                        options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .peptide:
@@ -246,6 +288,8 @@ enum CalculatorCatalog {
                     .init(label: "mcg", value: 1), .init(label: "mg", value: 0),
                 ], default: 1),
                 .number("injPerWeek", "Injections/week", unit: "×", default: 1, range: 1...14, step: 1),
+                .picker("syringeMl", "Syringe barrel",
+                        options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .reconstitution:
@@ -260,6 +304,8 @@ enum CalculatorCatalog {
                         help: "mg/mL after reconstitution."),
                 .picker("dose", "Dose", options: CalcConst.doseOptions(CalcConst.semaDoses), default: 0.5,
                         help: "mg per weekly injection."),
+                .picker("syringeMl", "Syringe barrel",
+                        options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .tirzepatide:
@@ -268,6 +314,8 @@ enum CalculatorCatalog {
                         help: "mg/mL after reconstitution."),
                 .picker("dose", "Dose", options: CalcConst.doseOptions(CalcConst.tirzDoses), default: 5,
                         help: "mg per weekly injection."),
+                .picker("syringeMl", "Syringe barrel",
+                        options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .retatrutide:
@@ -276,6 +324,8 @@ enum CalculatorCatalog {
                         help: "mg/mL after reconstitution."),
                 .picker("dose", "Dose", options: CalcConst.doseOptions(CalcConst.retaDoses), default: 1,
                         help: "mg per weekly injection."),
+                .picker("syringeMl", "Syringe barrel",
+                        options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .bpc157:
@@ -289,6 +339,8 @@ enum CalculatorCatalog {
                 .number("vialMg", "Vial size", unit: "mg", default: 5, range: 0...100, step: 1),
                 .number("bawMl", "Bac water", unit: "mL", default: 2, range: 0...30, step: 0.5),
                 .number("dose", "Dose per injection", unit: "mcg", default: 250, range: 0...5000, step: 50),
+                .picker("syringeMl", "Syringe barrel",
+                        options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .bpc157blend:
@@ -299,6 +351,8 @@ enum CalculatorCatalog {
                 .number("tbVial", "TB-500 in vial", unit: "mcg", default: 5000, range: 0...20000, step: 250),
                 .number("tbWater", "TB-500 bac water", unit: "mL", default: 2, range: 0...10, step: 0.5),
                 .number("tbDose", "TB-500 dose", unit: "mcg", default: 2000, range: 0...5000, step: 50),
+                .picker("syringeMl", "Syringe barrel",
+                        options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .bmi:
@@ -347,6 +401,8 @@ enum CalculatorCatalog {
                 .number("strength", "Vial strength", unit: "mg/mL", default: 200, range: 0...500, step: 5),
                 .number("mgWeek", "Weekly dose", unit: "mg", default: 300, range: 0...2000, step: 5),
                 .number("nDays", "Inject every", unit: "days", default: 3.5, range: 0.5...14, step: 0.5),
+                .picker("syringeMl", "Syringe barrel",
+                        options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
         }
     }

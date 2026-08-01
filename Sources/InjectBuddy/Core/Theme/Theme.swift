@@ -42,15 +42,26 @@ enum Theme {
     /// Lighter teal text / greeting gradient base. 3.37:1 on white, so it is
     /// only legal for large text (18pt+ regular, 14pt+ bold).
     static let tealText = Color(hex: 0x0A9D90)
-    /// Greeting gradient highlight. Decorative — always paired with a legal base.
-    static let tealShimmer = Color(hex: 0x5FE8DA)
+    // REMOVED: tealShimmer #5FE8DA. The PWA uses it as the greeting gradient's
+    // highlight stop, but it measures 1.50:1 on white — and at the sweep's
+    // midpoint that stop IS the text colour, so the greeting became the
+    // lowest-contrast text on the dashboard while being the largest type on it.
+    // The shimmer is now cut from legal stops only (#075E56 -> #0A9D90 ->
+    // #075E56); the highlight still reads because the eye tracks the luminance
+    // change, not the absolute value.
 
     /// Page canvas.
     static let canvas = Color(hex: 0xFAFAFB)
     /// Raised tile fill.
     static let surface = Color(hex: 0xF8F8FB)
-    /// Hairline rule.
+    /// Hairline rule for decorative separation (card edges, dividers). Decorative
+    /// rules are exempt from 1.4.11, which is why this may stay this light.
     static let line = Color.black.opacity(0.12)
+    /// Border for INPUT boundaries specifically. 3.26:1 on white, so it satisfies
+    /// WCAG 1.4.11's 3:1 for identifying a control. `line` measured only ~1.3:1
+    /// over the canvas — visible, but not enough to be the thing that identifies a
+    /// field, which is exactly what it is on this form.
+    static let fieldBorder = Color(hex: 0x8E8E93)
 
     // MARK: - Semantic (kept where no brand token exists)
 

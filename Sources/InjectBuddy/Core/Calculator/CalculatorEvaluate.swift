@@ -51,7 +51,7 @@ extension CalculatorEngine {
                 ResultRow(label: "Units (U-100)", value: fmtInt(r.units), emphasis: true),
                 ResultRow(label: "Concentration", value: "\(fmt(r.concentration, 0)) IU/mL"),
                 ResultRow(label: "Doses per vial", value: fmtInt(r.dosesPerVial)),
-            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.drawMl) : nil)
+            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.drawMl) : nil, drawMl: r.drawMl)
 
         case .peptide:
             let r = peptide(peptideMg: v.number("peptideMg"), bawMl: v.number("bawMl"),
@@ -79,7 +79,7 @@ extension CalculatorEngine {
             return CalculatorResult(rows: [
                 ResultRow(label: "Draw", value: "\(fmt(r.volumeMl, 3)) mL", emphasis: true),
                 ResultRow(label: "Units (U-100)", value: fmtInt(r.units), emphasis: true),
-            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.volumeMl) : nil)
+            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.volumeMl) : nil, drawMl: r.volumeMl)
 
         case .bpc157:
             // mcg/mL from vial + water, the web's own derivation (mg × 1000 ÷ mL), so
@@ -90,7 +90,7 @@ extension CalculatorEngine {
             return CalculatorResult(rows: [
                 ResultRow(label: "Draw", value: "\(fmt(r.drawMl, 3)) mL", emphasis: true),
                 ResultRow(label: "Units (U-100)", value: fmtInt(r.units), emphasis: true),
-            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.drawMl) : nil)
+            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.drawMl) : nil, drawMl: r.drawMl)
 
         case .bpc157blend:
             let r = blend(bpcVial: v.number("bpcVial"), bpcWater: v.number("bpcWater"),
@@ -101,7 +101,7 @@ extension CalculatorEngine {
                 ResultRow(label: "Total units", value: fmtInt(r.totalUnits), emphasis: true),
                 ResultRow(label: "BPC-157 draw", value: "\(fmt(r.bpcDraw, 3)) mL · \(fmtInt(r.bpcUnits)) u"),
                 ResultRow(label: "TB-500 draw", value: "\(fmt(r.tbDraw, 3)) mL · \(fmtInt(r.tbUnits)) u"),
-            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.totalMl) : nil)
+            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.totalMl) : nil, drawMl: r.totalMl)
 
         case .bmi:
             let r = v.bool("imperial")
@@ -156,7 +156,7 @@ extension CalculatorEngine {
                 rows.append(ResultRow(label: "Active weekly", value: "\(fmt(r.activeWeek, 1)) mg"))
             }
             return CalculatorResult(rows: rows, isValid: r.isValid,
-                                    scheduleLine: r.isValid ? volumeMeta(r.mlPerInj) : nil)
+                                    scheduleLine: r.isValid ? volumeMeta(r.mlPerInj) : nil, drawMl: r.mlPerInj)
 
         case .cyclePlotter:
             // Handled by the bespoke CyclePlotterScreen, not the generic evaluator.
@@ -173,6 +173,6 @@ extension CalculatorEngine {
             ResultRow(label: "Dose per injection", value: "\(fmt(r.mgPerInj, 2)) mg"),
             ResultRow(label: "Injections / week", value: fmt(r.freqPerWeek, 2)),
             ResultRow(label: "Weekly total", value: "\(fmt(r.weeklyTotal, 1)) mg"),
-        ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.mlPerInj) : nil)
+        ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.mlPerInj) : nil, drawMl: r.mlPerInj)
     }
 }

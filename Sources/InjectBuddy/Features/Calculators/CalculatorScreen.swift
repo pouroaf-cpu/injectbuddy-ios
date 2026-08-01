@@ -16,6 +16,7 @@ struct CalculatorScreen: View {
 
     @StateObject private var vm: CalculatorViewModel
     @StateObject private var keyboard = KeyboardObserver()
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     init(slug: CalculatorSlug) {
         self.slug = slug
@@ -41,6 +42,14 @@ struct CalculatorScreen: View {
                     }
                 }
 
+                // AUDIT FINDING F12: at AX sizes the pinned result bar took ~60%
+                // of the screen and hid the field being edited. Above AX1 the bar
+                // collapses to the primary row + CTA and the full breakdown is
+                // rendered here instead, inside the scroll, so no row is lost.
+                if isAccessibilitySize, vm.result.isValid {
+                    ResultCard(result: vm.result, barrelMl: barrelMl)
+                }
+
                 Text("Maths only — not medical advice.")
                     .font(.caption2)
                     .foregroundStyle(Theme.secondaryLabel)
@@ -52,6 +61,15 @@ struct CalculatorScreen: View {
         .safeAreaInset(edge: .bottom) { resultBar }
         .onAppear { vm.scale = settings.syringeScale }
         .onChange(of: settings.syringeScale) { vm.scale = $0 }
+    }
+
+    private var isAccessibilitySize: Bool { typeSize >= .accessibility1 }
+
+    /// Chosen barrel capacity in mL, when this calculator renders the control.
+    private var barrelMl: Double? {
+        guard vm.spec.fields.contains(where: { $0.key == "syringeMl" }) else { return nil }
+        let v = vm.values.number("syringeMl")
+        return v > 0 ? v : nil
     }
 
     // BMI shows metric or imperial fields depending on the toggle.
@@ -70,7 +88,9 @@ struct CalculatorScreen: View {
             // Collapsed to a one-line summary while the keypad is up. At full
             // height the bar plus the keyboard covered 65% of the screen and cut
             // the field being edited in half (audit finding F11).
-            ResultCard(result: vm.result, isCompact: keyboard.isVisible)
+            ResultCard(result: vm.result,
+                       isCompact: keyboard.isVisible || isAccessibilitySize,
+                       barrelMl: barrelMl)
 
             // Titled "Add" to match the web, where the bottom nav's Add slot owns
             // saving. Kept ON the calculator for now rather than moved to the tab bar:
@@ -115,13 +135,36 @@ struct CalculatorScreen: View {
 private struct ResultCard: View {
     let result: CalculatorResult
     var isCompact: Bool = false
+    var barrelMl: Double?
+
+    /// You cannot draw 1.2 mL into a 1 mL barrel. Surfaced as an icon PLUS text —
+    /// WCAG 1.4.1: no state in this app is ever carried by colour alone, and least
+    /// of all one that says the dose does not physically fit the syringe.
+    private var overCapacity: Bool {
+        guard let barrelMl, let draw = result.drawMl, result.isValid else { return false }
+        // Tolerate float noise; a draw exactly equal to the barrel still fits.
+        return draw > barrelMl + 0.0005
+    }
+
+    private var capacityNote: String? {
+        guard overCapacity, let barrelMl, let draw = result.drawMl else { return nil }
+        return String(format: "Draw of %.3f mL exceeds the %@ barrel — split the dose or choose a larger barrel.",
+                      draw, barrelLabel(barrelMl))
+    }
+
+    private func barrelLabel(_ ml: Double) -> String {
+        ml == ml.rounded() ? "\(Int(ml)) mL" : "\(ml) mL"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             if isCompact, result.isValid, let primary = result.rows.first(where: { $0.emphasis }) {
                 // One line, still label + value + unit, still unable to truncate:
                 // ViewThatFits stacks it rather than clipping the unit.
-                SecondaryResultRow(label: primary.label, value: primary.value)
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    SecondaryResultRow(label: primary.label, value: primary.value)
+                    if let note = capacityNote { CapacityWarning(text: note) }
+                }
             } else if result.isValid {
                 ForEach(result.rows) { row in
                     if row.emphasis {
@@ -130,11 +173,14 @@ private struct ResultCard: View {
                         SecondaryResultRow(label: row.label, value: row.value)
                     }
                 }
+                // Was an orphaned grey string with no label — at AX sizes it read
+                // as a stray word ("Ideal") floating under the numbers. It is a
+                // verdict on the draw volume, so it gets a label like every other row.
                 if let line = result.scheduleLine {
-                    Text(line)
-                        .font(.caption)
-                        .foregroundStyle(Theme.secondaryLabel)
-                        .fixedSize(horizontal: false, vertical: true)
+                    SecondaryResultRow(label: "Volume", value: line)
+                }
+                if let note = capacityNote {
+                    CapacityWarning(text: note)
                 }
             } else {
                 Text("Enter values to calculate")
@@ -146,6 +192,33 @@ private struct ResultCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+    }
+}
+
+/// Over-capacity notice. Icon + text + shape, so it survives greyscale and every
+/// form of colour vision deficiency; the red is reinforcement, not the signal.
+private struct CapacityWarning: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Theme.danger)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(Theme.Typeface.cardMeta)
+                .foregroundStyle(Theme.danger)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.control)
+                .fill(Theme.danger.opacity(0.08))
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Warning. \(text)")
     }
 }
 

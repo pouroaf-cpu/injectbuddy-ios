@@ -116,6 +116,11 @@ struct CalculatorResult: Equatable {
     var isValid: Bool
     /// Optional schedule/explanatory line shown under the rows.
     var scheduleLine: String?
+    /// Volume drawn into the barrel for ONE injection, in mL, when this calculator
+    /// produces one. Structured rather than parsed back out of a formatted row —
+    /// the barrel over-capacity check is a dosing safety check and must not depend
+    /// on string formatting.
+    var drawMl: Double?
 
-    static let empty = CalculatorResult(rows: [], isValid: false, scheduleLine: nil)
+    static let empty = CalculatorResult(rows: [], isValid: false, scheduleLine: nil, drawMl: nil)
 }
