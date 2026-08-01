@@ -38,6 +38,32 @@ when it's ready."*
 Yes, introduce me · I already have one · No, I do my own research · Maybe, tell
 me more
 
+### DECISION 2026-08-01 — we are not copying these questions
+
+**Pouroa: not keen on the sourcing / provider-referral questions.** Settled, not
+open.
+
+InjectBuddy onboarding stays at the **five PWA data points** in
+`WELCOME-AND-ONBOARDING.md §3` — nickname, unit preferences, optional
+measurements, timezone, logging interests. Every one of those configures the
+product. No attribution question, no sourcing question, no provider funnel.
+
+Reasons beyond preference, so this doesn't get relitigated:
+
+- **Parity.** The instruction was to match the webapp. New questions mean new
+  `profiles` columns and iOS ahead of the web, which the web then has to chase.
+- **Exposure.** "Where do you get your peptides?" creates a record of a user's
+  supply route, on our infrastructure, in a category where that answer can be
+  legally sensitive. Collecting it invites a duty we don't currently have.
+  Provider referral is a regulated space and not a thing to walk into as a side
+  effect of an onboarding screen.
+- **Cost to the user.** Two of their five screens deliver nothing to the person
+  filling them in. Ours should all pay their way.
+
+What we DO take from their onboarding is the presentation — one question per
+screen, progress rail, cards with a detail line, selected = border + fill +
+checkmark, and a narrative beat. See `onboarding-reference/README.md`.
+
 ### What the questions are actually for
 
 Only one of these five is product configuration. The rest are business.
