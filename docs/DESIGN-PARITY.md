@@ -1,0 +1,134 @@
+# Design parity — iOS ↔ PWA dashboard
+
+Extracted from the live PWA source on the Windows box
+(`C:\Users\PFrew\Projects\Injectbuddy`, Next.js) on 2026-08-01. The Mac has no
+copy of that repo, which is why the iOS app has been built without these values.
+
+**Source files these numbers come from** — cite them, don't guess:
+
+- `tailwind.config.ts` — brand teal scale
+- `app/globals.css` — `:root` token block, `--ib-cta-*`
+- `components/account/dashboard/DashStyles.tsx` — dashboard-scoped tokens, all
+  component CSS (line numbers noted below)
+- `components/account/dashboard/DashHeader.tsx` — greeting treatment
+
+---
+
+## 1. Why this file exists
+
+`Sources/InjectBuddy/Core/Theme/Theme.swift` currently says, in its header:
+
+> Mirrors the web look (Inter-ish system font, frosted cards) **without forcing
+> exact hexes — system materials read better natively.**
+
+That instruction is the reason the two dashboards don't look alike. It is hereby
+**revoked for brand colour and typography.** Those are brand identity, not
+platform convention, and they must match the PWA.
+
+It is **retained for platform behaviour**: sheets, blur materials, haptics,
+scroll physics, nav transitions, and the Dynamic Type / accessibility stack stay
+native. We are matching the *brand*, not reimplementing the web layout engine.
+
+## 2. Palette
+
+Usage counts are occurrences across the PWA dashboard components — they show
+which colours actually carry the design, not which are declared.
+
+| Token | Hex | Uses | Role | In Theme.swift today |
+|---|---|---|---|---|
+| `teal` | `#0FBCAD` | 38 | Primary accent, CTA fill, FAB | ✅ `Theme.accent` |
+| `navy` | `#001D5C` | 33 | **Second brand colour** — icon buttons, section labels, numerals | ❌ **absent** |
+| `tealDeep` | `#075E56` | 27 | Text on teal tints; high-contrast teal text | ❌ absent |
+| `tealDark` | `#0A9D90` | 15 | Greeting gradient base, active tab text | ❌ absent |
+| `inkNavy` | `#111A3A` | 14 | Heading ink where navy is too saturated | ❌ absent |
+| `tealMist` | `#EAFAF8` | 7 | Selected-state fill (week strip, dose pill) | ❌ absent |
+| `tealMist2` | `#F0FBFA` | 2 | Alternate tint | ❌ absent |
+| `ink` | `#101018` | — | `--ib-dash-ink`, body ink | ❌ uses `.label` |
+| `canvas` | `#FAFAFB` | 12 | `--ib-bg`, page canvas | ❌ uses `.systemBackground` |
+| `surface` | `#F8F8FB` | 5 | Raised tile fill | ❌ uses `.secondarySystemBackground` |
+| `line` | `rgba(0,0,0,0.12)` | — | `--ib-dash-line`, hairlines | ❌ uses `.separator` |
+| `tealShimmer` | `#5FE8DA` | — | Greeting gradient highlight | ❌ absent |
+| `danger` | `#A31313` | 4 | Error text | ⚠️ ships `#FF5757` — wrong |
+
+**The navy is the single biggest gap.** It is the second most-used colour in the
+PWA and does not exist in the iOS theme at all. It is what the navy icon
+buttons, the "Today" label and the dose numerals are made of. Its absence is
+most of why the iOS build reads as a generic SwiftUI app.
+
+Keep `Color(.label)` / `.systemBackground` **only** where a surface must invert
+for dark mode and has no brand equivalent. Brand-coloured elements take the
+hexes above.
+
+## 3. Typography
+
+Theme.swift currently has **no typography at all** — only `Spacing` and
+`Radius`. Every screen therefore inherits SwiftUI defaults, which is the second
+reason for the mismatch.
+
+The PWA is **Inter** site-wide (`tailwind.config.ts` `fontFamily.sans`), with
+`tabular-nums` on all dose numerals (`.ib-dash-mono`,
+`font-variant-numeric:tabular-nums`).
+
+| Element | PWA | SwiftUI target |
+|---|---|---|
+| Greeting (`DashHeader.tsx:25`) | 24px, weight **800**, `letter-spacing:-0.03em`, teal gradient | 24pt, `.heavy`, `.tracking(-0.72)`, gradient fill |
+| Section label ("PROTOCOLS") | 13.5px, weight 600, uppercase | 13.5pt `.semibold`, `.textCase(.uppercase)` |
+| Dose numeral | large, weight 800, tabular | `.monospacedDigit()`, `.heavy` |
+| Tab label | 13.5px, weight 600 (700 active) | 13.5pt `.semibold` / `.bold` |
+
+Decide and record: ship Inter as a bundled font for true parity, or use SF with
+matched weights and tracking. **Do not leave it at SwiftUI defaults** — that is
+the current state and it is what's wrong. If SF is chosen, the weights and
+tracking above are still mandatory.
+
+`-0.03em` at 24px = **-0.72pt** of tracking. SwiftUI `.tracking()` takes points.
+
+## 4. Signature treatments
+
+These are what make the PWA dashboard recognisable. Ranked by visual payoff.
+
+1. **Greeting shimmer** — `DashStyles.tsx:664`. Text-clipped linear gradient,
+   `100deg`, stops `#0A9D90 0%, #0A9D90 40%, #5FE8DA 50%, #0A9D90 60%, #0A9D90
+   100%`, `background-size:230%`, animating `150% → -50%` over **4.5s linear
+   infinite**. In SwiftUI: `LinearGradient` + `.mask(Text(...))` + a repeating
+   `.linear(duration: 4.5)` offset animation.
+   **Must honour Reduce Motion** — the PWA disables it at
+   `DashStyles.tsx:965` under `prefers-reduced-motion`. Mirror that with
+   `@Environment(\.accessibilityReduceMotion)`.
+2. **Card left accent bar** — the coloured spine on the "TEST P / 28.6 mg" card.
+   Per-compound colour. Currently absent on iOS.
+3. **Two-tone greeting** — name renders in a lighter teal than the salutation.
+4. **Week strip** — 7 day cells, selected cell gets `#EAFAF8` fill + teal border,
+   each cell carries a dot when a dose falls that day.
+5. **Tile hover/press** — border → `rgba(15,188,173,0.4)`, `translateY(-1px)`,
+   `box-shadow 0 6px 18px -12px rgba(0,0,0,0.25)` (`DashStyles.tsx:674`). Map to
+   a press state on iOS; there is no hover.
+
+## 5. Geometry
+
+Radii in `Theme.Radius` (card 16 / control 10) are close to the PWA's
+`--radius: 0.5rem` = 8px and the tabs' `10px 10px 0 0`. **Verify before
+changing** — do not churn these on assumption.
+
+The PWA's density is looser than the current iOS build: the iOS dashboard packs
+the greeting, next-dose card, CTA, a 2-column protocol grid and a week section
+into one viewport, where the PWA gives the same content roughly 1.6× the
+vertical room. Larger type will force this correction naturally; don't fight it
+by shrinking type back down.
+
+## 6. Out of scope
+
+Not everything should match. Keep native: sheet presentation, blur materials,
+scroll bounce, nav push transitions, tab bar behaviour, haptics, Dynamic Type
+scaling, and every accessibility affordance. Brand ≠ layout engine.
+
+## 7. Non-negotiable
+
+Whatever is built here must still pass the audit already in flight: 44×44pt
+touch targets, 4.5:1 body text contrast (7:1 target), 3:1 for icons and
+borders, and **no state signalled by colour alone** — this is a dosing app.
+
+Note `#075E56` and `#001D5C` are both very dark and will pass contrast on light
+fills easily; the risk is the reverse — teal `#0FBCAD` as *text* on white is
+only ~2.4:1 and **fails**. The PWA uses `#075E56` / `#0A9D90` for teal text and
+reserves `#0FBCAD` for fills and large display type. Follow that split.
