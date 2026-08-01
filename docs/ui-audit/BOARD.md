@@ -585,3 +585,23 @@ Parity and chrome
    writing an assertion, ask which layer actually observes the thing being
    asserted. Then reproduce the defect and watch the test go red; a test that has
    never failed has not been shown to work.
+24. **The checks that fail us are the ones that cannot fail.** Four came out on
+   2026-08-02 alone, from four unrelated directions, and every one of them reported
+   success:
+   - `continueAfterFailure = true` turned a failed navigation into a photograph of
+     the wrong screen, filed under the right screen's name.
+   - A suppressed software keyboard produced a frame that *flattered* the fix it was
+     taken to prove.
+   - Two "different" captures came back byte-identical because the gesture between
+     them never landed.
+   - "Assert the displayed string contains no ellipsis" reads the accessibility
+     model, not the render, so it passes on the exact frame showing `1…`.
+   Note what they have in common: none of them were wrong about something, they were
+   silent about everything. A check that has never been observed to fail has not been
+   shown to work, and its green is indistinguishable from its absence. So: reproduce
+   the defect and watch the assertion go red before trusting it, ask which layer
+   actually observes the thing being asserted, and make the harness able to fail —
+   `continueAfterFailure = false`, assert the precondition, assert frames differ,
+   count matches before resolving. Every guard added today came from a check that
+   had been quietly passing.
+

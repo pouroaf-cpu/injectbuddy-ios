@@ -44,6 +44,16 @@ This is a dosing app. The bar is measurement, not review.
 - **The PWA source is not in this repo.** It lives on the Windows machine at
   `Projects\Injectbuddy`. Anything derived from it must be written into a doc
   here or the building side cannot see it.
-- **QA credentials** are in the webapp's `.env.local` as `DEVTOOLS_TEST_EMAIL` /
-  `DEVTOOLS_TEST_PASSWORD`. Never commit them; never screenshot an unmasked
+- **QA credentials** are on this machine at `.env.local` (gitignored) as
+  `DEVTOOLS_TEST_EMAIL` / `DEVTOOLS_TEST_PASSWORD`. `xcodebuild` only forwards host
+  environment carrying the **`TEST_RUNNER_`** prefix — without it the UI suite
+  *skips and reports success*. Never commit them; never screenshot an unmasked
   login form. Use that account, never the owner's.
+- **A check that has never been observed to fail has not been shown to work.**
+  Four separate checks were caught silently passing on 2026-08-02 — a capture that
+  photographed the wrong screen, a frame that flattered the fix, byte-identical
+  "refreshed" captures, and a truncation assertion reading the accessibility model
+  instead of the render. Reproduce the defect and watch the assertion go red.
+  `BOARD §5.24`.
+- **The least-surveyed screen is the highest-prior defect, not the lowest.** The one
+  screen never captured at large text held the worst finding on the board.

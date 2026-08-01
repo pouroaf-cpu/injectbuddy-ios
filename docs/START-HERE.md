@@ -1,250 +1,277 @@
-# START HERE — session log, 2026-08-01
+# START HERE — session log
 
-Written at the end of a ~14-hour paired session (Windows Claude directing, Mac
-Claude building) so a cold session can pick up without re-deriving anything.
+Two paired sessions so far, Windows Claude directing and Mac Claude building.
+This file is the entry point; it is written so a cold session can pick up without
+re-deriving anything.
 
 **Read in this order:**
 
 1. This file — what happened, what broke, how it was fixed
-2. `ui-audit/BOARD.md` — current open/closed state, and the rules
-3. `DESIGN-PARITY.md` — the colour, type and header rules
-4. `ui-audit/2026-08-01-current/` — **what the app actually looks like now.**
-   The per-cycle folders are an audit trail, not current state.
+2. `ui-audit/BOARD.md` — current open/closed state, and §5, the rules
+3. `DESIGN-PARITY.md` — colour, type, header and Dynamic Type rules
+4. `ui-audit/2026-08-02-current/` — **what the app actually looks like now.**
+   Per-cycle folders and `2026-08-01-current` are the audit trail, not current state.
+5. `DECISIONS-2026-08-02.md` — every call made while the human was away, with what
+   would reverse it
+6. `HARNESS-AND-LOOSE-ENDS.md` — the workshop floor: how to run things, and the
+   traps that cost real time
 
-Branch `feature/tabview-shell`. Everything below is committed; nothing important
-lives only in a conversation.
-
----
-
-## 1. What this session was
-
-It started as "audit the UI against mobile rules" and became four things:
-
-1. **An accessibility and safety audit** — 17 findings, all measured, all closed
-2. **Brand parity with the PWA** — the iOS app looked nothing like the web app
-3. **Three real data bugs**, none of which were visible in the code
-4. **A UI test harness**, built because verification kept being the bottleneck
-
-The app went from a generic SwiftUI build with one brand colour and no type
-scale, to something that reads as the same product as the web app.
+Branch `feature/tabview-shell`, latest `466fac2`. Everything below is committed.
 
 ---
 
-## 2. Issues encountered, and how they were fixed
+# Day 2 — 2026-08-02
 
-Grouped by kind. Every one of these actually happened.
+## The one-sentence version
 
-### 2.1 Safety — the ones that mattered most
+Every serious defect found today was a **number the user could not trust**: a dose
+displayed that the engine never used, a dose truncated to `1…`, and a result
+computed confidently for an input hidden behind an overlay — and every one was
+invisible to code review, to the 27 unit tests, and to the audit as it existed
+that morning.
 
-**Units disappeared at large text.** At the largest accessibility size the TRT
-calculator rendered `Draw… 0.25…` / `Weekly… 100.0…` — the unit was inside the
-ellipsis on every row. `0.25` reads as 0.25 mL or 25 units depending on what you
-assume, in an app whose whole job is telling you what to draw. Users on large
-text are disproportionately those least able to catch the error.
-→ **Fixed** by stacking label above value on primary rows and `ViewThatFits`
-with a stacked fallback on secondary rows. No `lineLimit` anywhere in that card.
+## 1. The defects
 
-**The field showed a different number from the one being calculated.** Tapping a
-quick-dose chip wrote the binding but `NumberField`'s local text state didn't
-follow — the field displayed **100 while the engine computed 300 mg/week**. All
-27 unit tests passed throughout, because the engine was correct; the UI lied.
-→ **Fixed** by syncing text on external value changes, skipped while focused so
-it can't fight typing.
-→ **This is why the UI test harness exists.**
+### 1.1 The field displayed a number the engine did not use — the SECOND breach
 
-**The primary CTA rendered as a blank bar.** With the keypad up, the floating
-log-dose button sat on the calculator's Add button and covered its label
-entirely — an unlabelled coloured rectangle as the primary action.
-→ **Fixed** by hiding the hero while the keyboard is visible.
+`mgWeek` is ranged `0...1000`. Focusing a populated field did not select its
+contents, so typing `250` onto `100` gave `100250`; `clamp` then handed the engine
+**1000**, silently. The screen showed `100250 mg/week` beside a `2.500 mL` draw
+computed from 1000, with a correct over-capacity warning for a number the user
+could not see.
 
-### 2.2 Accessibility
+Yesterday's headline bug — field 100, engine 300 — was the *first* breach of the
+same invariant. Two breaches on two different paths means the first fix was a patch
+on a path rather than an invariant on the control, so it is now enforced on **both
+edges** of `NumberField`: clamping rewrites the text, and focusing selects.
 
-**Brand teal as text failed everywhere.** `#0FBCAD` on white is **2.38:1**. It
-was the dose readout, every CTA, `Cancel`, the empty-state action, the Retry
-button — and the log-dose hero's glyph, the most prominent control in the app.
-→ **Fixed** by splitting the palette: `#0FBCAD` is a fill colour only,
-`#075E56` / `#0A9D90` for teal text. Every surface now passes.
+**App-wide.** `NumberField` is the only numeric input and `FieldRow` its only call
+site, so every ranged field in every calculator had it. "The TRT dose field" and
+"every dose field in the app" are different findings and only the second was true.
 
-**Two sub-44pt tap targets.** A bare `Toggle` in a `VStack` — `maxWidth:
-.infinity` widens the layout frame but not the hit area, so only the ~31pt switch
-was tappable, proven by tapping the row and getting nothing. And the log-dose
-date chip at 34.3pt.
-→ **Toggle fixed** with a 44pt `contentShape`, keeping the native switch.
-→ **Date chip accepted** as a documented deviation — it's Apple's own control,
-it's 52.7pt at accessibility sizes, and it's ~120pt wide so it fails in one
-dimension only. Recorded with reasoning in `BOARD.md §4`, not silently dropped.
+### 1.2 A dose truncated to `1…` at AX5 — finding F1 again, through a new mechanism
 
-**A CTA that didn't scale.** `PrimaryButton` rendered 91.3pt on the calculator
-and 71.7pt in the log sheet at AX5 — from the same component. A `List` row was
-pinning it at default size, so accessibility users got a default-sized button.
-→ **Fixed** by moving it out of the `List`.
-→ **Lesson: a component verified in one container is not verified.**
+The field row was `[ value ][ unit ][ − ][ + ]` on one line. The unit carries
+`.fixedSize()` — correct, a unit must never truncate — and the steppers are 44pt
+each, so at AX5 the unit took the row and **the value** was squeezed. The weekly
+dose rendered as `1…`, which could be 100, 150 or 1000 mg/week.
 
-**A closed drawer stayed in the accessibility tree.** `allowsHitTesting(false)`
-stops touches but does not remove an element. VoiceOver users could swipe into
-fourteen calculator rows sitting at x = −290, off-canvas.
-→ **Fixed** with `accessibilityHidden`. Found by the test harness on its first
-real run — a screenshot cannot show an element at x = −290.
+Compounding it, the field's font was a frozen `.system(size: 17)` at the call site
+that the type-scale re-baseline could not reach, so the number stopped growing while
+its unit did not — the value became the smallest text on the most safety-critical
+screen in the app, then disappeared.
 
-### 2.3 Data — none of these were visible in the code
+**F1 banned `lineLimit` on a value+unit pair. That ban was necessary and not
+sufficient**; layout reached the same outcome without touching it. Fixed by
+reflowing above AX1.
 
-**Saving a protocol from iOS had never worked.** Every insert was refused by row
-level security because `user_id` was omitted. The *read* path omits it
-deliberately (RLS scopes SELECTs) and that correct assumption was carried into
-the write path, where the `WITH CHECK` made it fatal. Every row in the table was
-web-created.
-→ **Fixed** by sourcing the id from the session inside the data layer.
+**How it was found matters more than the fix.** The TRT calculator at AX5 had never
+been captured — two attempts had failed and it was about to be recorded as a known
+gap. It is the most safety-critical screen in the app and the screen the *original*
+truncation bug lived on, and it had a second one.
 
-**No deduplication on protocol saves.** iOS writes straight to PostgREST and
-never calls `/api/dosages`, where the dedup logic lives. Every mention of that
-endpoint in the iOS source is a comment.
-→ **Fixed at the database**: `UNIQUE (user_id, calculator_type, config)` on
-jsonb, so both platforms get identical behaviour and neither client has to
-reproduce the other's normalisation. Verified by count — 99 rows, two identical
-saves, still 100 rows, zero duplicate groups.
-→ `.upsert` was **rejected**: PostgREST resolves it to `ON CONFLICT DO UPDATE`,
-which would overwrite `start_date` with today and shift every calendar
-occurrence. Insert-then-recover-on-23505 leaves the existing row untouched.
+### 1.3 A result presented for an input the user could not reach
 
-**Three calculators wrote the wrong config shape.** iOS grouped semaglutide,
-tirzepatide and retatrutide into one config case — sensible, same drug class —
-but the web writes semaglutide differently. Plus `hcg` had inherited the
-injectable mode pair.
-→ **Found** by querying the 99 real web-created rows for their actual key sets
-and diffing, rather than reviewing the catalog against itself.
-→ Nine of twelve slugs are now verified against real data. Three have no web
-rows and are recorded as **not knowable**.
+At AX5 the pinned result bar — already collapsed to primary + CTA, which was the F11
+fix — still took ~58% of the content area, leaving room for exactly one field.
+`Vial strength` was visible; `Weekly dose` was sheared through the middle of its
+glyphs by the bar's top edge. So the screen offered `Draw per injection · 0.250 mL`
+and an enabled `Add` for a weekly dose the user could neither see nor reach.
 
-### 2.4 Design — why the app looked wrong
+`Add` writes a protocol. The first two defects were display bugs; this one persists.
 
-`Theme.swift`'s own header said *"Mirrors the web look without forcing exact
-hexes — system materials read better natively."* That instruction was the
-divergence, written into the code as policy. The theme carried **one** brand
-colour and **no typography at all**.
+It also defeated the reachability rule adopted an hour earlier, and produced its
+missing half: **the input the action commits must be reachable too. An action you
+can reach for a value you can't is worse than an action you can't reach, because the
+second one stops you.**
 
-Across 14 tracked markdown files there was exactly **one** colour value —
-`#0fbcad`, four times. `SCREENS.md` was ASCII wireframes: structure, not
-appearance. The design had never been written down anywhere an implementer could
-act on.
-→ **Fixed** by extracting the real palette and type scale from the PWA source
-(which only exists on the Windows box) into `DESIGN-PARITY.md`, then applying it.
+Not trimmed a third time. F11 was measured against frozen type and the bar now scales
+with everything else, so another trim is a smaller number against the same broken
+premise: an overlay owning the majority of the content area is not context for the
+screen, it *is* the screen.
 
-**The type scale was applied only where anyone looked.** Late in the session:
-ten screens still have none. That is not a straggler, it is the default state.
-`DisclaimerGate` — the first screen a new user ever sees — is one of them.
+### 1.4 The quick-value row was unreachable with the keypad up
 
-### 2.5 Rig failures that cost real time
+And the occluder was **not the keyboard** — it was the pinned result bar, sitting
+above it. Weekly dose is only the second field on the screen; every field below it
+was worse. The chips now ride in a keyboard toolbar, which also supplies the only
+exit from a `.decimalPad` — it has no return key, so dismissing it previously meant
+tapping some other control.
 
-**macOS logged out.** Symptom: taps dead, screenshots fine. Diagnosed by
-noticing System Events reported 0 windows for **Finder** too, and a full-display
-screencapture came back uniform grey.
-→ **`simctl` keeps working because CoreSimulator is a daemon with no display
-dependency**, which is why the symptom points at the Simulator and isn't.
+The tell that this was real: `quick_mgWeek_400.tap()` **reported success and moved
+nothing.**
 
-**Synthesized mouse clicks stopped working** after `simctl erase` and never came
-back. Keyboard shortcuts worked; the cursor moved; accessibility trust was
-granted.
-→ **Solved permanently** by XCUITest, which drives through the automation layer
-inside the runtime and never touches the host window server.
+## 2. The type scale never scaled
 
-**Silent bad evidence, twice.** A screenshot "refresh" came back byte-identical
-with matching checksums because the taps had failed, and one frame was the iOS
-home screen with the app backgrounded. Separately, an automated slug sweep found
-its target by scanning for a colour that also matched a picker, so six "saves"
-were menu-opens.
-→ Both caught by checking rather than trusting. Both deleted rather than
-committed.
+Every `Theme.Typeface` token was `Font.system(size:weight:design:)` — fixed points,
+which SwiftUI excludes from Dynamic Type. The comment directly above the enum
+claimed the opposite: *"Every face is built with `relativeTo:` so it still scales."*
+Not one of them was.
 
-**The session lives in the Keychain**, so `uninstall` does not sign you out and
-`erase` does. Costly to learn, useful afterwards — it means a test suite can
-sign in once rather than per test.
+Proof: the dashboard greeting and the `PROTOCOLS` eyebrow are **pixel-identical**
+between `IB2245723` (default) and `IB2245730` (AX5), while system-styled text on the
+same screen scales enormously. The hierarchy *inverts* — the greeting is the largest
+text at default and one of the smallest at AX5.
 
-### 2.6 Errors made by the directing side, and corrected
+**The queued work would have spread it.** T10 was "apply the type scale to the ten
+screens that don't have it". Nine of those ten have no `Theme.Typeface` at all,
+meaning they use system text styles and scale correctly today. The sweep would have
+replaced working Dynamic Type with frozen sizes on nine screens, starting with
+`DisclaimerGate` — the first screen a new user sees — and it would have been reported
+as a parity win.
 
-Recorded because the corrections are the useful part.
+It also reframed the AX5 Tools finding: `ToolsScreen` looks broken at AX5 **because
+it scales correctly and the layout cannot take it**, while the dashboard looked fine
+**because it wasn't scaling at all**. Opposite defects, about to be treated by one
+sweep in opposite directions.
 
-| Claim | Reality |
+## 3. The through-line: every check we removed was one that could not fail
+
+Four, in one day, from four unrelated directions. Every one reported success.
+
+| The check | Why it could not fail |
 |---|---|
-| "Filled teal + white text fixes the contrast" | **Contrast is symmetric.** White on `#0FBCAD` is also 2.38:1. |
-| "The structure already matches, only styling differs" | The dashboards differ in **information architecture**. |
-| "The protocol icons are emoji" | SF Symbols with a bad tint palette. Diagnosed from a PNG without checking. |
-| "A nav bar can't grow for a wrapped title" | It grows to **two** lines, then shears the third silently. |
-| "The hero is grazing the CTA" | A **12.7pt overlap**, read off a downscaled montage. |
-| "`RootView:29` is the hero's z-index" | It's the medical disclaimer gate. |
-| Specced the PWA's shimmer gradient verbatim | Its bright stop is **1.50:1**. The defect was propagated, not caught. |
-| Specced a full-screen decorative `Canvas` | It swallowed taps on first run and made the disclaimer button look disabled. |
+| `continueAfterFailure = true` in the capture sweep | A failed navigation photographed the Tools screen and filed it under the TRT calculator's name |
+| A screenshot of the keyboard toolbar | A hardware keyboard suppressed the software keypad, so the frame *flattered* the fix it was taken to prove |
+| Two "different" captures | Byte-identical, because the gesture between them never landed |
+| "Assert the displayed string contains no ellipsis" | Reads the accessibility model, not the render — passes on the exact frame showing `1…` |
 
-**The pattern: every one was settled by measuring, and several were caught by the
-building side pushing back.** That only worked because pushing back was expected.
+None of them were *wrong* about something. They were **silent about everything**,
+and a green that is indistinguishable from an absence is not evidence.
+
+So the harness now has four guards, each added after the corresponding check was
+caught passing: `continueAfterFailure = false`; assert the keyboard is on screen
+before shooting; fail when two frames are byte-identical; count matches before
+resolving an identifier. And the rule, `BOARD §5.24`: **reproduce the defect and
+watch the assertion go red before trusting it, and ask which layer actually observes
+the thing being asserted.**
+
+`FORCE_INLINE_FIELD=1` exists for exactly that — a DEBUG-only hook that restores the
+`1…` layout so anyone can re-prove the truncation sweep goes red on the real bug,
+rather than trusting it because it was red once on one machine.
+
+## 4. What the audit could not see
+
+`2026-08-01-current/10-tools-ax5.png` passed the audit, and passed **correctly** —
+nothing truncated, nothing under 44pt, contrast fine. A human looked at it for two
+seconds and found six problems: `Semaglu-tide` hyphenated mid-word, `Tirzepatide`
+wrapping to an orphaned `e`, `Retatru-tide`, the title clipped against the header,
+icons that stayed small while text went huge, four rows filling the screen.
+
+Three rules came out of that, and they are the ones most likely to matter tomorrow:
+
+1. **Every audit opens with a judgment pass** — look at the frame and ask "would I
+   ship this?" before measuring anything. Metrics are a floor, not a verdict; they
+   were chosen to catch the last set of bugs, not the next one.
+2. **At every size, not just AX5.** Every finding today came out of AX5 frames — not
+   because the default screens are clean, but because those were the frames anyone
+   looked at. One glance at a default frame we already had found the result bar
+   taking 52% of the content area with two of five inputs above the fold.
+3. **Report layout as a percentage of the viewport, never in lines.** "Three lines"
+   is comparable to nothing; "31% of the content area" is comparable across screens,
+   sizes and weeks. Two denominators: full frame, and the content area between fixed
+   header and tab bar.
+
+And the corollary to §5.7 that today earned: **the least-surveyed screen is the
+highest-prior defect, not the lowest.** Nobody complains about a screen nobody has
+looked at. The one screen never captured at large text held the worst finding on the
+board.
+
+## 5. The tests
+
+Four wiring assertions plus a truncation sweep, all green at default and AX5.
+
+The sweep asserts a geometric invariant — **a value cell is never narrower than its
+own unit** — because the textual version cannot fail (§3). It goes red on all three
+mechanisms that have produced this bug without naming any of them.
+
+**It found seven instances nobody had looked at.** With the defect reproduced, it
+reports 12 failures across 8 calculators, including `Free T Index · shbg`,
+`Reconstitution · targetConc` and `Steroid Dosage · strength`. The hand-found bug was
+one of eight.
+
+**Its blind spot is documented in its own header and is reachable, not theoretical.**
+It is a ratio, so it is blind to a long value beside a short unit: `1000` → `10…`
+next to `mg` passes green. `Reconstitution` holds 1000 in a 49.7pt cell, so
+four-digit doses are ordinary here. Closing that is T19 — have the renderer publish
+its own truncation state in DEBUG rather than inferring it from geometry.
+
+Coverage, stated so a green run is not over-read: default + AX5 across 14
+calculators; three GLP-1 screens have **no numeric fields at all** and are measured
+by nothing — the suite prints that rather than skipping silently.
+
+## 6. Where to pick up
+
+`BOARD.md` is authoritative and `TASKLIST` on the cross-claude bus is the live queue.
+In short:
+
+- **T9 — onboarding + Settings Personalisation.** Not started, and the build order is
+  the important part: **Settings surface first, wizard second.** Built the other way
+  round, an unfinished T9 ships the one-way door — a wizard that writes units and
+  timezone once with no screen that can edit them. `onboarding_completed_at` is
+  stamped only by the wizard, never by a Settings save, which is what makes
+  Settings-first safe. Design for `timezone = NULL` as the **norm** (88 of 89 live
+  profiles) while the API rejects null.
+- **T19** — renderer-measured truncation, above.
+- **T20** — the result bar takes ~52% of the content area at *default* size. Gate the
+  pinning on a measured share, not a Dynamic Type category.
+- **T21** — the pinned plate should be a material, not grey. Contrast measured against
+  the *worst* composite, not a representative one.
+- **T11** — re-survey at every size with the judgment pass.
+- **T8** — protocol detail route; the chevron promises navigation and delivers none.
+
+## 7. Working notes
+
+- **Credentials** are at `injectbuddy-ios/.env.local` (gitignored, verified with
+  `git check-ignore` before the file was written) as `DEVTOOLS_TEST_EMAIL` /
+  `DEVTOOLS_TEST_PASSWORD`. The runner reads `QA_EMAIL` / `QA_PASSWORD` and
+  `xcodebuild` only forwards host environment carrying the **`TEST_RUNNER_`** prefix
+  — without it the suite *skips and reports success*. **The password was relayed over
+  the message bus on 2026-08-02 at the human's instruction and sits in the bridge's
+  DB on both machines; rotation is outstanding.**
+- **A capture run leaves the device dressed for the wrong test.** `simctl ui
+  content_size` is device state, not run state. An AX5 sweep left it set and the next
+  wiring run failed all four assertions against a reflowed layout — it read exactly
+  like "the app broke". Reset in the same command that sets it.
+- **`Tools` is a `List`**, which XCUITest surfaces as a collectionView, not a
+  scrollView — and at accessibility sizes its rows are **lazy**, so
+  `waitForExistence` reports "does not exist" for a row two swipes away. Both are why
+  the AX5 calculator took three attempts to capture.
+- **The device is signed in, not erased.** `HARNESS §4` was corrected; first-boot is
+  only reachable via `simctl erase`, at the cost of the session.
+- **The PWA source and the database are on the Windows box.** Specs for the missing
+  calculators, history, inventory and Settings are now committed here
+  (`PWA-SPEC-*.md`) so the building side can work from them rather than from
+  archaeology.
 
 ---
 
-## 3. Rules earned the hard way
+# Day 1 — 2026-08-01
 
-Full list in `BOARD.md §5`. The ones that paid out repeatedly:
+The full narrative is in `SESSION-HANDOVER-2026-08-01.md` and
+`HANDOVER-2026-08-01-FULL.md`. The short version:
 
-1. **Internally consistent code is not evidence.** Three separate bugs — the RLS
-   refusal, the `/api/dosages` assumption, the GLP-1 grouping — were correct by
-   inspection and wrong against reality. Each took minutes to settle by querying
-   the running system instead of reading the source describing it.
-2. **Measure before changing a constant.** `heroOverhang` 22→38 was rebuilt and
-   re-measured to *identical pixels* before being reverted.
-3. **Prefer visible truncation over silent clipping.** Truncation announces
-   itself; a clipped line reads as a glitch or as the whole string.
-4. **Hiding is not removing.** `allowsHitTesting`, `opacity(0)` and offscreen
-   offsets all leave the element in the accessibility tree.
-5. **A component verified in one container is not verified.**
-6. **Closing a finding protects the code that existed when you closed it.** New
-   controls land underneath old bugs.
-7. **Attention follows complaints, not risk.** The least-examined screen held a
-   touch-target violation, the worst contrast in the app, no type scale, and a
-   latent truncation bug.
-8. **If taps die but `simctl` still screenshots, check the login session** before
-   touching the Simulator.
+An accessibility and safety audit (17 findings, all measured), brand parity with the
+PWA, three data bugs invisible in the code, and the XCUITest harness that exists
+because verification kept being the bottleneck.
 
----
+The findings that still shape the work:
 
-## 4. Where to pick up
+- **Units disappeared at large text** — `Draw… 0.25…`. The worst finding of that
+  audit, and the ancestor of Day 2's §1.2.
+- **The field showed a different number from the one being calculated** — 100
+  displayed, 300 computed, with all 27 unit tests green throughout. This is why the
+  UI test target exists.
+- **Saving a protocol from iOS had never worked** — every insert refused by RLS
+  because `user_id` was omitted. Every row in the table was web-created.
+- **No dedup on protocol saves** — iOS bypasses `/api/dosages`, so it was fixed at
+  the database with a unique index rather than in either client.
+- **Brand teal as text failed everywhere** — `#0FBCAD` on white is 2.38:1. The
+  palette was split: fills vs text.
+- **Contrast is symmetric** — swapping foreground and background changes nothing.
+  Filling the teal button fixed the parity bug and left the accessibility bug
+  untouched.
 
-`BOARD.md` is authoritative. In short:
-
-**In flight** — three red assertions in the XCUITest harness, all test-side
-(per-field identifiers needed instead of `firstMatch`; `typeText` appends rather
-than replaces). Get those green, assert one calculator end to end, review, then
-scale.
-
-**Queued, specced, not started**
-- Calculator parity — `ui-audit/calculator-reference/`
-- Onboarding — `WELCOME-AND-ONBOARDING.md`. **Must ship with the Settings
-  Personalisation surface**, or a user sets units and timezone once at signup and
-  can never change them.
-- Screen header rule — `DESIGN-PARITY.md §9`
-- Type scale on ten screens — one item, a sweep, not started
-
-**Missing entirely** — dose history, inventory, four of six Settings sub-tabs,
-protocol detail (the dashboard chevron currently promises navigation and
-delivers none), and three calculators that exist on the web with no iOS screen.
-
-**Needs a human decision** — dashboard information architecture (tabbed like the
-PWA, or single-scroll), the greeting shimmer, Inter vs SF.
-
-**Never verified** — the auth restyle and the welcome screen's signed-out path.
-Both were blocked all session and are unblocked now.
-
----
-
-## 5. Working notes
-
-- **QA credentials** are in the webapp's `.env.local` on the Windows box as
-  `DEVTOOLS_TEST_EMAIL` / `DEVTOOLS_TEST_PASSWORD`. Never commit them, and never
-  screenshot a filled login form without masking. Use that account, never the
-  owner's — their real email and avatar are the PII kept out of this repo all
-  session.
-- **The PWA source only exists on the Windows box** (`Projects\Injectbuddy`).
-  The Mac cannot read it. Anything derived from it has to be written into a doc
-  here or it is invisible to the building side.
-- **The database is reachable from the Windows side.** Ground truth for config
-  shapes, dedup and profile columns lives there — query it rather than reasoning
-  about it.
-- **Two screenshots contain the owner's real email and avatar.** The repo is
-  private; that is a blocker on ever making it public.
+The rule that has now paid out on both days: **internally consistent code is not
+evidence.** Three bugs on Day 1 and the type-scale comment on Day 2 were all correct
+by inspection and wrong against reality.
