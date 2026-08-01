@@ -343,6 +343,31 @@ private struct FieldRow: View {
         }
     }
 
+    /// A full-width 44pt row that toggles, with the system switch drawn inside it.
+    private func toggleRow(field: CalculatorInput, isOn: Binding<Bool>) -> some View {
+        Button {
+            isOn.wrappedValue.toggle()
+        } label: {
+            HStack(spacing: Theme.Spacing.sm) {
+                Toggle("", isOn: isOn)
+                    .labelsHidden()
+                    .tint(Theme.accent)
+                    // The row is the single tap handler; without this the switch
+                    // would consume its own taps and the row's gesture would fire
+                    // too, toggling twice to a net no-op.
+                    .allowsHitTesting(false)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(field.label)
+        .accessibilityValue(isOn.wrappedValue ? "On" : "Off")
+        .accessibilityAddTraits(.isButton)
+    }
+
     @ViewBuilder
     private var content: some View {
         switch field.kind {
@@ -372,10 +397,17 @@ private struct FieldRow: View {
             .fieldChrome()
 
         case .toggle:
-            Toggle(field.label, isOn: vm.boolBinding(field.key))
-                .tint(Theme.accent)
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // The switch alone was the tap target: ~51x31pt, under the 44pt floor,
+            // on a control that changes which units a dose is calculated in. Proven
+            // behaviourally — tapping the row at x=250pt did nothing while tapping
+            // the switch at x=30pt flipped it. `maxWidth: .infinity` widened the
+            // LAYOUT frame without extending the hit area.
+            //
+            // The system switch is kept and made non-interactive; the row owns the
+            // tap. Replacing UISwitch to win a consistency argument would be
+            // off-platform and would lose its own accessibility behaviour —
+            // DESIGN-PARITY §6 keeps native controls native.
+            toggleRow(field: field, isOn: vm.boolBinding(field.key))
 
         case let .stepperDays(_, range):
             Stepper(value: vm.numberBinding(field.key), in: range, step: 1) {

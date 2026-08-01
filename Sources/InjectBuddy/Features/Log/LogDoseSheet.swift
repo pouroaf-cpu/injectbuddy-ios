@@ -63,7 +63,19 @@ struct LogDoseSheet: View {
                     }
 
                     Section {
+                        // The compact DatePicker's chip measured 34.3pt — under the
+                        // 44pt floor, on the control that sets WHICH DAY a dose was
+                        // administered. Floored at 44 and given the calculator's
+                        // field treatment (r10 / 1pt #8E8E93 / white) so it stops
+                        // reading as a stock grey chip on an otherwise branded app.
                         DatePicker("Day", selection: $day, displayedComponents: .date)
+                            .frame(minHeight: Theme.minTarget)
+                            .padding(.horizontal, Theme.Spacing.sm)
+                            .fieldChrome()
+                            .listRowInsets(EdgeInsets(top: Theme.Spacing.sm,
+                                                      leading: Theme.Spacing.md,
+                                                      bottom: Theme.Spacing.sm,
+                                                      trailing: Theme.Spacing.md))
                     }
 
                     Section {

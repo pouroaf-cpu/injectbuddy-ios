@@ -56,9 +56,18 @@ The calculator family is universal: numeric ± fields and every menu picker,
 including the barrel picker, are **44.0 pt** at default and **77.35 pt** at AX5.
 Four things sit outside it.
 
-- [ ] **Log-dose date chip is 34.3 pt** — under the 44 pt floor, and it is the tap
-      target for the dose date. Worst of the set: a sub-minimum target on a
-      dosing field. `2026-08-01-controls/07-date-chip-crop.png`.
+- [~] **Log-dose date row — treatment done, TARGET NOT.** The row is now 44.0 pt
+      (borders measured at pt 517.85 → 561.85) with the calculator's field
+      chrome: r10, 1 pt `#8E8E93`, white. So it no longer reads as a stock grey
+      chip.
+      **But the effective tap target is still the system chip.** Tested: tapping
+      the row on the label side, away from the chip, does **not** open the picker.
+      A compact `DatePicker` owns its own hit area and a row cannot take it over —
+      unlike the toggle, where the row could just flip a boolean without needing
+      system UI.
+      **Needs a decision, and it is the same trade §6 covers:** accept Apple's
+      control at Apple's metric, or replace the chip with a custom 44 pt row that
+      presents a graphical picker. I am not making that call silently.
 - [ ] **Log-sheet rows are a different visual language.** Same 44 pt height as a
       calculator field, but separator-delimited list rows on white versus bordered
       boxes with a `#8E8E93` stroke and 10 pt radius. The "height matches, radius
@@ -76,7 +85,14 @@ Four things sit outside it.
         teal-as-text pairing removed everywhere else in the app.
       This is a bug, not a preference: the human read it as wrong from a
       screenshot without knowing any of the above.
-- [ ] **Toggle: only the ~51×31 pt switch is tappable — CONFIRMED BEHAVIOURALLY,
+- [x] **Toggle target FIXED — verified behaviourally.** The row is now a 44 pt
+      `Button` with a `contentShape`, the system switch drawn inside it with
+      `allowsHitTesting(false)` so the row is the single tap handler. Retested at
+      the *same* coordinate that previously did nothing: tapping x=250 pt now
+      flips BMI metric → imperial (24.69 Normal → 25.82 Overweight). Native
+      `UISwitch` kept; `DESIGN-PARITY §6` intact.
+      <details><summary>original finding</summary>
+- [x] **Toggle: only the ~51×31 pt switch is tappable — CONFIRMED BEHAVIOURALLY,
       and it is a real touch-target violation.** The "isn't the whole row the
       target?" hypothesis assumed a `Form` row; this is not one. It is a bare
       `Toggle(...).labelsHidden().frame(maxWidth: .infinity, alignment: .leading)`
