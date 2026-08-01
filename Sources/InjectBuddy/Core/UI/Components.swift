@@ -21,12 +21,13 @@ struct PrimaryButton: View {
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: Theme.minTarget)
             .padding(.vertical, 14)
-            // #075E56, not #0FBCAD. Contrast is symmetric — white on #0FBCAD is
-            // the same 2.38:1 as #0FBCAD text on white, so "make it a filled teal
-            // button" does not fix the contrast failure on its own. White on
-            // #075E56 is 7.65:1 and clears AAA, and it leaves #0FBCAD for the FAB
-            // and large display type per DESIGN-PARITY §7.
-            .background(Theme.tealTextStrong.opacity(isEnabled ? 1 : 0.4))
+            // Navy is the action colour: every primary CTA and the hero share it,
+            // so "this is the thing to press" is one colour app-wide. White on
+            // #001D5C is 15.79:1, up from #075E56's 7.65:1.
+            // (Contrast is symmetric, which is why "make it a filled teal button"
+            // never fixed anything on its own: white on #0FBCAD is the same 2.38:1
+            // as #0FBCAD text on white.)
+            .background(Theme.navy.opacity(isEnabled ? 1 : 0.4))
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
         }
@@ -218,9 +219,12 @@ struct EmptyStateView: View {
                 .foregroundStyle(Theme.secondaryLabel)
                 .multilineTextAlignment(.center)
             if let actionTitle, let action {
+                // Caught by the CTA sweep: .borderedProminent draws white on the
+                // tint, so this was white on #0FBCAD at 2.38:1 — the empty state's
+                // only action, and the first button a new user ever sees.
                 Button(actionTitle, action: action)
                     .buttonStyle(.borderedProminent)
-                    .tint(Theme.accent)
+                    .tint(Theme.navy)
                     .padding(.top, Theme.Spacing.sm)
             }
         }
@@ -241,9 +245,11 @@ struct ErrorBanner: View {
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.secondaryLabel)
+            // .bordered tints the LABEL, so this was #0FBCAD text at 2.38:1.
+            // Secondary action, so deep teal rather than navy — 7.65:1.
             Button("Retry", action: retry)
                 .buttonStyle(.bordered)
-                .tint(Theme.accent)
+                .tint(Theme.tealTextStrong)
         }
         .padding(Theme.Spacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

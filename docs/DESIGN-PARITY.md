@@ -132,3 +132,30 @@ Note `#075E56` and `#001D5C` are both very dark and will pass contrast on light
 fills easily; the risk is the reverse — teal `#0FBCAD` as *text* on white is
 only ~2.4:1 and **fails**. The PWA uses `#075E56` / `#0A9D90` for teal text and
 reserves `#0FBCAD` for fills and large display type. Follow that split.
+
+
+---
+
+## 8. Colour roles (settled 2026-08-01, cycle 7)
+
+Both brand colours are load-bearing. Navy is the ACTION colour; teal is the brand's
+primary hue and keeps the FAB. This is taken from the PWA's actual usage — navy 33
+uses spanning header buttons, NavyCard CTAs and section labels; teal 38 uses spanning
+the FAB, wordmark, accents and selected states — not from a hierarchy principle. An
+earlier pass made navy scarce "so it dominates" and drained the brand; brand wins.
+
+| Role | Token | Pairing | Measured |
+|---|---|---|---|
+| Actions — primary CTAs, header icon buttons | `navy` #001D5C | white on it | **15.79:1** |
+| The FAB | `accent` #0FBCAD fill, **navy glyph** | #001D5C on #0FBCAD | **6.43:1** |
+| Teal text anywhere | `tealTextStrong` #075E56 | on white/canvas | 7.65:1 |
+| Large teal text only | `tealText` #0A9D90 | on white | 3.37:1 |
+| Tints, selected states | `accentSoft` #EAFAF8 | #075E56 on it | 7.12:1 |
+| Accents, wordmark, decoration | `accent` #0FBCAD | — | never as text (2.38:1) |
+
+**#0FBCAD is never a text or glyph colour, and white is never placed on it.** Both are
+2.38:1. The FAB is the one place brand teal is a large fill, and its glyph is navy for
+exactly that reason.
+
+Superseded, do not reinstate: "teal is accents only" — it would drain the primary
+brand colour out of the app.

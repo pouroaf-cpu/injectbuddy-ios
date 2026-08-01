@@ -25,16 +25,16 @@ struct RouteContent: View {
                     // Filled square either side of a centred teal wordmark — the
                     // PWA's header signature, and 44x44pt so it also clears the HIG
                     // floor the old bare toolbar Image did not.
-                    // Recoloured navy -> teal on request. See the note on
-                    // TealSquareButton for why it is #0A9D90 and not the brand teal.
+                    // See NavySquareButton for why these are navy and not the tint
+                    // a hierarchy argument briefly put here.
                     ToolbarItem(placement: .topBarLeading) {
-                        TealSquareButton(systemImage: "line.3.horizontal", label: "Menu") {
+                        NavySquareButton(systemImage: "line.3.horizontal", label: "Menu") {
                             navigator.openDrawer()
                         }
                     }
                     ToolbarItem(placement: .principal) { BrandWordmark() }
                     ToolbarItem(placement: .topBarTrailing) {
-                        TealSquareButton(systemImage: "square.and.pencil", label: "Edit protocols") {
+                        NavySquareButton(systemImage: "square.and.pencil", label: "Edit protocols") {
                             navigator.selectTab(.add)
                         }
                     }
@@ -67,16 +67,15 @@ struct RouteContent: View {
 
 // MARK: - PWA header furniture
 
-/// Filled teal square with a white glyph — the PWA's icon-button treatment.
+/// Filled NAVY square with a white glyph — the PWA's icon-button treatment, 15.79:1.
 ///
-/// The teal is `tealText` #0A9D90, NOT the brand `accent` #0FBCAD. White on #0FBCAD
-/// is 2.38:1 and fails outright, and anything lighter fails harder — white on
-/// #5FE8DA is roughly 1.2:1. #0A9D90 measures 3.37:1, which clears the 3:1 WCAG
-/// 1.4.11 asks of an icon, and is the lightest teal in the palette that white can
-/// legally sit on. If a lighter square is ever wanted, the glyphs have to stop being
-/// white and become dark ink (#101018 on #0FBCAD is 7.95:1) — lighter AND white is
-/// not an available combination.
-struct TealSquareButton: View {
+/// These went teal for one cycle on a "navigation chrome should recede" argument.
+/// That is a sound general principle and it is not what this brand does: the PWA's
+/// header buttons are navy, and navy there is BOTH chrome and CTA (33 uses spanning
+/// the header buttons, the NavyCard CTAs, and section labels). The brand is the
+/// spec, so it wins over the principle — and this pair is what made the side-by-side
+/// read as the same app in the first place.
+struct NavySquareButton: View {
     let systemImage: String
     let label: String
     let action: () -> Void
@@ -88,7 +87,7 @@ struct TealSquareButton: View {
                 .foregroundStyle(.white)
                 .frame(width: Theme.minTarget, height: Theme.minTarget)
                 .background(
-                    RoundedRectangle(cornerRadius: 12).fill(Theme.tealText)
+                    RoundedRectangle(cornerRadius: 12).fill(Theme.navy)
                 )
                 .contentShape(Rectangle())
         }
