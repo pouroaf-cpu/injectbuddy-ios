@@ -95,3 +95,34 @@ minority of rows may differ. The fix targets the dominant shape.
 
 Not applicable to iOS at all: `bioavailability`, `femalehrt`, `oilblend` have no iOS
 calculator, so their shapes were not checked. That is a feature gap, not a config bug.
+
+## The general lesson — three times in one session
+
+Three bugs this session shared a shape, and it is the shape worth remembering:
+
+| Bug | Correct by inspection | Wrong against reality |
+|---|---|---|
+| **RLS on insert** | `saveDosage` read cleanly; every other call on the table omits `user_id` for good reason | The INSERT policy's `WITH CHECK` rejected every save. Protocol saving from iOS had **never worked** |
+| **`/api/dosages` dedup** | Five source comments described the endpoint's fingerprinting as iOS's dedup | iOS never calls it. It writes direct via PostgREST; the endpoint is cookie-authenticated and unreachable |
+| **GLP-1 grouping** | One `configExtras` case for semaglutide, tirzepatide and retatrutide — same drug class, reads as tidy | The web does not group them. Two of three emitted three keys it never writes |
+
+All three were **internally consistent code**. `CalculatorCatalog` agrees with itself;
+that is exactly why staring at it could not surface the grouping error. Each was
+settled in minutes by looking at the running system instead of the source describing
+it — a screenshot of the real error, a `grep` for the call site that did not exist, a
+query of the rows the other platform actually wrote.
+
+Corollary that cost real time here: **the age of code is not evidence it works.** The
+save path had been wrong for months without a single failure being noticed, because
+nobody had pressed the button on a device.
+
+## Open, logged not assigned
+
+1. **The FAB overlaps the fourth protocol card.** Same class as finding F2 but on the
+   dashboard: the scroll's bottom inset clears the tab bar row (49 pt) but not the
+   hero circle, which is lifted 22 pt above it.
+2. **Tab bar glyphs are off-palette.** `#5C5C66` is accessible at ~6:1 and was chosen
+   to fix F14, but the PWA's are brand-coloured. Needs a tone that is on-palette *and*
+   clears 3:1 — the previous `#929299` cleared neither.
+3. **`bioavailability`, `femalehrt`, `oilblend`** exist on the web with no iOS screen.
+   Feature gap for a product decision, not a config bug.
