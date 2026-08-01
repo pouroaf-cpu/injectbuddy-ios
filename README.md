@@ -27,6 +27,16 @@ open InjectBuddy.xcodeproj
 
 Swift Package dependencies (`supabase-swift`) resolve automatically on first open.
 
+> **`Sources/InjectBuddy/Resources/Info.plist` is GENERATED — never hand-edit it.**
+> `project.yml` declares an `info:` block, so `xcodegen generate` rewrites that file
+> from scratch and silently discards anything you added directly. On 2026-07-31 this
+> ate `CFBundleURLTypes`, which registers the `com.injectbuddy.ios` scheme — with it
+> gone, the signup confirmation email and the Discord OAuth callback both had nowhere
+> to land, while the verify screen still told users to click the link. It took
+> `UIApplicationSceneManifest` and `ITSAppUsesNonExemptEncryption` with it. Add plist
+> keys under `targets.InjectBuddy.info.properties` in `project.yml` instead, then
+> re-run `xcodegen generate` and confirm the key survives.
+
 ## Layout
 
 ```

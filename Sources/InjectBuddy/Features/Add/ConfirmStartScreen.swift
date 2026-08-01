@@ -35,6 +35,20 @@ struct ConfirmStartScreen: View {
                     Button("Back to dashboard") { navigator.goToDashboard() }
                 }
 
+            case .failed(let message):
+                Section {
+                    Label(network.isOnline ? "Couldn't load that protocol" : "You're offline",
+                          systemImage: network.isOnline ? "exclamationmark.triangle" : "wifi.slash")
+                        .font(.body.weight(.semibold))
+                    Text(network.isOnline
+                         ? message
+                         : "Your protocol was saved — only the start day is missing. Set it later from the dashboard.")
+                        .foregroundStyle(.secondary)
+                    Button("Retry") { Task { await vm.load(id: dosageId, backend: backend) } }
+                    Button("Back to dashboard") { navigator.goToDashboard() }
+                        .foregroundStyle(.secondary)
+                }
+
             case .loaded(let dosage):
                 Section("Added to your protocols") {
                     if let label = dosage.label, !label.isEmpty {
@@ -100,7 +114,8 @@ struct ConfirmStartScreen: View {
 final class ConfirmStartViewModel: ObservableObject {
     enum State {
         case loading
-        case missing
+        case missing              // the row genuinely isn't there (deleted between save and confirm)
+        case failed(String)       // the load itself failed — says nothing about whether the row exists
         case loaded(SavedDosage)
     }
 
@@ -128,7 +143,10 @@ final class ConfirmStartViewModel: ObservableObject {
             summaryRows = Self.rows(from: dosage.config)
             state = .loaded(dosage)
         } catch {
-            state = .missing
+            // NOT .missing — a transport failure tells us nothing about whether the
+            // row exists, and the user saved it seconds ago. Claiming it's gone is a
+            // false statement about their data that invites them to re-create it.
+            state = .failed((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
     }
 
