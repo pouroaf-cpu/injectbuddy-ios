@@ -100,6 +100,20 @@ correctness either.** Green them for the right reason before trusting any of it.
       xcodebuild test -project InjectBuddy.xcodeproj -scheme InjectBuddy \
         -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
         -only-testing:InjectBuddyUITests
+- **`FORCE_INLINE_FIELD=1` (DEBUG only) reproduces the `1…` truncation defect** so
+  `DynamicTypeTruncationUITests` can be *shown* to go red on the real bug rather
+  than trusted because it was red once. At AX5 with the flag set it reports 12
+  failures across 8 calculators; without it, green. Keep the hook.
+- **The truncation sweep's coverage, stated so a green run is not over-read.** It
+  runs at whatever content size the DEVICE is set to, so the matrix is driven from
+  the host loop in that file's header. Landed coverage is **default + AX5 across
+  all 14 calculators**; the intermediate sizes are not run per commit. Three
+  calculators (Semaglutide, Tirzepatide, Retatrutide) have **no numeric fields at
+  all** and are measured by nothing — the suite prints that rather than skipping
+  silently. And the assertion is a **ratio**, so it is blind to a container that
+  squeezes value and unit together, and to a long value beside a short unit
+  (`1000` -> `10…` next to `mg` still passes). It bans the mechanisms we know,
+  exactly as F1's `lineLimit` ban did.
 - **A capture run MUTATES GLOBAL DEVICE STATE, and the next suite inherits it.**
   `xcrun simctl ui booted content_size accessibility-extra-extra-extra-large` is
   set on the *device*, not the run. Leaving it set made all four wiring assertions

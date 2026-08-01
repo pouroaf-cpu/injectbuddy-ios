@@ -60,7 +60,13 @@ struct CalculatorScreen: View {
                 // collapses to the primary row + CTA and the full breakdown is
                 // rendered here instead, inside the scroll, so no row is lost.
                 if vm.result.isValid {
-                    ResultCard(result: vm.result, barrelMl: barrelMl)
+                    // Above AX1 this is the ONLY result card, so it takes the bare
+                    // `result_` identifiers — they name the summary the user is
+                    // actually reading, and which view that is changes with type
+                    // size. See `resultBar`.
+                    ResultCard(result: vm.result,
+                               barrelMl: barrelMl,
+                               idOverride: isAccessibilitySize ? "result_" : nil)
                 }
 
                 Spacer(minLength: Theme.Spacing.md)
@@ -171,13 +177,35 @@ struct CalculatorScreen: View {
 
     private var resultBar: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            // Collapsed to a one-line summary while the keypad is up. At full
-            // height the bar plus the keyboard covered 65% of the screen and cut
-            // the field being edited in half (audit finding F11).
-            ResultCard(result: vm.result,
-                       isCompact: keyboard.isVisible || isAccessibilitySize,
-                       isPinned: true,
-                       barrelMl: barrelMl)
+            // ABOVE AX1 THE BAR STOPS BEING PINNED. Only the CTA stays.
+            //
+            // Measured on IB2245748: already collapsed to primary + CTA — the F11
+            // fix — the bar still took ~58% of the content area at AX5, leaving room
+            // for exactly ONE field. `Vial strength` was visible; `Weekly dose` was
+            // sheared through the middle of its glyphs by the bar's top edge. So the
+            // screen presented `Draw per injection · 0.250 mL` and an enabled `Add`
+            // for a weekly dose the user could neither see nor reach — and `Add`
+            // writes a protocol.
+            //
+            // F11 was measured against frozen type. The bar now scales with
+            // everything else, so trimming it again would be a smaller number
+            // against the same broken premise: an overlay owning the majority of the
+            // content area is not context for the screen, it IS the screen. The full
+            // breakdown is already rendered inline in the scroll, so nothing is lost
+            // by dropping the pinned copy — the user scrolls to the result instead of
+            // the result covering the inputs.
+            //
+            // Still pinned at default and the non-accessibility sizes, where it is
+            // doing its job and the measurement supports it.
+            if !isAccessibilitySize {
+                // Collapsed to a one-line summary while the keypad is up. At full
+                // height the bar plus the keyboard covered 65% of the screen and cut
+                // the field being edited in half (audit finding F11).
+                ResultCard(result: vm.result,
+                           isCompact: keyboard.isVisible,
+                           isPinned: true,
+                           barrelMl: barrelMl)
+            }
 
             // Titled "Add" to match the web, where the bottom nav's Add slot owns
             // saving. Kept ON the calculator for now rather than moved to the tab bar:
@@ -268,7 +296,12 @@ private struct ResultCard: View {
     /// sees, so a test written against it is a test written against what is on
     /// screen. Both cards render the same `CalculatorResult` value, so they cannot
     /// disagree — the ambiguity was in addressing them, never in the numbers.
-    private var idPrefix: String { isPinned ? "result_" : "detail_result_" }
+    /// Set by the screen when this instance is the only result card on screen —
+    /// above AX1 the pinned bar is gone, so the in-scroll copy is what the user
+    /// reads and it should answer to `result_`. An identifier names the surface the
+    /// user is looking at, and which view that is changes with type size.
+    var idOverride: String?
+    private var idPrefix: String { idOverride ?? (isPinned ? "result_" : "detail_result_") }
 
     private var overCapacity: Bool {
         guard let barrelMl, let draw = result.drawMl, result.isValid else { return false }
@@ -704,11 +737,31 @@ private struct NumberField: View {
     // to share a line with something `.fixedSize()`.
     var body: some View {
         Group {
-            if isAccessibilitySize { stacked } else { inline }
+            if isAccessibilitySize && !Self.forcedInlineForRegressionTest { stacked } else { inline }
         }
         .padding(.horizontal, Theme.Spacing.md)
         .fieldChrome(isFocused: focused)
         .onTapGesture { focusedKey.wrappedValue = key }
+    }
+
+
+    /// DEBUG-ONLY regression hook, and it exists so one specific test can be SHOWN
+    /// to fail rather than trusted because it was red once.
+    ///
+    /// Setting `FORCE_INLINE_FIELD=1` restores the pre-2026-08-02 single-line layout,
+    /// which at AX5 renders the weekly dose as `1…`. `DynamicTypeTruncationUITests`
+    /// asserts a value cell is never narrower than its own unit; with this flag set,
+    /// that assertion goes red on the real defect. Without a way to reproduce the
+    /// bug, a test that has never failed has not been shown to work — and this
+    /// harness has already reported TEST SUCCEEDED while executing nothing.
+    ///
+    /// Not compiled into Release.
+    private static var forcedInlineForRegressionTest: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["FORCE_INLINE_FIELD"] == "1"
+        #else
+        false
+        #endif
     }
 
     private var stacked: some View {
@@ -720,6 +773,7 @@ private struct NumberField: View {
                         .font(Theme.Typeface.cardMeta)
                         .foregroundStyle(Theme.secondaryLabel)
                         .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("unit_\(key)")
                 }
                 Spacer(minLength: Theme.Spacing.sm)
                 steppers
@@ -736,6 +790,10 @@ private struct NumberField: View {
                     .font(Theme.Typeface.cardMeta)
                     .foregroundStyle(Theme.secondaryLabel)
                     .fixedSize()
+                    // Paired with `field_<key>` so a test can compare the two
+                    // geometrically. See DynamicTypeTruncationUITests — the value
+                    // cell must never be narrower than its own unit.
+                    .accessibilityIdentifier("unit_\(key)")
             }
             steppers
         }

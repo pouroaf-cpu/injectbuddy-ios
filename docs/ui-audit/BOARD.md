@@ -124,6 +124,28 @@ Things a cold session will hit within minutes and not understand:
 
 ## 1. Open — assigned
 
+- [ ] **The result bar owns ~52% of the content area at DEFAULT size.** `IB2245740`:
+      it cuts the `Frequency` control mid-element, and `Ester` and `Syringe barrel`
+      are below the fold — a user setting up a TRT protocol sees **two of five
+      inputs** without scrolling, on a standard phone at standard text. Not the
+      safety defect the AX5 version was: every value, unit and result row is
+      complete and the dose being edited is visible. Deferred deliberately, with
+      the numbers, rather than fixed alongside the AX5 unpinning.
+      The direction when it is picked up: gate the pinning on a **measured share of
+      the content area**, not on a Dynamic Type category. A size gate is a guess at
+      where the problem starts; a measured gate is the problem defining it.
+
+- [ ] **The pinned bar's plate should be a material, not grey.** Human's request:
+      transparent with a light blur, so it reads as floating over the form rather
+      than as furniture covering it. `.ultraThinMaterial` / `.thinMaterial`, not a
+      hand-rolled colour with opacity. **Contrast must be measured after the
+      change, against the worst composite and not a representative one** — a
+      translucent band means `Add`'s white-on-navy and the `#075E56` result values
+      composite against whatever scrolls behind them. This is the shimmer failure
+      approached from another direction, and the shimmer was rejected on exactly
+      this. Keep a boundary — a hairline at the top edge if the blur alone does not
+      say "the thing above scrolls".
+
 - [ ] **The pinned result bar leaves one field visible at AX5.** `IB2245748`:
       on the TRT calculator only `Vial strength` is above the bar, and the
       `Weekly dose` label is clipped mid-glyph by its top edge. F11 and F12 both
@@ -548,4 +570,18 @@ Parity and chrome
    content_size` is device state, not run state. An AX5 sweep left it set and the
    next wiring run failed all four assertions against a reflowed layout — it read
    as "the app broke" and nothing had. Reset it in the same command that sets it.
-
+22. **The judgment pass applies to every frame at every size, not just the
+   accessibility ones.** Every finding today came out of AX5 frames — not because
+   the default screens are clean, but because those were the frames anyone looked
+   at. Applying the viewport method to a *default*-size frame we had captured and
+   never judged immediately found the result bar taking 52% of the content area and
+   two of five inputs above the fold. §5.7 again, one level up: the AX5 frames are
+   not the audit, they are the half that is easier to see.
+23. **A test that cannot fail is worse than no test, and it is easy to spec one by
+   accident.** "Assert the displayed string contains no ellipsis" was specced as
+   the fix for the truncation class. It passes on the exact frame that renders
+   `1…`, because the accessibility layer returns model text and not rendered
+   glyphs — measured: `field.value == "100"` while the screen showed `1…`. Before
+   writing an assertion, ask which layer actually observes the thing being
+   asserted. Then reproduce the defect and watch the test go red; a test that has
+   never failed has not been shown to work.
