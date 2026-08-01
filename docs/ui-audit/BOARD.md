@@ -14,6 +14,25 @@ Session of 2026-08-01. Branch `feature/tabview-shell`. Latest `edf59d2`.
 
 ## 1. Open — assigned
 
+Welcome + onboarding — spec in `docs/WELCOME-AND-ONBOARDING.md`. Three pieces, not
+one: the auth flow already exists and is not being rebuilt.
+
+- [ ] **2. Restyle `AuthFlowView`.** `grep -c "Theme.Typeface"` returns **0** — the
+      second screen found in that state after the log sheet, and the first screen a
+      new user ever sees. Type scale + palette + the 44 pt field family. Secondary
+      labels off `#0FBCAD` (2.13–2.38:1) onto `#075E56`. **Behaviour unchanged** —
+      validation, cooldown, Discord OAuth and verify all work.
+- [ ] **1. Animated welcome screen.** Occupies `.loading`, fronts `.signedOut`.
+      **Animation duration is a ceiling, never a floor** — a returning signed-in
+      user must never wait on it. Solid fills only, no multi-stop gradient on text
+      (measured, §3). Reduce Motion → final state immediately. Text measured
+      **mid-transition**, not only at rest.
+- [ ] **3. Five-step onboarding.** Mirrors the PWA's `STEP_META`. Three NOT NULL
+      columns plus a NOT NULL array — **a skipped step writes the DEFAULT, never a
+      null**. `onboarding_completed_at` set only on completion. Store metric, don't
+      round on the way in (180 lb must return 180 lb). Step 3 collects value+unit
+      pairs, the exact shape that truncated before, so it reflows at AX5.
+
 - [ ] **Measure Settings and the confirm-start-day screen.** The only two screens
       the control inventory did not reach (a drawer mis-tap landed on BMI). Both
       are stock `Form`/`List` and are *probably* the same 44 pt list-row treatment
