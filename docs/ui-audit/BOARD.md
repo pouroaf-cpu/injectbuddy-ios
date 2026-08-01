@@ -8,21 +8,16 @@ Do not tick anything on inspection — every closed item below was closed by a
 measurement or a screenshot, and that bar holds. If something can't be verified,
 move it to §4 rather than ticking it.
 
-Session of 2026-08-01. Branch `feature/tabview-shell`. Latest `0ac3c4d`.
+Session of 2026-08-01. Branch `feature/tabview-shell`. Latest `edf59d2`.
 
 ---
 
 ## 1. Open — assigned
 
-- [ ] **Input control inventory.** Every distinct data-input control: height (pt),
-      corner radius, border, fill, label placement, unit inline vs caption.
-      Measured at default **and** AX5. Then a one-line verdict: universal, or
-      here is the list that isn't. Evidence for anything reported inconsistent.
-      Suspicions to confirm or kill: (a) menu pickers are not floored at 44pt the
-      way a field containing a 44×44 stepper is, so they likely differ;
-      (b) the log-dose sheet is the least-reworked screen and its
-      `Day / 31 Jul 2026` row reads as a stock chip. **Inventory only — no fixes
-      until the scope is visible.**
+- [ ] **Measure Settings and the confirm-start-day screen.** The only two screens
+      the control inventory did not reach (a drawer mis-tap landed on BMI). Both
+      are stock `Form`/`List` and are *probably* the same 44 pt list-row treatment
+      as the log sheet, but that is a guess and guesses do not get ticked.
 
 ## 2. Open — unassigned, needs a human decision
 
@@ -39,11 +34,42 @@ Session of 2026-08-01. Branch `feature/tabview-shell`. Latest `0ac3c4d`.
       approach if it's wanted back: solid text with a **single-colour**
       translucent band swept as a mask, since single-colour gradients measure
       exact. Not started.
+      **Mac's read: feasible, with one constraint that decides it.** A translucent
+      *white* band would lighten the ink where it passes and drop contrast below
+      threshold mid-sweep — the same failure mode as `#5FE8DA`, arrived at from a
+      different direction. The band must be `#0A9D90`, so the worst composite is
+      3.37:1 and still legal for the 24 pt heavy greeting. Measurable before
+      building. Worth one cycle only if the human actually wants the shimmer; the
+      screen reads correct without it and every prior attempt cost a cycle.
 - [ ] **Inter vs SF.** Deferred, not rejected. SF was chosen because bundled Inter
       costs the Dynamic Type metrics that protect against the truncation class of
       bug. Revisit only with that trade understood.
 - [ ] **Tab bar glyphs** are accessible grey (~6:1) rather than brand-coloured.
-      Logged, low value, nobody assigned.
+      **Mac's read: leave it, it reads as deliberate.** iOS convention is a neutral
+      unselected item; the brand is already present in the bar via the selected
+      item (`#075E56` + bold). Colouring the unselected ones would weaken a
+      selected/unselected distinction that was only just fixed from 2.77:1.
+
+### From the control inventory (`2026-08-01-controls/`) — scope before building
+
+The calculator family is universal: numeric ± fields and every menu picker,
+including the barrel picker, are **44.0 pt** at default and **77.35 pt** at AX5.
+Four things sit outside it.
+
+- [ ] **Log-dose date chip is 34.3 pt** — under the 44 pt floor, and it is the tap
+      target for the dose date. Worst of the set: a sub-minimum target on a
+      dosing field. `2026-08-01-controls/07-date-chip-crop.png`.
+- [ ] **Log-sheet rows are a different visual language.** Same 44 pt height as a
+      calculator field, but separator-delimited list rows on white versus bordered
+      boxes with a `#8E8E93` stroke and 10 pt radius. The "height matches, radius
+      and border don't, still looks wrong" case.
+- [ ] **Toggle is ≈31 pt** — system `UISwitch` at its fixed size. Under 44 and
+      off-family in every property. The only control here that cannot be resized
+      without replacing it outright.
+- [ ] **`PrimaryButton` renders two heights at AX5** — 91.3 pt on the calculator,
+      71.7 pt in the log sheet, from the same component. The log sheet places it
+      in a `List` row with `.listRowInsets(EdgeInsets())`, which constrains it, so
+      it stops scaling with Dynamic Type while the calculator's grows.
 
 ## 3. Closed — with the evidence that closed it
 
@@ -82,6 +108,12 @@ Data integrity
       path iOS has never used.
 
 Parity and chrome
+- [x] **Input control inventory** — every distinct control measured at default and
+      AX5. Verdict: not universal; the calculator family is, four things outside
+      it are not (now itemised in §2). Killed the suspicion that pickers differ
+      from ± fields — both are exactly 44.0 / 77.35 pt, because cycle 2 floored
+      pickers with the same `Theme.minTarget`. Confirmed the log sheet as the
+      off-family screen. `2026-08-01-controls/`.
 - [x] Palette + type scale into `Theme.swift` (it had neither).
 - [x] Dark mode removed; `UIUserInterfaceStyle` via `project.yml` (not the
       generated plist), verified surviving `xcodegen generate`. Docs swept,
