@@ -15,6 +15,24 @@ Session of 2026-08-01. Branch `feature/tabview-shell`. Latest `edf59d2`.
 
 ---
 
+## 0. BLOCKER — first run is broken
+
+- [ ] **The DisclaimerGate cannot be dismissed. A genuinely new user is locked out
+      of the app at the first screen.** Found by erasing the simulator to reach the
+      signed-out state — the first time anyone has actually run this app from clean
+      in this session.
+      Tapping "I understand" does nothing. The button is dead centre of a 72 pt
+      target at pt 730.7–802.3 and the tap lands on it; the gate does not move.
+      **Partially diagnosed, NOT fixed.** `WelcomeView`'s decorative `Canvas` filled
+      the screen with no `allowsHitTesting(false)`, and adding it changed the
+      symptom — the button had been rendering as a pale `#CCD2DE` block with no
+      label (the disabled appearance) and now renders correctly as navy with its
+      label. So the Canvas was interfering. But the tap **still** does not dismiss
+      the gate, so something else is also in the way. The app is running (verified
+      via `launchctl`), so it is not a crash.
+      Next: whether `settings.hasAcceptedDisclaimer` is being set and not observed,
+      or a second view is still swallowing the touch. Do not ship without this.
+
 ## 1. Open — assigned
 
 Welcome + onboarding — spec in `docs/WELCOME-AND-ONBOARDING.md`. Three pieces, not

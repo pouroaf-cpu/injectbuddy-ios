@@ -27,7 +27,13 @@ struct WelcomeView: View {
     var body: some View {
         ZStack {
             Theme.canvas.ignoresSafeArea()
-            SerumCurveField().ignoresSafeArea()
+            // Decorative only — it must never take a tap. Without this the Canvas
+            // fills the screen and swallows touches meant for whatever is layered
+            // above it, which is exactly how the first-run DisclaimerGate became
+            // undismissable: its button rendered but could not be pressed.
+            SerumCurveField()
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
 
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
