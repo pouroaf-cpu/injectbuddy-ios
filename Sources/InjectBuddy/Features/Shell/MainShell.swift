@@ -277,6 +277,12 @@ struct MainShell: View {
         // Closed, this layer covers the whole screen and would otherwise swallow every
         // tap meant for the tab bar underneath it.
         .allowsHitTesting(navigator.isDrawerOpen)
+        // ...and it must leave the ACCESSIBILITY TREE too, which is a separate thing.
+        // Caught by the new UI tests: with the drawer shut, "TRT Dose" still resolved
+        // at x = -290, i.e. off-canvas. allowsHitTesting stops touches; it does not
+        // stop VoiceOver reaching an element, so a VoiceOver user could swipe into
+        // fourteen off-screen calculator rows that are not visibly there.
+        .accessibilityHidden(!navigator.isDrawerOpen)
     }
 
     /// Swipe-from-left-edge to open; swipe-left on the open drawer to close.

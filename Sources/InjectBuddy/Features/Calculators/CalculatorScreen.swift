@@ -314,6 +314,7 @@ private struct PrimaryResultRow: View {
                 .foregroundStyle(Theme.navy)
                 .fixedSize(horizontal: false, vertical: true)
             Text(value)
+                .accessibilityIdentifier("result_\(label)")
                 .font(Theme.Typeface.display)
                 .tracking(Theme.Typeface.displayTracking)
                 .monospacedDigit()
@@ -337,6 +338,7 @@ private struct SecondaryResultRow: View {
                 Text(label).font(Theme.Typeface.resultLabel).foregroundStyle(Theme.secondaryLabel)
                 Spacer(minLength: Theme.Spacing.sm)
                 Text(value).font(Theme.Typeface.resultLabel.weight(.semibold))
+                    .accessibilityIdentifier("result_\(label)")
                     .monospacedDigit().foregroundStyle(Theme.ink)
             }
             VStack(alignment: .leading, spacing: 1) {
@@ -371,7 +373,8 @@ private struct FieldRow: View {
             content
 
             if !field.quick.isEmpty {
-                QuickValueRow(values: field.quick,
+                QuickValueRow(key: field.key,
+                              values: field.quick,
                               unit: fieldUnit,
                               selection: vm.numberBinding(field.key))
             }
@@ -411,7 +414,8 @@ private struct FieldRow: View {
     private var content: some View {
         switch field.kind {
         case let .number(unit, _, range, step):
-            NumberField(value: vm.numberBinding(field.key), unit: unit, range: range, step: step)
+            NumberField(key: field.key, value: vm.numberBinding(field.key),
+                        unit: unit, range: range, step: step)
 
         case let .picker(options, _):
             Picker(field.label, selection: vm.numberBinding(field.key)) {
@@ -466,6 +470,7 @@ private struct FieldRow: View {
 /// shortcut, never the only way in. Selection is shown by fill AND weight, not by
 /// colour alone.
 private struct QuickValueRow: View {
+    let key: String
     let values: [Double]
     let unit: String?
     @Binding var selection: Double
@@ -489,6 +494,7 @@ private struct QuickValueRow: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("quick_\(key)_\(Self.format(value))")
                     .accessibilityLabel(unit.map { "\(Self.format(value)) \($0)" } ?? Self.format(value))
                     .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
                 }
@@ -542,6 +548,9 @@ private struct SegmentedRow: View {
 // MARK: - Number field with optional stepper
 
 private struct NumberField: View {
+    /// Storage key — also the accessibility identifier, so a UI test can address
+    /// this field rather than guessing at an index among several on screen.
+    let key: String
     @Binding var value: Double
     let unit: String?
     let range: ClosedRange<Double>?
@@ -553,6 +562,7 @@ private struct NumberField: View {
     var body: some View {
         HStack(spacing: Theme.Spacing.sm) {
             TextField("0", text: $text)
+                .accessibilityIdentifier("field_\(key)")
                 .keyboardType(.decimalPad)
                 .focused($focused)
                 .font(.system(size: 17, weight: .semibold))

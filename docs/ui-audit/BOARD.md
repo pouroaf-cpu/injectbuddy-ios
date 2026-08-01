@@ -58,7 +58,33 @@ Things a cold session will hit within minutes and not understand:
       clicks died — two stoppages, now closed.
       `Tests/InjectBuddyUITests`, target in `project.yml`, wired into the scheme.
 
-- [ ] **Wiring assertions per calculator** — the point of the harness. The 27 unit
+- [x] **Closed drawer stayed in the accessibility tree — FOUND BY THE HARNESS.**
+      First real catch. With the drawer shut, `TRT Dose` resolved at **x = -290**,
+      off-canvas, and the tap failed with `kAXErrorCannotComplete`.
+      `allowsHitTesting(false)` stops touches; it does **not** remove an element from
+      the accessibility tree, so a VoiceOver user could swipe into fourteen
+      calculator rows that are not visibly on screen. Fixed with
+      `accessibilityHidden(!isDrawerOpen)` alongside the existing hit-testing guard.
+      Worth noting how it was found: not by review, and not by a screenshot — a
+      screenshot cannot show an element at x = -290. It took something driving the
+      accessibility layer.
+
+- [ ] **Wiring assertions per calculator — HARNESS RUNS, ASSERTIONS NOT YET GREEN.**
+      Sign-in via `launchEnvironment` works, navigation works, the assertions fire.
+      Three failures, and the useful part is that they are legible:
+      - `testStep_movesByTen`: field stayed "300" after Increase. **Test bug** —
+        `app.buttons["Increase"].firstMatch` matches VIAL STRENGTH's stepper, which
+        comes first on screen. Steppers need per-field identifiers, same as the
+        chips and fields already have.
+      - `testTypeThenChip`: field read "100250". `typeText` APPENDS to the existing
+        "100" rather than replacing, and the keyboard then likely covers the chip
+        row. Needs a clear-then-type helper and a keyboard dismissal.
+      - `testQuickChip`: fails earlier than its assertion message; needs the detail
+        read out of the xcresult.
+      **None of these are yet evidence of an app bug** — and none are evidence of
+      correctness either. Do not report the wiring as verified until they are green
+      for the right reason. A test that passes because it asserted the wrong
+      element is worse than no test. — the point of the harness. The 27 unit
       tests cover `CalculatorEngine` and `DoseProjection` and stayed green through a
       bug where the field read 100 while the engine computed 300: they test maths,
       not the control-to-engine wiring, which is the layer that lied.
