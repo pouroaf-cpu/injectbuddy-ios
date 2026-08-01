@@ -15,23 +15,37 @@ Session of 2026-08-01. Branch `feature/tabview-shell`. Latest `edf59d2`.
 
 ---
 
-## 0. BLOCKER — first run is broken
+## 0. BLOCKER — first-run CTA renders wrong. Root cause NOT established.
 
-- [ ] **The DisclaimerGate cannot be dismissed. A genuinely new user is locked out
-      of the app at the first screen.** Found by erasing the simulator to reach the
-      signed-out state — the first time anyone has actually run this app from clean
-      in this session.
-      Tapping "I understand" does nothing. The button is dead centre of a 72 pt
-      target at pt 730.7–802.3 and the tap lands on it; the gate does not move.
-      **Partially diagnosed, NOT fixed.** `WelcomeView`'s decorative `Canvas` filled
-      the screen with no `allowsHitTesting(false)`, and adding it changed the
-      symptom — the button had been rendering as a pale `#CCD2DE` block with no
-      label (the disabled appearance) and now renders correctly as navy with its
-      label. So the Canvas was interfering. But the tap **still** does not dismiss
-      the gate, so something else is also in the way. The app is running (verified
-      via `launchctl`), so it is not a crash.
-      Next: whether `settings.hasAcceptedDisclaimer` is being set and not observed,
-      or a second view is still swallowing the touch. Do not ship without this.
+- [ ] **On a clean install the DisclaimerGate's "I understand" button renders at
+      ~20% opacity with no visible label, and the gate does not dismiss.**
+      Found by `simctl erase` — the first time this app has been run from clean all
+      session, because every capture until now was on an already-signed-in,
+      already-accepted install.
+
+      **Measured, settled frame** (two screenshots 6 s apart, byte-identical, so
+      nothing is mid-transition):
+      - Button fill `#CCD2DE` at pt 730.7–802.3, 72 pt tall.
+      - `#CCD2DE` is `Theme.navy` at **exactly 20% alpha** (solves to a = 0.20 on
+        all three channels).
+      - **No label renders at all.** The heading above measures pure `#000000`
+        at 21:1, so the gate itself is fully opaque — only the button is faded.
+
+      **What that rules out:** not a mid-fade (settled), not the gate's opacity
+      (heading is solid), not an ancestor `.disabled()` (grepped — the only one in
+      the app is `PrimaryButton`'s own). `PrimaryButton`'s disabled path is
+      navy@0.4, which would still show white text; this shows none, so the whole
+      button subtree appears to be at ~0.2, label included.
+
+      **What is NOT established:** whether taps are reaching the device at all. A
+      swipe-up-to-home on the same device also did nothing, which points at the
+      input path rather than the app. Until that is separated, "the gate cannot be
+      dismissed" is NOT a proven claim and should not be repeated as one — an
+      earlier commit message stated it too strongly.
+
+      Next: confirm input independently (a gesture with an unambiguous system-level
+      effect), then re-test the button. Only then is this an app bug rather than a
+      rig failure.
 
 ## 1. Open — assigned
 
