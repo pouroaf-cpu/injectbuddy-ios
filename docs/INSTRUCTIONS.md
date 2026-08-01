@@ -20,7 +20,9 @@ Read this before coding. Design is in `WIREFRAME-PLAN.md`; backlog in `TASKS.md`
 - Swift 5.9+, SwiftUI, iOS 16+ (`NavigationStack`). MVVM + async/await. Swift Package Manager.
 - Dependencies: `supabase-swift` (auth/data). Avoid heavy frameworks; prefer URLSession + Codable.
 - **One source for nav items** (`NavItems.swift`) — never duplicate the calculator list.
-- Theme: teal `#0fbcad`, light/dark. Match the web's look where it reads naturally on iOS.
+- Theme: **light only** — no dark mode, no theme control. Locked by `UIUserInterfaceStyle: Light`
+  in `project.yml`. Brand colour and typography come from `docs/DESIGN-PARITY.md`, which is
+  authoritative over this file on anything visual.
 - **CalculatorEngine must match the web math** — add golden unit tests comparing against `app.js` outputs.
 - Root cause over band-aid. Only build what's asked; park extras in `TASKS.md`.
 

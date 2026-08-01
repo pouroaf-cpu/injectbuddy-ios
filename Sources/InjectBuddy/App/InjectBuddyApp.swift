@@ -18,7 +18,10 @@ struct InjectBuddyApp: App {
                 .environmentObject(network)
                 .environment(\.backend, backend)
                 .tint(Theme.accent)
-                .preferredColorScheme(settings.theme.colorScheme)
+                // Belt-and-braces alongside UIUserInterfaceStyle=Light in
+                // project.yml. The plist key is the real lock — it also covers
+                // keyboards, sheets and the launch screen, which this cannot reach.
+                .preferredColorScheme(.light)
                 .onOpenURL { url in
                     // Discord OAuth callback + email-confirmation deep links.
                     auth.handleOAuthCallback(url: url)

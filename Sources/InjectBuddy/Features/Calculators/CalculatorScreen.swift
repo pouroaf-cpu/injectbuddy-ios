@@ -15,6 +15,7 @@ struct CalculatorScreen: View {
     @Environment(\.backend) private var backend
 
     @StateObject private var vm: CalculatorViewModel
+    @StateObject private var keyboard = KeyboardObserver()
 
     init(slug: CalculatorSlug) {
         self.slug = slug
@@ -47,7 +48,7 @@ struct CalculatorScreen: View {
             }
             .padding(Theme.Spacing.md)
         }
-        .background(Theme.groupedBackground)
+        .background(Theme.canvas)
         .safeAreaInset(edge: .bottom) { resultBar }
         .onAppear { vm.scale = settings.syringeScale }
         .onChange(of: settings.syringeScale) { vm.scale = $0 }
@@ -66,7 +67,10 @@ struct CalculatorScreen: View {
 
     private var resultBar: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            ResultCard(result: vm.result)
+            // Collapsed to a one-line summary while the keypad is up. At full
+            // height the bar plus the keyboard covered 65% of the screen and cut
+            // the field being edited in half (audit finding F11).
+            ResultCard(result: vm.result, isCompact: keyboard.isVisible)
 
             // Titled "Add" to match the web, where the bottom nav's Add slot owns
             // saving. Kept ON the calculator for now rather than moved to the tab bar:
@@ -110,26 +114,27 @@ struct CalculatorScreen: View {
 
 private struct ResultCard: View {
     let result: CalculatorResult
+    var isCompact: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-            if result.isValid {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            if isCompact, result.isValid, let primary = result.rows.first(where: { $0.emphasis }) {
+                // One line, still label + value + unit, still unable to truncate:
+                // ViewThatFits stacks it rather than clipping the unit.
+                SecondaryResultRow(label: primary.label, value: primary.value)
+            } else if result.isValid {
                 ForEach(result.rows) { row in
-                    HStack {
-                        Text(row.label)
-                            .font(row.emphasis ? .subheadline.weight(.semibold) : .footnote)
-                            .foregroundStyle(row.emphasis ? Theme.label : Theme.secondaryLabel)
-                        Spacer()
-                        Text(row.value)
-                            .font(row.emphasis ? .title3.weight(.bold) : .subheadline)
-                            .foregroundStyle(row.emphasis ? Theme.accent : Theme.label)
-                            .monospacedDigit()
+                    if row.emphasis {
+                        PrimaryResultRow(label: row.label, value: row.value)
+                    } else {
+                        SecondaryResultRow(label: row.label, value: row.value)
                     }
                 }
                 if let line = result.scheduleLine {
                     Text(line)
                         .font(.caption)
                         .foregroundStyle(Theme.secondaryLabel)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
                 Text("Enter values to calculate")
@@ -141,6 +146,69 @@ private struct ResultCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+    }
+}
+
+// MARK: - Result rows
+//
+// AUDIT FINDING F1 (highest severity): the old rows were
+// `HStack { Text(label); Spacer(); Text(value) }`. A single-line HStack with a
+// Spacer between two Texts has no fallback axis, so at accessibility text sizes
+// SwiftUI truncated BOTH children — "0.250 mL" rendered as "0.25…", losing the
+// unit. In a dosing calculator 0.25 with no unit has two plausible readings
+// (0.25 mL vs 25 units on a U-100 barrel) and nothing on screen disambiguates.
+//
+// The rule these two views enforce: a value and its unit are one indivisible
+// string, and NOTHING here may carry `.lineLimit(1)`. The primary row stacks
+// label-above-value unconditionally, so it cannot truncate at any type size.
+// The secondary rows try side-by-side first and fall back to stacked via
+// `ViewThatFits` when the pair no longer fits on one line.
+
+private struct PrimaryResultRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(Theme.Typeface.eyebrow)
+                .foregroundStyle(Theme.navy)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(value)
+                .font(Theme.Typeface.display)
+                .tracking(Theme.Typeface.displayTracking)
+                .monospacedDigit()
+                // #075E56 at 7.65:1, not #0FBCAD at 2.34:1. This is the number
+                // the user acts on; it was previously the lowest-contrast text
+                // on the screen while the secondary rows beside it sat near 20:1.
+                .foregroundStyle(Theme.tealTextStrong)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct SecondaryResultRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
+                Text(label).font(Theme.Typeface.resultLabel).foregroundStyle(Theme.secondaryLabel)
+                Spacer(minLength: Theme.Spacing.sm)
+                Text(value).font(Theme.Typeface.resultLabel.weight(.semibold))
+                    .monospacedDigit().foregroundStyle(Theme.ink)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label).font(Theme.Typeface.resultLabel).foregroundStyle(Theme.secondaryLabel)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(value).font(Theme.Typeface.resultLabel.weight(.semibold))
+                    .monospacedDigit().foregroundStyle(Theme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
@@ -177,24 +245,20 @@ private struct FieldRow: View {
                 }
             }
             .pickerStyle(.menu)
-            .tint(Theme.accent)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 10)
+            .tint(Theme.tealTextStrong)
+            .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
             .padding(.horizontal, Theme.Spacing.md)
-            .background(Theme.secondaryBackground)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+            .fieldChrome()
 
         case let .stringPicker(options, _):
             Picker(field.label, selection: vm.stringBinding(field.key)) {
                 ForEach(options, id: \.self) { opt in Text(opt).tag(opt) }
             }
             .pickerStyle(.menu)
-            .tint(Theme.accent)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 10)
+            .tint(Theme.tealTextStrong)
+            .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
             .padding(.horizontal, Theme.Spacing.md)
-            .background(Theme.secondaryBackground)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+            .fieldChrome()
 
         case .toggle:
             Toggle(field.label, isOn: vm.boolBinding(field.key))
@@ -219,31 +283,61 @@ private struct NumberField: View {
     let step: Double?
 
     @State private var text: String = ""
+    @FocusState private var focused: Bool
 
     var body: some View {
         HStack(spacing: Theme.Spacing.sm) {
             TextField("0", text: $text)
                 .keyboardType(.decimalPad)
+                .focused($focused)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
+                // Without this the padding belongs to the container, not the
+                // field, so only the ~20pt text frame focused it (finding F7).
+                .contentShape(Rectangle())
                 .onChange(of: text) { newValue in
                     if let d = Double(newValue) { value = clamp(d) }
                     else if newValue.isEmpty { value = 0 }
                 }
                 .onAppear { text = format(value) }
+
             if let unit {
-                Text(unit).font(.footnote).foregroundStyle(Theme.secondaryLabel)
+                Text(unit)
+                    .font(Theme.Typeface.cardMeta)
+                    .foregroundStyle(Theme.secondaryLabel)
+                    .fixedSize()
             }
             if let step {
-                Stepper("", value: Binding(
-                    get: { value },
-                    set: { value = clamp($0); text = format(value) }
-                ), step: step)
-                .labelsHidden()
+                // A bare `Stepper` renders 46 × 32pt — 12pt under the HIG floor
+                // (finding F6). Two explicit buttons give each half 44 × 44pt and
+                // let us put a real gap between −/+, which act in opposite
+                // directions on a dose.
+                HStack(spacing: Theme.Spacing.sm) {
+                    stepButton("minus") { value = clamp(value - step); text = format(value) }
+                    stepButton("plus") { value = clamp(value + step); text = format(value) }
+                }
             }
         }
-        .padding(.vertical, 10)
         .padding(.horizontal, Theme.Spacing.md)
-        .background(Theme.secondaryBackground)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+        .fieldChrome(isFocused: focused)
+        .onTapGesture { focused = true }
+    }
+
+    private func stepButton(_ symbol: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Theme.tealTextStrong)
+                .frame(width: Theme.minTarget, height: Theme.minTarget)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.Radius.control)
+                        .fill(Theme.accentSoft)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(symbol == "minus" ? "Decrease" : "Increase")
     }
 
     private func clamp(_ d: Double) -> Double {

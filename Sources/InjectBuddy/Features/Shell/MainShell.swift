@@ -18,6 +18,43 @@ import SwiftUI
 
 struct MainShell: View {
     @StateObject private var navigator = ShellNavigator()
+    @StateObject private var keyboard = KeyboardObserver()
+
+    /// AUDIT FINDING F14: the stock unselected tab item measured **2.77:1** over
+    /// the bar (#929299 on #F2F2F7) and **2.63:1** over card content — under the
+    /// 3:1 that WCAG 1.4.11 requires for a glyph, and well under the 4.5:1 its
+    /// ~10pt label needs. It read as disabled rather than merely inactive.
+    ///
+    /// UITabBarAppearance is the only way to reach these — SwiftUI exposes no
+    /// modifier for the unselected item colour.
+    ///   unselected #5C5C66 → 5.92:1
+    ///   selected   #075E56 → 6.86:1  (never #0FBCAD, which is 2.13:1 here)
+    /// Selection is also carried by weight, not colour alone: semibold → bold.
+    init() {
+        let unselected = UIColor(red: 0x5C / 255, green: 0x5C / 255, blue: 0x66 / 255, alpha: 1)
+        let selected = UIColor(red: 0x07 / 255, green: 0x5E / 255, blue: 0x56 / 255, alpha: 1)
+
+        let appearance = UITabBarAppearance()
+        appearance.configureWithDefaultBackground()
+
+        for item in [appearance.stackedLayoutAppearance,
+                     appearance.inlineLayoutAppearance,
+                     appearance.compactInlineLayoutAppearance] {
+            item.normal.iconColor = unselected
+            item.normal.titleTextAttributes = [
+                .foregroundColor: unselected,
+                .font: UIFont.systemFont(ofSize: 10, weight: .semibold),
+            ]
+            item.selected.iconColor = selected
+            item.selected.titleTextAttributes = [
+                .foregroundColor: selected,
+                .font: UIFont.systemFont(ofSize: 10, weight: .bold),
+            ]
+        }
+
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
     @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.horizontalSizeClass) private var hSize
 
@@ -51,7 +88,13 @@ struct MainShell: View {
             // tab item cannot break the bar's top plane. The real tap target stays the
             // tab item underneath — see tabSelection — so the raised circle is pure
             // decoration and VoiceOver reads one genuine control, not a duplicate.
-            .overlay(alignment: .bottom) { heroButton }
+            // Hidden while the keypad is up. The overlay reanchors to the new
+            // bottom edge — which is the focused screen's own pinned CTA — and
+            // rendered the primary action as an unlabelled teal rectangle
+            // (audit finding F2). It has no job while the tab bar is covered.
+            .overlay(alignment: .bottom) {
+                if !keyboard.isVisible { heroButton }
+            }
 
             drawerLayer
 

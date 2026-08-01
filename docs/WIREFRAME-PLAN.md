@@ -9,7 +9,7 @@ Native iOS app (Swift / SwiftUI) mirroring the Injectbuddy app-first web experie
 - **Open into the work.** After auth, the app launches into the **Cycle Planner dashboard** — no
   marketing, no guides.
 - **One side drawer holds everything.** A hamburger-triggered off-canvas **drawer** lists profile,
-  Dashboard, Calendar, **all 14 calculators**, Settings, theme, sign-out — the native twin of the
+  Dashboard, Calendar, **all 14 calculators**, Settings, sign-out — the native twin of the
   web `.ib-calc-rail`.
 - **Thin client over the existing backend.** Auth + saved protocols + cycles come from the existing
   Supabase / `/api/*` backend. Calculator math is ported from `public/app.js` into a local Swift
@@ -40,7 +40,7 @@ iPad: replace the off-canvas drawer with `NavigationSplitView` (persistent sideb
 ```
  Dashboard (default)                    Drawer (☰):
 ┌──────────────────────────────┐      ┌────────────────────┐
-│ ☰  injectbuddy          ◐    │      │ ✕  injectbuddy      │
+│ ☰  injectbuddy               │      │ ✕  injectbuddy      │
 ├──────────────────────────────┤      │ [pfp] Name          │
 │  Next dose  ·  2 protocols   │      │       email         │
 │  ┌─ Cycle timeline ───────┐  │      │ ──────────────────  │
@@ -53,7 +53,7 @@ iPad: replace the off-canvas drawer with `NavigationSplitView` (persistent sideb
 │                              │      │  …(all 14)…         │
 │                              │      │ ──────────────────  │
 │                              │      │ ⚙ Settings          │
-│                              │      │ ⏻ Sign out · ◐ Theme│
+│                              │      │ ⏻ Sign out          │
 └──────────────────────────────┘      └────────────────────┘
 ```
 
@@ -68,7 +68,7 @@ Tapping a drawer item pushes/replaces the content screen and closes the drawer (
 | `DashboardScreen` | Cycle-planner: next-dose summary, cycle timeline, saved-protocol cards. Port of the web dashboard. | `/api/me`, cycles/protocols endpoints |
 | `CalendarScreen` | 30-day injection calendar projected from protocol frequency. | protocols + client projection |
 | `CalculatorScreen(slug)` | One form per calculator; live result. Math from local `CalculatorEngine`. | local; save protocol → backend |
-| `SettingsScreen` | Profile, theme, account, Discord link, sign out. | `/api/me`, settings endpoints |
+| `SettingsScreen` | Profile, account, Discord link, sign out. No theme control — light only. | `/api/me`, settings endpoints |
 
 ### Calculator slugs (14)
 `trt-dose` · `trt-eod` · `hcg` · `peptide` · `reconstitution` · `semaglutide` · `tirzepatide` ·
@@ -79,9 +79,9 @@ Tapping a drawer item pushes/replaces the content screen and closes the drawer (
 | Aspect | Spec |
 |---|---|
 | Component | `DrawerView` overlaying `MainShell`; bound to `@State isDrawerOpen`. Dim/scrim behind; tap-scrim or swipe to dismiss. |
-| Sections | Brand, Profile header, **Primary** (Dashboard, Calendar), **Calculators** (14), **Footer** (Settings, Sign out, Theme). |
+| Sections | Brand, Profile header, **Primary** (Dashboard, Calendar), **Calculators** (14), **Footer** (Settings, Sign out). |
 | Source of items | One `NavItems.swift` enum/list (slug, title, SF Symbol). Single source — no duplication. |
-| Style | Teal `#0fbcad` accent, system font (or Inter via bundled font), light/dark via `@Environment(\.colorScheme)` + app theme override. Active item highlighted. |
+| Style | Brand palette per `docs/DESIGN-PARITY.md` (teal `#0fbcad` is a FILL only — never text). SF with matched weights/tracking; Inter deferred. **Light only** — no colour-scheme branching. Active item highlighted. |
 | iPad | `NavigationSplitView` persistent column instead of overlay. |
 
 ## 6. Architecture & reuse

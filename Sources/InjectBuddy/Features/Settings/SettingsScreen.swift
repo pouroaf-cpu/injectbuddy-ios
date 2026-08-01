@@ -80,9 +80,8 @@ struct SettingsScreen: View {
 
     private var preferencesSection: some View {
         Section("Preferences") {
-            Picker("Theme", selection: $settings.theme) {
-                ForEach(AppThemePreference.allCases) { Text($0.label).tag($0) }
-            }
+            // No theme control: the app is light-only (UIUserInterfaceStyle=Light
+            // in project.yml). Its absence is a decision, not an omission.
             Picker("Units", selection: $settings.units) {
                 ForEach(UnitSystem.allCases) { Text($0.label).tag($0) }
             }

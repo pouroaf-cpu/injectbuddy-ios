@@ -18,7 +18,7 @@ struct DashboardScreen: View {
 
     var body: some View {
         content
-            .background(Theme.groupedBackground.ignoresSafeArea())
+            .background(Theme.canvas.ignoresSafeArea())
             .task { await reload() }
             .refreshable { await reload() }
             .confirmationDialog("Add a protocol", isPresented: $showCalculatorPicker, titleVisibility: .visible) {
@@ -76,9 +76,11 @@ struct DashboardScreen: View {
                 section("Protocols", trailing: {
                     Button { showCalculatorPicker = true } label: {
                         Label("Add", systemImage: "plus")
-                            .font(.subheadline.weight(.medium))
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: Theme.minTarget)
+                            .contentShape(Rectangle())
                     }
-                    .tint(Theme.accent)
+                    .tint(Theme.tealTextStrong)
                 }) {
                     ProtocolGrid(protocols: data.protocols) { proto in
                         if let slug = proto.slug {
@@ -94,13 +96,27 @@ struct DashboardScreen: View {
                 }
             }
             .padding(Theme.Spacing.md)
+            // The last section used to sit under the translucent tab bar. The bar
+            // row is 49pt and its safe-area inset is added by the system, so this
+            // only has to clear the row itself.
+            .padding(.bottom, 49 + Theme.Spacing.md)
         }
     }
 
     private var greeting: some View {
-        Text("\(Self.greetingPrefix(for: Date())), \(auth.identity?.displayName ?? "there")")
-            .font(.title2.weight(.bold))
-            .foregroundStyle(Theme.label)
+        GreetingHeadline(
+            prefix: Self.greetingPrefix(for: Date()),
+            name: Self.firstName(auth.identity?.displayName)
+        )
+    }
+
+    /// The PWA greets by first name only — `DashHeader.tsx` does `.split(/\s+/)[0]`.
+    /// "Pouroa frew" becomes "Pou." there because the PWA also truncates; we keep
+    /// the whole first name rather than copying a truncation.
+    static func firstName(_ displayName: String?) -> String {
+        guard let raw = displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return "there" }
+        return raw.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? raw
     }
 
     // MARK: section header helper
@@ -112,8 +128,8 @@ struct DashboardScreen: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             Text(title.uppercased())
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.secondaryLabel)
+                .font(Theme.Typeface.eyebrow)
+                .foregroundStyle(Theme.navy)
             content()
         }
     }
@@ -127,8 +143,8 @@ struct DashboardScreen: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack {
                 Text(title.uppercased())
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.secondaryLabel)
+                    .font(Theme.Typeface.eyebrow)
+                    .foregroundStyle(Theme.navy)
                 Spacer()
                 trailing()
             }

@@ -78,6 +78,16 @@ targets:
         # No non-exempt encryption — skips the export-compliance prompt on every
         # TestFlight/App Store upload.
         ITSAppUsesNonExemptEncryption: false
+        # InjectBuddy is LIGHT ONLY. This key — not `.preferredColorScheme` — is
+        # what forces light on the surfaces SwiftUI cannot reach: system
+        # keyboards, share sheets, alerts, the photo picker, SFSafariViewController
+        # and the launch screen. A view modifier leaves all of those dark on a
+        # dark-mode device. `.preferredColorScheme(.light)` in InjectBuddyApp is
+        # kept alongside it as belt-and-braces, not as the mechanism.
+        # Declared HERE for the same reason as CFBundleURLTypes above: `info:`
+        # makes XcodeGen regenerate Info.plist, so a hand edit is destroyed on the
+        # next `xcodegen generate`.
+        UIUserInterfaceStyle: Light
 
   InjectBuddyTests:
     type: bundle.unit-test

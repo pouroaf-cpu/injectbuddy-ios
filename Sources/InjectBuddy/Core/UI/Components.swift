@@ -19,9 +19,14 @@ struct PrimaryButton: View {
                 if isLoading { ProgressView().tint(.white) }
             }
             .font(.headline)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: Theme.minTarget)
             .padding(.vertical, 14)
-            .background(Theme.accent.opacity(isEnabled ? 1 : 0.4))
+            // #075E56, not #0FBCAD. Contrast is symmetric — white on #0FBCAD is
+            // the same 2.38:1 as #0FBCAD text on white, so "make it a filled teal
+            // button" does not fix the contrast failure on its own. White on
+            // #075E56 is 7.65:1 and clears AAA, and it leaves #0FBCAD for the FAB
+            // and large display type per DESIGN-PARITY §7.
+            .background(Theme.tealTextStrong.opacity(isEnabled ? 1 : 0.4))
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
         }
@@ -97,6 +102,72 @@ struct LabeledDivider: View {
         }
     }
     private var line: some View { Rectangle().fill(Theme.separator).frame(height: 1) }
+}
+
+// MARK: - Keyboard visibility
+
+/// Publishes whether the software keyboard is on screen.
+///
+/// Needed because two audit findings are both "something that is fine at rest
+/// becomes wrong once the keypad is up": the raised hero circle lands on the
+/// primary CTA and blanks its label (F2), and the pinned result bar leaves too
+/// little room for the field being edited (F11).
+@MainActor
+final class KeyboardObserver: ObservableObject {
+    @Published private(set) var isVisible = false
+
+    private var observers: [NSObjectProtocol] = []
+
+    init(center: NotificationCenter = .default) {
+        observers.append(center.addObserver(
+            forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.isVisible = true }
+        })
+        observers.append(center.addObserver(
+            forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.isVisible = false }
+        })
+    }
+
+    deinit { observers.forEach { NotificationCenter.default.removeObserver($0) } }
+}
+
+// MARK: - Field chrome
+
+/// Shared input surface for every calculator field, picker and stepper row.
+///
+/// AUDIT FINDING F5: fields used `Theme.secondaryBackground`
+/// (`secondarySystemBackground`) on a page painted with `Theme.groupedBackground`
+/// (`systemGroupedBackground`). In light mode both resolve to **#F2F2F7**, so the
+/// boundary measured **1.00:1** against the 3:1 that WCAG 1.4.11 requires for an
+/// input boundary — the field was, literally, invisible. Dark mode had hidden it,
+/// and with the app now light-only it would have been permanent.
+///
+/// A white fill plus a hairline stroke gives the boundary real contrast, and the
+/// focus ring makes the active field unambiguous.
+struct FieldChrome: ViewModifier {
+    var isFocused: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.control)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.control)
+                    .stroke(isFocused ? Theme.tealTextStrong : Theme.line,
+                            lineWidth: isFocused ? 2 : 1)
+            )
+    }
+}
+
+extension View {
+    func fieldChrome(isFocused: Bool = false) -> some View {
+        modifier(FieldChrome(isFocused: isFocused))
+    }
 }
 
 // MARK: - Card

@@ -67,16 +67,20 @@ struct LogDoseSheet: View {
                     }
 
                     Section {
-                        Button {
+                        // Was a bare tinted-text row: #0FBCAD on white at 2.38:1,
+                        // which is both the contrast failure and the parity gap.
+                        // PrimaryButton is the app's one CTA treatment — white on
+                        // #075E56, 7.65:1, ≥44pt — so this sheet stops being the
+                        // only screen with an unbranded primary action.
+                        PrimaryButton(
+                            title: "Log dose",
+                            isLoading: isSaving,
+                            isEnabled: selectedId != nil && network.isOnline
+                        ) {
                             Task { await log() }
-                        } label: {
-                            HStack {
-                                Spacer()
-                                Text(isSaving ? "Logging…" : "Log dose").fontWeight(.semibold)
-                                Spacer()
-                            }
                         }
-                        .disabled(isSaving || selectedId == nil || !network.isOnline)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                     } footer: {
                         if !network.isOnline {
                             Text("You're offline — logging a dose needs a connection.")

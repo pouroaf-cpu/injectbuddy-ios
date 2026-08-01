@@ -1,16 +1,59 @@
 import SwiftUI
 
 // ─── Theme ───────────────────────────────────────────────────────────────────
-// Teal #0fbcad accent, light/dark aware. Mirrors the web look (Inter-ish system
-// font, frosted cards) without forcing exact hexes — system materials read better
-// natively. All screens pull colors/spacing from here; never hard-code hexes in views.
+// Brand tokens shared with the PWA. Values and their PWA source files are
+// recorded in docs/DESIGN-PARITY.md — cite that file, don't invent hexes here.
+//
+// The old header of this file said to mirror the web "without forcing exact
+// hexes — system materials read better natively". That instruction is why the
+// two dashboards diverged, and it is revoked for BRAND COLOUR and TYPOGRAPHY.
+// It still stands for PLATFORM BEHAVIOUR: sheets, blur materials, haptics,
+// scroll physics, nav transitions and the Dynamic Type / accessibility stack
+// stay native. We match the brand, not the web layout engine.
+//
+// The app is LIGHT ONLY (locked by UIUserInterfaceStyle in project.yml). The
+// remaining semantic colours below therefore resolve to their light values
+// permanently and deterministically; they are kept where no brand equivalent
+// exists rather than churned out for their own sake.
 
 enum Theme {
-    /// Brand teal — the single accent used across the app.
-    static let accent = Color(hex: 0x0FBCAD)
-    static let accentSoft = Color(hex: 0x0FBCAD).opacity(0.14)
 
-    // Semantic colors that adapt to color scheme via system dynamic colors.
+    // MARK: - Brand palette
+
+    /// Primary accent. FILL ONLY — never a text colour. #0FBCAD on white is
+    /// 2.38:1 and fails WCAG at every size, including the 3:1 large-text floor.
+    /// For teal text use `tealText` (3.37:1) or `tealTextStrong` (7.65:1).
+    static let accent = Color(hex: 0x0FBCAD)
+    /// Selected-state / tint fill.
+    static let accentSoft = Color(hex: 0xEAFAF8)
+    /// Alternate tint.
+    static let accentSoft2 = Color(hex: 0xF0FBFA)
+
+    /// Second brand colour — icon buttons, section labels, dose numerals.
+    /// 15.13:1 on `canvas`.
+    static let navy = Color(hex: 0x001D5C)
+    /// Heading ink where full navy is too saturated.
+    static let inkNavy = Color(hex: 0x111A3A)
+    /// Body ink.
+    static let ink = Color(hex: 0x101018)
+
+    /// Teal that is legal as text. 7.65:1 on white — clears the 7:1 target.
+    static let tealTextStrong = Color(hex: 0x075E56)
+    /// Lighter teal text / greeting gradient base. 3.37:1 on white, so it is
+    /// only legal for large text (18pt+ regular, 14pt+ bold).
+    static let tealText = Color(hex: 0x0A9D90)
+    /// Greeting gradient highlight. Decorative — always paired with a legal base.
+    static let tealShimmer = Color(hex: 0x5FE8DA)
+
+    /// Page canvas.
+    static let canvas = Color(hex: 0xFAFAFB)
+    /// Raised tile fill.
+    static let surface = Color(hex: 0xF8F8FB)
+    /// Hairline rule.
+    static let line = Color.black.opacity(0.12)
+
+    // MARK: - Semantic (kept where no brand token exists)
+
     static let background = Color(.systemBackground)
     static let secondaryBackground = Color(.secondarySystemBackground)
     static let groupedBackground = Color(.systemGroupedBackground)
@@ -18,11 +61,49 @@ enum Theme {
     static let secondaryLabel = Color(.secondaryLabel)
     static let separator = Color(.separator)
 
-    static let danger = Color(hex: 0xFF5757)
-    static let warning = Color(hex: 0xF59E0B)
-    static let success = Color(hex: 0x34D399)
+    /// 7.90:1 on white. The previous #FF5757 measured 3.11:1 and failed as body text.
+    static let danger = Color(hex: 0xA31313)
+    static let warning = Color(hex: 0xB45309)
+    static let success = Color(hex: 0x0F7A5F)
 
-    // Spacing scale.
+    // MARK: - Typography
+    //
+    // The PWA is Inter throughout. We ship SF with matched weights and tracking
+    // rather than bundling Inter: SF keeps the Dynamic Type metrics and optical
+    // sizing that stop values truncating at accessibility sizes, which is the
+    // highest-severity open finding. Revisit once that is closed.
+    //
+    // Every face is built with `relativeTo:` so it still scales with Dynamic Type.
+
+    enum Typeface {
+        /// Greeting — PWA 24px / 800 / -0.03em.
+        static let greeting = Font.system(size: 24, weight: .heavy, design: .default)
+        static let greetingTracking: CGFloat = -0.72   // -0.03em × 24pt
+
+        /// Display numeral — the primary metric on a card. Tabular by convention;
+        /// apply `.monospacedDigit()` at the call site.
+        static let display = Font.system(size: 34, weight: .heavy, design: .default)
+        static let displayTracking: CGFloat = -1.02
+
+        /// Section eyebrow — "TODAY", "PROTOCOLS".
+        static let eyebrow = Font.system(size: 13.5, weight: .semibold)
+
+        /// Card title.
+        static let cardTitle = Font.system(size: 17, weight: .bold)
+        /// Card supporting line.
+        static let cardMeta = Font.system(size: 14, weight: .medium)
+
+        /// Tab bar label — 13.5px / 600, 700 when active.
+        static let tabLabel = Font.system(size: 13.5, weight: .semibold)
+        static let tabLabelActive = Font.system(size: 13.5, weight: .bold)
+
+        /// Value + unit pairs inside result rows.
+        static let resultValue = Font.system(size: 22, weight: .bold)
+        static let resultLabel = Font.system(size: 15, weight: .medium)
+    }
+
+    // MARK: - Spacing / radius
+
     enum Spacing {
         static let xs: CGFloat = 4
         static let sm: CGFloat = 8
@@ -37,29 +118,11 @@ enum Theme {
         static let pill: CGFloat = 999
     }
 
+    /// Minimum comfortable hit target. HIG floor is 44×44 pt.
+    static let minTarget: CGFloat = 44
+
     /// Drawer open/close animation — matches the web drawer feel (~0.26s spring).
     static let drawerAnimation: Animation = .spring(response: 0.26, dampingFraction: 0.86)
-}
-
-// MARK: - App theme preference (light / dark / system)
-
-enum AppThemePreference: String, CaseIterable, Identifiable, Codable {
-    case system, light, dark
-    var id: String { rawValue }
-    var label: String {
-        switch self {
-        case .system: return "System"
-        case .light: return "Light"
-        case .dark: return "Dark"
-        }
-    }
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .system: return nil
-        case .light: return .light
-        case .dark: return .dark
-        }
-    }
 }
 
 // MARK: - Color(hex:)

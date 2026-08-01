@@ -24,7 +24,6 @@ enum SyringeScale: String, CaseIterable, Identifiable, Codable {
 
 @MainActor
 final class SettingsStore: ObservableObject {
-    @Published var theme: AppThemePreference { didSet { save(.theme, theme.rawValue) } }
     @Published var units: UnitSystem { didSet { save(.units, units.rawValue) } }
     @Published var syringeScale: SyringeScale { didSet { save(.syringe, syringeScale.rawValue) } }
 
@@ -35,7 +34,9 @@ final class SettingsStore: ObservableObject {
     }
 
     private enum Key: String {
-        case theme = "ib_theme_pref"
+        /// Retired 2026-08-01 when the app went light-only. Kept only so the
+        /// stored value can be deleted on launch — see `migrateAwayFromTheme`.
+        case retiredTheme = "ib_theme_pref"
         case units = "ib_units"
         case syringe = "ib_syringe_scale"
         case disclaimer = "ib_disclaimer_accepted_v1"
@@ -43,21 +44,21 @@ final class SettingsStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        theme = AppThemePreference(rawValue: defaults.string(forKey: Key.theme.rawValue) ?? "") ?? .system
         units = UnitSystem(rawValue: defaults.string(forKey: Key.units.rawValue) ?? "") ?? .metric
         syringeScale = SyringeScale(rawValue: defaults.string(forKey: Key.syringe.rawValue) ?? "") ?? .u100
         hasAcceptedDisclaimer = defaults.bool(forKey: Key.disclaimer.rawValue)
+        Self.migrateAwayFromTheme(defaults)
+    }
+
+    /// Upgrade path for installs from a build that had a theme picker. The old
+    /// value was a bare String, never a decoded Codable enum, so a leftover
+    /// "dark" could not have crashed on read — but it is removed anyway so the
+    /// key doesn't linger as a false signal that the preference still exists.
+    private static func migrateAwayFromTheme(_ defaults: UserDefaults) {
+        guard defaults.object(forKey: Key.retiredTheme.rawValue) != nil else { return }
+        defaults.removeObject(forKey: Key.retiredTheme.rawValue)
     }
 
     private let defaults: UserDefaults
     private func save(_ key: Key, _ value: String) { defaults.set(value, forKey: key.rawValue) }
-
-    /// Footer toggle cycles system → light → dark → system.
-    func cycleTheme() {
-        switch theme {
-        case .system: theme = .light
-        case .light: theme = .dark
-        case .dark: theme = .system
-        }
-    }
 }

@@ -5,6 +5,64 @@ import SwiftUI
 // view-model), so they preview in isolation and stay easy to restyle. The screen
 // (DashboardScreen) wires these to the view-model.
 
+// MARK: - Greeting headline
+
+/// PWA `DashHeader.tsx:25` — 24px / weight 800 / -0.03em with an animated teal
+/// gradient sweeping across the text.
+///
+/// The gradient is a decoration over a legal base: the darkest stop is
+/// `tealTextStrong` (#075E56, 7.65:1 on canvas), so even where the sweep is at
+/// its lightest the text is never carried by `Theme.accent`, which would be
+/// 2.38:1. The animation is disabled under Reduce Motion — the PWA does the same
+/// via `prefers-reduced-motion` — and the static gradient remains.
+struct GreetingHeadline: View {
+    let prefix: String
+    let name: String
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var phase: CGFloat = -1
+
+    private var text: String { "\(prefix), \(name)." }
+
+    private var gradient: LinearGradient {
+        LinearGradient(
+            colors: [Theme.tealTextStrong, Theme.tealText, Theme.tealShimmer,
+                     Theme.tealText, Theme.tealTextStrong],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
+    var body: some View {
+        Text(text)
+            .font(Theme.Typeface.greeting)
+            .tracking(Theme.Typeface.greetingTracking)
+            .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(Theme.tealTextStrong)   // fallback ink if the mask can't draw
+            .overlay {
+                GeometryReader { geo in
+                    gradient
+                        .frame(width: geo.size.width * 2)
+                        .offset(x: reduceMotion ? 0 : phase * geo.size.width)
+                }
+                .mask(
+                    Text(text)
+                        .font(Theme.Typeface.greeting)
+                        .tracking(Theme.Typeface.greetingTracking)
+                        .fixedSize(horizontal: false, vertical: true)
+                )
+                .allowsHitTesting(false)
+            }
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.linear(duration: 4.5).repeatForever(autoreverses: false)) {
+                    phase = 0
+                }
+            }
+            .accessibilityLabel(text)
+    }
+}
+
 // MARK: - Next dose card
 
 struct NextDoseCard: View {
@@ -160,15 +218,21 @@ private struct DayPip: View {
 
 // MARK: - Protocol grid
 
+/// Full-width rows, not a 2-column grid.
+///
+/// The grid was not merely off-brand, it was unusable: every card carried
+/// `.lineLimit(1)` on a title like "85mg/wk · Testosterone Enanthate" inside a
+/// half-width column, so all seven truncated to "85mg/wk ·…" and two different
+/// protocols both rendered "100mg/wk…". The compound name — the only thing that
+/// distinguishes one row from another — was always the part inside the ellipsis.
+///
+/// Two changes fix it: full width, and the compound leads instead of the dose.
 struct ProtocolGrid: View {
     let protocols: [DashboardProtocol]
     let onTap: (DashboardProtocol) -> Void
 
-    private let columns = [GridItem(.flexible(), spacing: Theme.Spacing.md),
-                           GridItem(.flexible(), spacing: Theme.Spacing.md)]
-
     var body: some View {
-        LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
+        VStack(spacing: Theme.Spacing.sm) {
             ForEach(protocols) { proto in
                 ProtocolCard(protocol: proto) { onTap(proto) }
             }
@@ -180,25 +244,72 @@ struct ProtocolCard: View {
     let `protocol`: DashboardProtocol
     let onTap: () -> Void
 
+    /// Backend labels arrive dose-first ("85mg/wk · Testosterone Enanthate").
+    /// Split them so the compound is the headline and the dose is the meta line.
+    /// Labels with no separator are used whole as the compound.
+    private var parts: (compound: String, dose: String) {
+        let raw = `protocol`.title
+        guard let sep = raw.range(of: " · ") else { return (raw, `protocol`.subtitle) }
+        let lead = String(raw[raw.startIndex..<sep.lowerBound])
+        let tail = String(raw[sep.upperBound...])
+        // Whichever side carries a digit-and-unit is the dose; the other is the name.
+        let leadIsDose = lead.rangeOfCharacter(from: .decimalDigits) != nil
+            && tail.rangeOfCharacter(from: .decimalDigits) == nil
+        return leadIsDose ? (tail, lead) : (lead, tail)
+    }
+
+    private var meta: String {
+        let p = parts
+        let sub = `protocol`.subtitle
+        if sub.isEmpty { return p.dose }
+        if p.dose.isEmpty || sub.contains(p.dose) { return sub }
+        return "\(p.dose) · \(sub)"
+    }
+
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                HStack(spacing: Theme.Spacing.sm) {
-                    Image(systemName: `protocol`.slug?.icon ?? "syringe")
-                        .foregroundStyle(DashboardColor.color(for: `protocol`.slug))
-                    Text(`protocol`.title)
-                        .font(.headline)
-                        .foregroundStyle(Theme.label)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
+            HStack(spacing: Theme.Spacing.md) {
+                Image(systemName: `protocol`.slug?.icon ?? "syringe")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(DashboardColor.color(for: `protocol`.slug))
+                    .frame(width: 40, height: 40)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.Radius.control)
+                            .fill(DashboardColor.tint(for: `protocol`.slug))
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    // No lineLimit(1). A compound name never gets truncated —
+                    // it is the only thing that identifies the protocol.
+                    Text(parts.compound)
+                        .font(Theme.Typeface.cardTitle)
+                        .foregroundStyle(Theme.inkNavy)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !meta.isEmpty {
+                        Text(meta)
+                            .font(Theme.Typeface.cardMeta)
+                            .foregroundStyle(Theme.secondaryLabel)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                Text(`protocol`.subtitle.isEmpty ? " " : `protocol`.subtitle)
-                    .font(.subheadline)
+
+                Spacer(minLength: Theme.Spacing.sm)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.secondaryLabel)
-                    .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .card()
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+            .padding(Theme.Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.card)
+                    .fill(Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.Radius.card)
+                            .stroke(Theme.line, lineWidth: 1)
+                    )
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -235,16 +346,27 @@ struct StatsIsland: View {
 
 enum DashboardColor {
     /// Deterministic colour per calculator family so dots/cards read consistently.
+    ///
+    /// These are glyph colours on a pale tint, so WCAG 1.4.11 applies at 3:1 —
+    /// the previous set (violet #8B5CF6, amber #F59E0B, blue #3B82F6, green
+    /// #34D399, rose #F43F5E) was five saturated mid-tones off the brand ramp,
+    /// several of them under 3:1. Replaced with deep brand-adjacent tones that
+    /// clear 4.5:1 on white and still separate by hue.
     static func color(for slug: CalculatorSlug?) -> Color {
-        guard let slug else { return Theme.accent }
+        guard let slug else { return Theme.tealTextStrong }
         switch slug {
-        case .trt, .eod, .microdose: return Theme.accent
-        case .semaglutide, .tirzepatide, .retatrutide: return Color(hex: 0x8B5CF6) // violet
-        case .hcg: return Color(hex: 0xF59E0B)        // amber
-        case .peptide, .reconstitution: return Color(hex: 0x3B82F6) // blue
-        case .bpc157, .bpc157blend: return Color(hex: 0x34D399)     // green
-        case .steroid: return Color(hex: 0xF43F5E)                  // rose
-        case .bmi, .freeTestIndex, .cyclePlotter: return Theme.secondaryLabel
+        case .trt, .eod, .microdose: return Theme.tealTextStrong          // #075E56
+        case .semaglutide, .tirzepatide, .retatrutide: return Theme.navy  // #001D5C
+        case .hcg: return Color(hex: 0x8A5200)                            // deep amber
+        case .peptide, .reconstitution: return Color(hex: 0x1D4ED8)       // deep blue
+        case .bpc157, .bpc157blend: return Color(hex: 0x0F7A5F)           // deep green
+        case .steroid: return Color(hex: 0xA31313)                        // deep rose
+        case .bmi, .freeTestIndex, .cyclePlotter: return Theme.inkNavy
         }
+    }
+
+    /// Pale companion fill for the icon chip behind `color(for:)`.
+    static func tint(for slug: CalculatorSlug?) -> Color {
+        color(for: slug).opacity(0.10)
     }
 }

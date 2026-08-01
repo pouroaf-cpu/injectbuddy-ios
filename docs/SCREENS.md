@@ -2,7 +2,14 @@
 
 Per-screen ASCII wireframes + SwiftUI specs. Companion to `WIREFRAME-PLAN.md` (shell + drawer).
 All screens render inside `MainShell` (drawer + `NavigationStack`) unless marked pre-auth.
-Conventions: teal `#0fbcad` accent, SF Symbols, light/dark via `@Environment(\.colorScheme)`.
+Conventions: SF Symbols, brand palette per `docs/DESIGN-PARITY.md`. Teal `#0fbcad` is a FILL
+colour only — never text (2.38:1 on white).
+
+> **Light only.** InjectBuddy iOS ships one theme. There is no dark mode and no theme
+> control anywhere in the app — locked by `UIUserInterfaceStyle: Light` in `project.yml`.
+> If a wireframe below shows a theme affordance, the wireframe is stale; do not rebuild it.
+> On anything visual, `docs/DESIGN-PARITY.md` is authoritative over this file.
+
 Every data-backed screen has three states — **loading** (redacted/skeleton), **empty** (CTA),
 **error** (message + Retry). Listed once here; assume on every networked screen.
 
@@ -10,9 +17,10 @@ Every data-backed screen has three states — **loading** (redacted/skeleton), *
 
 ## 1. Dashboard / Cycle-Planner  — `DashboardScreen` (start destination)
 
+
 ```
 ┌──────────────────────────────┐
-│ ☰  injectbuddy           ◐   │  toolbar: leading hamburger, trailing theme
+│ ☰  injectbuddy               │  toolbar: leading hamburger only
 ├──────────────────────────────┤
 │  Good evening, Pouroa        │  greeting (display name)
 │                              │
@@ -59,7 +67,7 @@ Every data-backed screen has three states — **loading** (redacted/skeleton), *
 
 ```
 ┌──────────────────────────────┐
-│ ‹ Back   TRT Dose        ◐   │  large-title nav bar; back to last screen
+│ ‹ Back   TRT Dose            │  large-title nav bar; back to last screen
 ├──────────────────────────────┤
 │  INPUTS                      │  Form section 1
 │  ┌────────────────────────┐  │
@@ -150,7 +158,7 @@ Every data-backed screen has three states — **loading** (redacted/skeleton), *
 │  │       pouroaf@…        │  │
 │  └────────────────────────┘  │
 │  PREFERENCES                 │
-│  Theme            System ▾   │  light / dark / system
+│  (no theme row — light only) │
 │  Units            Metric ▾   │  metric / imperial
 │  Syringe scale    U-100 ▾    │  U-100 / U-40
 │  CONNECTIONS                 │
@@ -164,7 +172,8 @@ Every data-backed screen has three states — **loading** (redacted/skeleton), *
 ```
 
 - **Layout:** SwiftUI `List` with grouped sections; `Picker`/`Toggle`/`NavigationLink` rows.
-- **Theme/units** persist to `@AppStorage` + sync to backend prefs; theme drives the app color scheme override.
+- **Units** persist to `@AppStorage` + sync to backend prefs. There is no theme preference: the app
+  is light-only and has no theme control anywhere. Its absence is a decision, not an omission.
 - **Discord** mirrors `/discord-link`. **Sign out** clears session → `RootView` → `AuthFlow`.
   **Delete** → confirm dialog → backend → sign out.
 - **Reachable** from the drawer (Settings) and the dashboard profile tap.
@@ -175,7 +184,7 @@ Every data-backed screen has three states — **loading** (redacted/skeleton), *
 
 ```
 ┌──────────────────────────────┐
-│ ☰  Calendar          ◐       │
+│ ☰  Calendar                  │
 ├──────────────────────────────┤
 │  June 2026         ‹  Today › │  month label + paging
 │  Mo Tu We Th Fr Sa Su        │

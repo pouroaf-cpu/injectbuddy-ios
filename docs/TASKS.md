@@ -47,7 +47,7 @@ Status legend: ⬜ To do · 🔄 In progress · ✅ Done (archived)
 ## TASK 3 — MainShell + side drawer   🔴 P0   🔄 (bison30) code-complete, needs Mac build
 - **Issue:** Need the off-canvas drawer (the "sidebar") over a NavigationStack.
 - **Fix:** `MainShell` with hamburger + `DrawerView` (scrim, swipe-to-open/close, spring anim).
-  Sections: Profile, Dashboard, Calendar, all 14 Calculators, Settings/Sign out/Theme. Items from a
+  Sections: Profile, Dashboard, Calendar, all 14 Calculators, Settings/Sign out. Items from a
   single `NavItems.swift`. iPad → `NavigationSplitView`.
 - **Affected:** `MainShell`, `DrawerView`, `NavItems.swift`
 - **Status:** ⬜ To do
@@ -84,9 +84,9 @@ Status legend: ⬜ To do · 🔄 In progress · ✅ Done (archived)
 - **Status:** ⬜ To do
 
 ## TASK 8 — SettingsScreen + theming   🟡 P2   🔄 (bison30) code-complete, needs Mac build
-- **Issue:** Settings, theme toggle, account, sign out.
-- **Fix:** Settings list; light/dark theme override (teal accent); Discord link; sign out.
-- **Affected:** `SettingsScreen`, theme store
+- **Issue:** Settings, account, sign out.
+- **Fix:** Settings list; Discord link; sign out. No theme override — the app is light-only.
+- **Affected:** `SettingsScreen`
 - **Status:** ⬜ To do
 
 ## TASK 9 — TestFlight pipeline   🟡 P2   🔄 (bison30) fastlane + GH Actions written; needs GitHub secrets + ASC setup (app/SIGNING.md) + first CI run on Mac
