@@ -96,10 +96,9 @@ struct DashboardScreen: View {
                 }
             }
             .padding(Theme.Spacing.md)
-            // The last section used to sit under the translucent tab bar. The bar
-            // row is 49pt and its safe-area inset is added by the system, so this
-            // only has to clear the row itself.
-            .padding(.bottom, 49 + Theme.Spacing.md)
+            // No hero/tab-bar padding here any more: MainShell reserves it as a
+            // bottom safe-area inset for every tab, so doing it again would
+            // double-count.
         }
     }
 

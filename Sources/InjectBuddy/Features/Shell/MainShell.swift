@@ -131,6 +131,26 @@ struct MainShell: View {
     /// top of this comes from GeometryReader above, not hardcoded.
     private static let tabBarRowHeight: CGFloat = 49
 
+    /// How far the raised hero rises ABOVE the tab bar's top edge.
+    ///
+    /// The system gives every scroll view an inset for the tab bar, but knows
+    /// nothing about a circle we drew on top of it, so content scrolled to its
+    /// bottom ran underneath the hero — on the calculator it landed on the "Add"
+    /// CTA (F2), and on the dashboard it clipped the fourth protocol card. A button
+    /// drawn over another button is the worst version of that, because both look
+    /// tappable and only one is.
+    ///
+    /// z-order does not fix this. Stacking the hero above content only decides who
+    /// wins the collision; reserving space is what stops there being one. So this is
+    /// added as a bottom safe-area inset on every tab's content, which every
+    /// ScrollView, List and safeAreaInset inside then composes with automatically.
+    ///
+    /// Measured rather than derived: on the built app the tab bar's top hairline sits
+    /// at pt 771.3 and the hero assembly (circle + 4pt ring + shadow) starts at
+    /// pt ~753, so it overhangs by ~18pt. 22 matches the lift constant below and
+    /// leaves a little margin.
+    static let heroOverhang: CGFloat = 22
+
     /// Each tab owns a NavigationStack, so pushing a calculator from Add does not
     /// disturb Dashboard's stack and switching tabs preserves where you were.
     @ViewBuilder
@@ -141,6 +161,11 @@ struct MainShell: View {
                     .navigationDestination(for: AppRoute.self) { pushed in
                         RouteContent(route: pushed, showsHamburger: false)
                     }
+            }
+            // Reserves the hero's overhang for EVERY screen in this tab, pushed
+            // screens included, instead of each one remembering to pad for it.
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: Self.heroOverhang)
             }
         } else {
             // `log` has no screen. It is never actually selected — the binding below

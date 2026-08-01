@@ -22,20 +22,19 @@ struct RouteContent: View {
             .navigationBarTitleDisplayMode(route == .dashboard ? .inline : .automatic)
             .toolbar {
                 if showsHamburger {
-                    // The PWA header is a NAVY FILLED SQUARE either side of a centred
-                    // teal wordmark. Most of navy's 33 uses across that design are
-                    // these two buttons, and the pair is the screen's signature — a
-                    // bare tinted glyph in the corner is most of why the iOS build
-                    // read as generic. 44x44pt, so they also clear the HIG floor the
-                    // old bare Image did not.
+                    // Filled square either side of a centred teal wordmark — the
+                    // PWA's header signature, and 44x44pt so it also clears the HIG
+                    // floor the old bare toolbar Image did not.
+                    // Recoloured navy -> teal on request. See the note on
+                    // TealSquareButton for why it is #0A9D90 and not the brand teal.
                     ToolbarItem(placement: .topBarLeading) {
-                        NavySquareButton(systemImage: "line.3.horizontal", label: "Menu") {
+                        TealSquareButton(systemImage: "line.3.horizontal", label: "Menu") {
                             navigator.openDrawer()
                         }
                     }
                     ToolbarItem(placement: .principal) { BrandWordmark() }
                     ToolbarItem(placement: .topBarTrailing) {
-                        NavySquareButton(systemImage: "square.and.pencil", label: "Edit protocols") {
+                        TealSquareButton(systemImage: "square.and.pencil", label: "Edit protocols") {
                             navigator.selectTab(.add)
                         }
                     }
@@ -68,8 +67,16 @@ struct RouteContent: View {
 
 // MARK: - PWA header furniture
 
-/// Filled navy square with a white glyph — the PWA's icon-button treatment.
-struct NavySquareButton: View {
+/// Filled teal square with a white glyph — the PWA's icon-button treatment.
+///
+/// The teal is `tealText` #0A9D90, NOT the brand `accent` #0FBCAD. White on #0FBCAD
+/// is 2.38:1 and fails outright, and anything lighter fails harder — white on
+/// #5FE8DA is roughly 1.2:1. #0A9D90 measures 3.37:1, which clears the 3:1 WCAG
+/// 1.4.11 asks of an icon, and is the lightest teal in the palette that white can
+/// legally sit on. If a lighter square is ever wanted, the glyphs have to stop being
+/// white and become dark ink (#101018 on #0FBCAD is 7.95:1) — lighter AND white is
+/// not an available combination.
+struct TealSquareButton: View {
     let systemImage: String
     let label: String
     let action: () -> Void
@@ -81,7 +88,7 @@ struct NavySquareButton: View {
                 .foregroundStyle(.white)
                 .frame(width: Theme.minTarget, height: Theme.minTarget)
                 .background(
-                    RoundedRectangle(cornerRadius: 12).fill(Theme.navy)
+                    RoundedRectangle(cornerRadius: 12).fill(Theme.tealText)
                 )
                 .contentShape(Rectangle())
         }
