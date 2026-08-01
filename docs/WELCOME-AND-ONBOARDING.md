@@ -49,6 +49,40 @@ Canvas `#FAFAFB`. Navy and teal only — the palette in `DESIGN-PARITY.md §8`.
 4. CTAs: **Create account** (navy fill, white text, 15.79:1) and **Sign in**
    (bordered, navy label)
 
+### The background — animated lines on light
+
+Direction set 2026-08-01: light canvas, animated lines. **Use the app's own
+subject matter as the motif rather than generic decoration.**
+
+**Recommended: drifting serum-concentration curves.** The PWA already draws these
+for real in `SerumChart` — the rise-and-decay curve of a compound over time. Two
+or three of them, offset, in teal `#0FBCAD` at low opacity on canvas `#FAFAFB`,
+drifting slowly right to left and gently re-phasing.
+
+Why this and not a line network or particles: it is the one background that means
+something specific to this product. A user who has ever looked at a dose curve
+recognises it; everyone else reads it as calm motion. Generic constellation lines
+say "app", these say "InjectBuddy".
+
+Pair it with the syringe mark **drawing itself** — `Path` + `.trim(from:to:)` is
+the canonical SwiftUI line-draw and is cheap.
+
+Technique:
+
+- `Canvas` inside `TimelineView(.animation)` for the drifting curves — one redraw
+  surface, no view-tree churn, and it stops when the screen goes away.
+- `.trim` on a `Path` for the mark. Stroke, never fill, while drawing.
+- Solid stroke colours. **No multi-stop gradients** — measured broken, see below.
+- Cap the curves at low opacity and keep them clear of the text block, or measure
+  the composite where they cross it. A background that drops body text under
+  4.5:1 is a failure however good it looks. This is the one rule that outranks
+  the aesthetics.
+- Reduce Motion: render the final composed frame, no drift, no draw-on.
+
+Alternatives considered and not chosen: constellation/particle fields (generic,
+and the reference apps already do it), concentric rings from an injection point
+(reads medical in the wrong way), gradient washes (SwiftUI desaturates them).
+
 ### Animated text — the constraints that matter
 
 - **Staggered fade + rise per line**, ~60 ms apart, 400–500 ms each, ease-out.
