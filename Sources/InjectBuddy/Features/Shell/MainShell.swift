@@ -145,10 +145,20 @@ struct MainShell: View {
     /// added as a bottom safe-area inset on every tab's content, which every
     /// ScrollView, List and safeAreaInset inside then composes with automatically.
     ///
-    /// Measured rather than derived: on the built app the tab bar's top hairline sits
-    /// at pt 771.3 and the hero assembly (circle + 4pt ring + shadow) starts at
-    /// pt ~753, so it overhangs by ~18pt. 22 matches the lift constant below and
-    /// leaves a little margin.
+    /// Measured rather than derived: the tab bar's top hairline sits at pt 771.3
+    /// and the hero assembly (circle + 4pt ring + shadow) starts at pt ~753, so it
+    /// overhangs by ~18pt. 22 leaves a little margin.
+    ///
+    /// SCOPE, established by experiment — this reaches SCROLLED content only.
+    /// The calculator's Add button is pinned by the screen's own
+    /// `.safeAreaInset(edge: .bottom) { resultBar }`, and raising this constant from
+    /// 22 to 38 moved it by exactly zero: the button's bottom edge stayed at
+    /// pt 774.7 and the hero's ring stayed at pt 762.0, an unchanged 12.7pt overlap.
+    /// An outer safeAreaInset does not lift a sibling inset pinned further in.
+    ///
+    /// So a bigger number here cannot fix that overlap — it would only cost every
+    /// scrolled screen vertical room for nothing. If the pinned CTA needs to clear
+    /// the hero, `resultBar` has to account for it where it is placed.
     static let heroOverhang: CGFloat = 22
 
     /// The centre slot gets its TITLE ONLY — no icon.

@@ -49,3 +49,36 @@ rebuilding the old binary.
 
 What is now true for all eight is that the room is reserved centrally rather than
 per-screen, so a future screen inherits it without having to remember.
+
+## The hero ring vs the calculator's Add button — measured, and it is NOT a constant
+
+Asked whether the hero's ring grazes the pinned Add CTA. It does not graze it; it
+**overlaps it by 12.7 pt**, and the fix is not the one it looks like.
+
+From `07-calculator-trt-bottom.png` at full resolution:
+
+| | Measured |
+|---|---|
+| Add button, navy, at x=60 pt (clear of the circle) | pt **703.0 → 774.7** |
+| Hero white ring, at x=201 pt (circle centre) | begins pt **762.0** |
+| Tab bar top hairline | pt 790.7 |
+| **Gap** | **−12.7 pt** |
+
+Not the F2 failure: the "Add" label is centred around pt 736–745, about 25 pt above
+the ring, fully legible, and the tap target is untouched. But a floating control is
+sitting on pinned content, which is what was asked about.
+
+**The one-constant change does not work, and I checked before reporting.** Raising
+`heroOverhang` 22 → 38 and re-measuring produced *identical* pixels: button bottom
+still 774.7, ring still 762.0, overlap still 12.7 pt. Reverted, because leaving it at
+38 would cost every scrolled screen 16 pt of vertical room for no effect.
+
+The reason is a real scoping limit worth writing down: `MainShell`'s
+`.safeAreaInset(edge: .bottom)` reaches **scrolled** content — which is why all eight
+screens verified clean — but it does not lift a sibling inset pinned further in.
+`CalculatorScreen` pins its `resultBar` with its own
+`.safeAreaInset(edge: .bottom)`, so it sits below the reserved region rather than
+above it.
+
+Fixing it means `resultBar` accounting for the hero where it is placed, not a larger
+global inset. Left unfixed and reported, since the ask was to measure first.
