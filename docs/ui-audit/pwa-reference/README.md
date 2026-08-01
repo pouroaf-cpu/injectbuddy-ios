@@ -21,9 +21,29 @@ demonstrably wrong (below) and do not invent a target.
 
 ## Dashboard — what the pair actually shows
 
-Structure already matches; `docs/SCREENS.md` was followed. Every difference
-below is appearance, and every one traces to a value missing from
-`Theme.swift`.
+**Correction (2026-08-01).** An earlier version of this file said "structure
+already matches; every difference below is appearance." That was wrong, and the
+Mac caught it. The two dashboards differ in **content and information
+architecture**, not only in styling.
+
+Verified in `app/account/page.tsx:117-190`: the PWA dashboard is **tabbed**
+(`DashTabs`, panels `upcoming` / `history` / `inventory` / `saved` /
+`calculators` / `settings`). The capture here shows the **`upcoming` panel
+only**, and that panel scrolls well past the fold.
+
+- Present in the PWA, absent from iOS: `SiteRotation` ("Recommended site"),
+  `MobileInjectionCount` ("1 injection today"), `InjectionDayPicker` (the date
+  strip), `SerumChart`, `LabHighlights`, and two navy `NavyCard` CTAs
+  (Injection Calendar, Blood Test Analyser) below the fold.
+- Present on iOS, absent from the PWA's `upcoming` panel: the protocol grid —
+  which on the PWA lives in the **`saved`** tab (`SavedProtocolsPanel` →
+  `ProtocolList`), not the default view — plus "Mark taken" and the whole
+  "next dose" framing.
+
+So iOS and the PWA make genuinely different IA choices about what the dashboard
+*is*. **That gap is a product decision and is out of scope for styling parity.**
+It is tracked separately; do not absorb it into a restyle. The styling table
+below still stands on its own.
 
 | | PWA | iOS today |
 |---|---|---|
@@ -40,9 +60,26 @@ This is a stock SwiftUI `.insetGrouped` list. It carries no brand at all beyond
 a teal checkmark. Three things are wrong independent of any PWA capture:
 
 1. **The primary CTA is teal text on white, not a filled button.** `#0FBCAD` as
-   text measures **2.38:1** and fails WCAG at any size. The PWA's equivalent is
-   a filled teal surface with white text (~3.5:1 and passing as large text).
-   This is simultaneously the contrast bug and the parity bug — same fix.
+   text measures **2.38:1** and fails WCAG at any size.
+
+   **Correction (2026-08-01).** This entry originally said the fix was "a filled
+   teal surface with white text (~3.5:1 and passing as large text)". That is
+   wrong — **contrast is symmetric.** Swapping foreground and background does
+   not change the ratio: white on `#0FBCAD` is *also* 2.38:1. Filling the button
+   fixes the parity bug and leaves the accessibility bug untouched.
+
+   Passing options, verified both sides:
+
+   | Treatment | Ratio |
+   |---|---|
+   | white on `#075E56` | **7.65:1** ← chosen |
+   | ink `#101018` on `#0FBCAD` | 7.95:1 |
+   | navy `#001D5C` on `#0FBCAD` | 6.63:1 |
+   | white on `#0FBCAD` | 2.38:1 ✗ |
+
+   **Decision: `#075E56` fill with white text.** White-on-dark reads as a CTA,
+   and it keeps `#0FBCAD` reserved for the FAB and large display type — the
+   split `DESIGN-PARITY.md` §7 already sets out.
 2. **Roughly 40% of the sheet is dead space** below the CTA, while the protocol
    list above is a cramped scroller.
 3. **Protocol rows are plain text plus a checkmark.** They are the same objects
