@@ -197,7 +197,7 @@ No `lineLimit` on a screen title. Ever.
 
 ### The constraint that decides the implementation
 
-**A UIKit navigation bar does not grow to fit a wrapped title.** A multi-line view
+**A UIKit navigation bar DOES grow to fit a wrapped title — to exactly two lines.** A multi-line view
 in `.principal` gets clipped by the bar's fixed height, so "wraps to multiple
 lines" and "lives in the nav bar" cannot both be true.
 
@@ -220,3 +220,32 @@ Longest real title, default size and AX5. Confirm: wraps rather than truncates,
 stays centred at two and three lines, the back control does not move between
 them, the mark scales with the title, and the whole header is one accessibility
 element with `.isHeader` — the mark decorative, not announced separately.
+
+
+### §9 addendum — measured, 2026-08-01
+
+The constraint originally written here ("a UIKit navigation bar does not grow to fit
+a wrapped title") was an assumption, and it is **false**. Probed on device with a
+wrapping `Text` in `.principal`, at default and AX5:
+
+| Lines | Result |
+|---|---|
+| 2 | **Renders fully.** The bar grows. No clipping. Back control does not move. |
+| 3 | **Clipped at both ends** — top of line 1 sheared, line 3 half-rendered. |
+| AX5 | Identical. The bar does not grow further. |
+
+So `.principal` caps at **two lines** and fails **silently** beyond — there is no
+ellipsis, so nothing on screen says content is missing. A sheared third line reads
+as a rendering glitch, or worse, as the whole title.
+
+That is why the branded header goes in the **content area** (option a) — not because
+the bar cannot wrap, but because it caps at two and clips invisibly at three, and
+Rule 4 says a title never truncates. "Testosterone Dosage Calculator" does not fit
+two lines at AX5.
+
+**Onboarding does not use this header.** Checked against the reference: their step
+screens carry a back chevron, a progress rail and the question — no mark, no
+wordmark, no centred title. Repeating the brand above every question competes with
+the one thing the screen exists to ask. So the two headers share the *behaviour*
+(44 pt back control that doesn't drift, wrap-never-truncate, centring at any line
+count) and not the composition.

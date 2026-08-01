@@ -224,20 +224,26 @@ Parity and chrome
    Anything pinned needs clearance where it is pinned.
 5. **A montage is a survey instrument, not a measuring one.** A 12.7pt overlap
    read as "grazing" off a downscaled 4272px image.
-6. **Closing a finding protects the code that existed when you closed it.** New
+6. **Prefer a container that truncates visibly over one that clips silently.**
+   Truncation announces itself — "Testosterone Dosage…" tells you to go looking. A
+   clipped container has no ellipsis, so a sheared line reads as a glitch or as the
+   whole string. Measured: `.principal` renders two lines and shears the third with
+   no visual signal, at every type size. Never accept silent clipping on a title, a
+   value, or a unit — the same reason `lineLimit` on a value+unit pair is banned.
+7. **Closing a finding protects the code that existed when you closed it.** New
    controls land underneath old bugs. The quick-value row arrived after F11 was
    closed and immediately sat under the pinned result bar — not a regression of the
    fix, a new surface arriving under an old problem. Anything added below the fold
    on the calculator gets checked against the pinned bar as a matter of course.
-7. **The screens nobody complains about are where defects accumulate**, because
+8. **The screens nobody complains about are where defects accumulate**, because
    attention follows complaints rather than risk. The log-dose sheet was a stock
    `.insetGrouped` list at audit time and got the least work of any screen. It then
    turned out to hold a touch-target violation, the app's worst contrast failure
    (2.13:1), no type scale at all, and a latent copy of the truncation bug — four
    for four, on the screen nobody was looking at.
-8. **A component verified in one container is not verified.** `PrimaryButton` was
+9. **A component verified in one container is not verified.** `PrimaryButton` was
    measured on the calculator, scaled correctly, and was trusted. The same component
    in a `List` row did not scale at all.
-9. **If taps die but `simctl` still screenshots, check the login session** before
+10. **If taps die but `simctl` still screenshots, check the login session** before
    touching the Simulator — CoreSimulator is a daemon with no display dependency,
    so the symptom points the wrong way.
