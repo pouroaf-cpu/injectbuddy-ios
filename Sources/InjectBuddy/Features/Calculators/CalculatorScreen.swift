@@ -135,8 +135,25 @@ struct CalculatorScreen: View {
             }
         }
         .padding(Theme.Spacing.md)
+        // Clears the raised hero, which otherwise rests ON this CTA.
+        //
+        // MainShell.heroOverhang cannot do this. An outer safeAreaInset reaches
+        // SCROLLED content — which is why all eight screens verified clean — but it
+        // cannot lift a sibling inset pinned further in, and this bar is pinned by
+        // the `.safeAreaInset(edge: .bottom)` on the ScrollView above. Proven, not
+        // assumed: raising heroOverhang 22 -> 38 moved this button by exactly zero
+        // pixels. So the clearance has to be added where the bar is placed.
+        //
+        // 16 = the measured 12.7pt overlap (button bottom pt 774.7 vs ring top
+        // pt 762.0) plus ~3pt of daylight, because touching is what we are removing.
+        // Padding, not a frame: it grows the `.bar` background with the content, and
+        // it cannot affect how the rows inside lay out — F1's reflow is untouched.
+        .padding(.bottom, Self.heroClearance)
         .background(.bar)
     }
+
+    /// Daylight between this pinned bar and MainShell's hero circle.
+    private static let heroClearance: CGFloat = 16
 }
 
 // MARK: - Result card
