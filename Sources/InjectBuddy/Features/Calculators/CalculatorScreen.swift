@@ -52,7 +52,7 @@ struct CalculatorScreen: View {
                 // of the screen and hid the field being edited. Above AX1 the bar
                 // collapses to the primary row + CTA and the full breakdown is
                 // rendered here instead, inside the scroll, so no row is lost.
-                if isAccessibilitySize, vm.result.isValid {
+                if vm.result.isValid {
                     ResultCard(result: vm.result, barrelMl: barrelMl)
                 }
 
@@ -99,6 +99,7 @@ struct CalculatorScreen: View {
             // the field being edited in half (audit finding F11).
             ResultCard(result: vm.result,
                        isCompact: keyboard.isVisible || isAccessibilitySize,
+                       isPinned: true,
                        barrelMl: barrelMl)
 
             // Titled "Add" to match the web, where the bottom nav's Add slot owns
@@ -161,11 +162,23 @@ struct CalculatorScreen: View {
 private struct ResultCard: View {
     let result: CalculatorResult
     var isCompact: Bool = false
+    /// True for the bar pinned above the CTA, false for the full card in the scroll.
+    /// The pinned instance shows the primary values plus the weekly-total
+    /// cross-check; everything else lives in the scroll copy.
+    var isPinned: Bool = false
     var barrelMl: Double?
 
     /// You cannot draw 1.2 mL into a 1 mL barrel. Surfaced as an icon PLUS text —
     /// WCAG 1.4.1: no state in this app is ever carried by colour alone, and least
     /// of all one that says the dose does not physically fit the syringe.
+    /// Rows the pinned bar keeps: every emphasised value, plus the weekly total.
+    private var visibleRows: [ResultRow] {
+        guard isPinned else { return result.rows }
+        return result.rows.filter {
+            $0.emphasis || $0.label.lowercased().contains("weekly total")
+        }
+    }
+
     private var overCapacity: Bool {
         guard let barrelMl, let draw = result.drawMl, result.isValid else { return false }
         // Tolerate float noise; a draw exactly equal to the barrel still fits.
@@ -204,7 +217,19 @@ private struct ResultCard: View {
                     if let note = capacityNote { CapacityWarning(text: note) }
                 }
             } else if result.isValid {
-                ForEach(result.rows) { row in
+                // PINNED: the primary values plus the weekly total. The total is the
+                // CROSS-CHECK, not a derived nicety — the user typed "400 mg/week"
+                // and this is how they confirm the app understood them. Hiding the
+                // figure that closes that loop to save vertical space is the wrong
+                // trade in a dosing app.
+                //
+                // The rest — dose per injection, injections/week, volume verdict —
+                // moves into the scroll. They restate the inputs, and the verdict
+                // already has a louder channel: the over-capacity warning fires with
+                // icon and text when it actually matters. Nothing is lost, only
+                // relocated, and default now behaves like AX5 rather than inventing
+                // a third mode.
+                ForEach(visibleRows) { row in
                     if row.emphasis {
                         PrimaryResultRow(label: row.label, value: row.value)
                     } else {
@@ -214,7 +239,10 @@ private struct ResultCard: View {
                 // Was an orphaned grey string with no label — at AX sizes it read
                 // as a stray word ("Ideal") floating under the numbers. It is a
                 // verdict on the draw volume, so it gets a label like every other row.
-                if let line = result.scheduleLine {
+                // The volume verdict lives in the scroll copy only. It already has
+                // a louder channel when it matters — the over-capacity warning fires
+                // with icon and text — so its quiet "Ideal" earns no pinned space.
+                if let line = result.scheduleLine, !isPinned {
                     SecondaryResultRow(label: "Volume", value: line)
                 }
                 if let note = capacityNote {
