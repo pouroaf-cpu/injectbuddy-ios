@@ -32,7 +32,8 @@ at `6f7b0ef`, and are kept as the evidence for what was wrong.
 | IB2245729 | `08-logdose-sheet-IB2245729.png` | Log-dose sheet |
 | IB2245730 | `09-dashboard-ax5-IB2245730.png` | Dashboard at AX5 |
 | IB2245731 | `10-tools-ax5-IB2245731.png` | Tools at AX5 |
-| IB2245732 | `11-calculator-keyboard-toolbar-IB2245732.png` | TRT Dose, weekly dose focused — **today's fix** |
+| IB2245732 | `11-calculator-keyboard-toolbar-IB2245732.png` | TRT Dose, weekly dose focused — **superseded, see IB2245735** |
+| IB2245735 | `11b-calculator-keyboard-toolbar-keypad-up-IB2245735.png` | The same screen with the software keypad actually up — **this is the one that proves the fix** |
 | IB2245733 | `90-defect-before-typed-100250-IB2245733.png` | BEFORE — field reads `100250`, draw computed from 1000 |
 | IB2245734 | `91-defect-before-chip-tap-no-effect-IB2245734.png` | BEFORE — after a chip tap that reported success and moved nothing |
 
@@ -49,17 +50,22 @@ It is behind the pinned result bar, which starts immediately under the field.
 `IB2245734` is the frame *after* tapping `quick_mgWeek_400`; nothing moved,
 and the tap reported success.
 
-**`IB2245732` — what it looks like now.** The focused field's quick values sit
-in a keyboard toolbar with a Done button. Two things to note in that frame:
+**`IB2245735` — what it looks like now, and the frame that actually proves it.**
+Software keypad up, the focused field's quick values and Done sitting above it and
+clear of the pinned result bar, and the inline quick row hidden while that field is
+being edited.
 
-1. The selection handles on `100` are select-all-on-focus working — typing now
-   replaces rather than appends, which is what stopped `100250` being reachable.
-2. The software keyboard is **not** drawn, because the simulator has a hardware
-   keyboard attached. The accessory bar therefore sits directly on the tab bar.
-   On a device with the keypad up it sits above the keypad, as in `IB2245733`.
-   Worth knowing before anyone reads that frame as a layout collision — though
-   it is a real state for any user with a Bluetooth keyboard, and it is written
-   down rather than fixed.
+**`IB2245732` is superseded and kept as the cautionary one.** It shows the same
+screen with **no software keyboard**, because the simulator had a hardware keyboard
+attached and iOS suppressed the keypad — so the accessory bar was photographed
+sitting on the tab bar, in a position it never occupies in front of a user, with
+the pinned bar's relationship to it untested. It looks like evidence and is not.
+Nothing in the image says so. It is still a real state for anyone on a Bluetooth
+keyboard, which is written down in `DECISIONS-2026-08-02` rather than fixed.
+
+One detail worth seeing in `IB2245732` that `IB2245735` no longer shows: the
+selection handles around `100`. That is select-all-on-focus working — typing now
+replaces rather than appends, which is what put `100250` out of reach.
 
 ## Not captured, and why
 

@@ -490,3 +490,13 @@ Parity and chrome
 17. **A capture sweep must fail loudly.** With `continueAfterFailure = true`, a
    failed navigation produced a genuine photograph of the Tools screen under a
    filename claiming the TRT calculator. Assert the destination before shooting.
+18. **A screenshot taken under a non-default rig configuration is not evidence
+   about the default configuration.** `IB2245732` was shot with a hardware
+   keyboard attached, so iOS suppressed the software keypad and the keyboard
+   toolbar was photographed sitting on the tab bar — a position it never occupies
+   in front of a user, and the pinned bar's relationship to it untested. Nothing
+   in the image says so. Same family as the byte-identical "refresh" and the
+   backgrounded home screen, except that this one flattered the fix, which is why
+   it was easy to miss. Hardware keyboard, Reduce Motion, a non-standard device
+   scale — none of them announce themselves. Re-shot as `IB2245735`.
+

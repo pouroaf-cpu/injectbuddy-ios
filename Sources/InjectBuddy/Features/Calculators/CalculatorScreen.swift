@@ -111,6 +111,10 @@ struct CalculatorScreen: View {
                           unit: Self.unit(of: field),
                           selection: vm.numberBinding(key),
                           idPrefix: "kb_quick_")
+            // The chip row is a horizontal ScrollView and takes the full width, so
+            // the Spacer below collapses to nothing and Done ends up touching the
+            // last chip. This is the gap.
+            .padding(.trailing, Theme.Spacing.sm)
         }
         Spacer()
         // `kb_done` answers to TWO elements and nothing on this side removes the
@@ -480,7 +484,12 @@ private struct FieldRow: View {
 
             content
 
-            if !field.quick.isEmpty {
+            // Hidden while THIS field is being edited, because the keyboard toolbar
+            // is showing the same five values at that moment. Two identical control
+            // rows on one screen is the same smell as two copies of a dose readout —
+            // and this is the copy that is occluded by the pinned result bar anyway,
+            // so what is being removed is a row the user cannot reach.
+            if !field.quick.isEmpty && focusedKey.wrappedValue != field.key {
                 QuickValueRow(key: field.key,
                               values: field.quick,
                               unit: fieldUnit,

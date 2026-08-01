@@ -91,16 +91,30 @@ final class CaptureCurrentState: XCTestCase {
         app.swipeUp()
         shot("07-calculator-barrel-row.png")
 
-        // TODAY'S FIX: the focused field's quick values in the keyboard toolbar,
-        // above the keypad, with a Done button. Previously this strip was behind
-        // the pinned result bar and a tap on it passed while moving nothing.
-        openTRT()
-        app.textFields["field_mgWeek"].tap()
-        shot("11-calculator-keyboard-toolbar.png")
-        app.buttons.matching(identifier: "kb_done").element(boundBy: 0).tap()
-
         tab("Log dose")
         shot("08-logdose-sheet.png")
+    }
+
+    /// The keyboard toolbar, WITH the software keypad actually on screen.
+    ///
+    /// Focusing alone is not enough: this rig has a hardware keyboard attached, so
+    /// iOS suppresses the software keypad and the accessory bar gets photographed
+    /// sitting on the tab bar, in a position it will never occupy in front of a
+    /// user. That frame looks like evidence and is not — a rig condition that does
+    /// not announce itself in the image. Typing a character brings the keypad up,
+    /// which is the only configuration where "the toolbar clears the pinned result
+    /// bar" means anything.
+    func testCaptureKeyboardToolbar() {
+        openTRT()
+        let field = app.textFields["field_mgWeek"]
+        field.tap()
+        field.typeText("300")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5),
+                      "No keyboard — the frame would not prove anything.")
+        let keypadTop = app.keyboards.firstMatch.frame.minY
+        XCTAssertLessThan(keypadTop, app.windows.firstMatch.frame.maxY,
+                          "Keyboard is off-screen (\(keypadTop)) — hardware keyboard attached?")
+        shot("11-calculator-keyboard-toolbar.png")
     }
 
     /// Set the size from the host first:
