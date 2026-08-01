@@ -15,7 +15,33 @@ Session of 2026-08-01. Branch `feature/tabview-shell`. Latest `edf59d2`.
 
 ---
 
-## 0. Rig — mouse dead, XCUITest alive
+## 0. RIG STATE — read this first if you are a fresh session
+
+Things a cold session will hit within minutes and not understand:
+
+- **Synthesized mouse clicks do not reach the Simulator.** Keyboard does
+  (`Cmd-Shift-H` backgrounds the app). `AXIsProcessTrusted()` is true and the cursor
+  physically moves, so `CGEvent` posts fine at OS level — the Simulator stopped
+  accepting synthesized clicks after `simctl erase`, and it survives quit +
+  `kill -9` + reopen. A host reboot is the standard fix and is **not required**: see
+  the next bullet.
+- **Drive the app with XCUITest, not clicks.**
+  `xcodebuild test -only-testing:InjectBuddyUITests` works with the mouse dead,
+  because it goes through the automation layer inside the runtime and never touches
+  the host window server. Probe passes in ~47 s.
+- **Screenshots still work** — `xcrun simctl io booted screenshot` reads the
+  framebuffer and needs no window server. Every capture tonight was taken this way.
+- **The simulator was ERASED and is signed out.** The device is sitting in iOS
+  first-boot with system permission prompts ("Allow Maps to use your location",
+  a notifications screen) that could not be dismissed because clicks are dead.
+  XCUITest can dismiss them via `addUIInterruptionMonitor`. Expect them.
+- **The app's session lives in the KEYCHAIN, not the container** — `simctl uninstall`
+  does NOT sign you out; `simctl erase` does. Established tonight.
+- **QA credentials exist** for `devtools@injectbuddy.com` and are held by the Windows
+  side. They are **never** to be committed — inject via `launchEnvironment` from the
+  process environment. Never shoot a login screen with the password field unmasked.
+
+## 0b. Rig — mouse dead, XCUITest alive
 
 - [x] **"The DisclaimerGate cannot be dismissed" was WRONG — it was the input path.**
       Keyboard works (`Cmd-Shift-H` backgrounds the app); clicking an app icon or a
