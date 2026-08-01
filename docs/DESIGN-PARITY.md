@@ -159,3 +159,64 @@ exactly that reason.
 
 Superseded, do not reinstate: "teal is accents only" — it would drain the primary
 brand colour out of the app.
+
+---
+
+## 9. Screen headers (settled 2026-08-01)
+
+Every screen wears the brand. Today only the tab roots do — `RouteContent.swift:35`
+puts `BrandWordmark` in `.principal`, while pushed screens fall back to a stock
+`.navigationTitle` in system black ("TRT Dose", "Semaglutide", "Log a dose"). That
+inconsistency is what this rule closes.
+
+### The rule
+
+A pushed screen's title is set in the **logo's treatment**, not the system's:
+
+1. **The syringe mark appears beside the title**, sized to it, in brand colour —
+   `Theme.accent` `#0FBCAD`, matching `BrandWordmark`.
+2. **The title uses the wordmark's typeface and weight**, coloured
+   `Theme.tealTextStrong` `#075E56` (7.65:1). Same family as the logo, so a screen
+   title reads as the product naming itself rather than iOS labelling a view.
+3. **Mark + title are optically centred as one unit**, and stay centred whatever
+   the line count.
+4. **A long title WRAPS. It never truncates.** "Testosterone Dosage Calculator"
+   goes to two or three lines rather than becoming "Testosterone Dosage…".
+5. **The back control stays put** — 44×44 pt, leading, vertically anchored so it
+   does not drift when the title grows to two lines.
+
+### Why wrap, not truncate — this is not a preference
+
+This app has already shipped truncation twice: seven dashboard protocol cards
+losing their compound name (two rendered identically), and the AX5 result rows
+losing their units. Both were found by looking, not by review. A screen title is
+the same failure with less excuse — there is no space pressure that a second line
+does not solve.
+
+No `lineLimit` on a screen title. Ever.
+
+### The constraint that decides the implementation
+
+**A UIKit navigation bar does not grow to fit a wrapped title.** A multi-line view
+in `.principal` gets clipped by the bar's fixed height, so "wraps to multiple
+lines" and "lives in the nav bar" cannot both be true.
+
+Pick one and record which:
+
+- **(a) Branded header in the content area.** Replaces the stock large title;
+  the nav bar keeps only the back control. Wraps freely, centres cleanly, scales
+  with Dynamic Type. Costs a little vertical space and scrolls away with content
+  unless pinned.
+- **(b) Compact branded title in `.principal`.** Stays fixed and matches the tab
+  roots exactly, but cannot wrap — so it only works if every title fits on one
+  line at every type size, which "Testosterone Dosage Calculator" does not.
+
+**(a) is the one that satisfies the brief.** Confirm against the SDK before
+building; the Mac can see what `.principal` tolerates and this side cannot.
+
+### Verify
+
+Longest real title, default size and AX5. Confirm: wraps rather than truncates,
+stays centred at two and three lines, the back control does not move between
+them, the mark scales with the title, and the whole header is one accessibility
+element with `.isHeader` — the mark decorative, not announced separately.
