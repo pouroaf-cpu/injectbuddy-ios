@@ -8,7 +8,13 @@ Do not tick anything on inspection — every closed item below was closed by a
 measurement or a screenshot, and that bar holds. If something can't be verified,
 move it to §4 rather than ticking it.
 
-**New session? Read `docs/SESSION-HANDOVER-2026-08-01.md` first** — how the two
+**New session? Read `docs/START-HERE.md`, then
+`docs/SESSION-HANDOVER-2026-08-01.md`, then `docs/HARNESS-AND-LOOSE-ENDS.md`**
+— orientation, narrative, and the workshop-floor detail (why the three UI-test
+assertions are red, and what has already been ruled out). Then this file for live
+status.
+
+**Also** — how the two
 sides work, what broke and why, and the rig state. Then this file for live status.
 
 **Current state is `docs/ui-audit/2026-08-01-current/`.** The per-cycle folders are
