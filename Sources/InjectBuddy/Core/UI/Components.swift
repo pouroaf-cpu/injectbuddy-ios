@@ -187,7 +187,21 @@ struct FieldChrome: ViewModifier {
         content
             .background(
                 RoundedRectangle(cornerRadius: Theme.Radius.control)
-                    .fill(Color.white)
+                    // Inner shadow, applied HERE and only here so it reaches every
+                    // input cell in the app at once — `fieldChrome` is the single
+                    // surface for calculator fields, pickers, stepper rows and the
+                    // log-dose sheet's cells. Per-screen would drift, the way the
+                    // result-row identifier did.
+                    //
+                    // NOT MEASURED. It is styling, shipped under the build-and-move-on
+                    // cadence, and nothing has been ticked on the board for it. The
+                    // one thing that must be re-measured next audit is recorded in
+                    // DECISIONS-2026-08-02 "Deferred checks": this shadow lands on the
+                    // exact pixels of a closed finding — the input boundary was 1.00:1
+                    // and was raised to `#8E8E93` at 3.26:1 — and a dark inset edge
+                    // sitting against that stroke could change what that ratio means.
+                    .fill(Color.white.shadow(.inner(color: .black.opacity(0.10),
+                                                    radius: 3, x: 0, y: 2)))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.control)
