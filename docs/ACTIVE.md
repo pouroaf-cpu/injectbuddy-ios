@@ -6,4 +6,4 @@ Claim a row at session START; remove it at session END once your push has succee
 
 | agent-id | start | branch/worktree | files / area | intent | status |
 |----------|-------|-----------------|--------------|--------|--------|
-| lemur87 | 2026-07-30 22:10 | app/ main | app/Sources/InjectBuddy/{Core/Nav,Core/Backend,Features/Shell,Features/Tools,Features/Add,Features/Log} | TASK 14/15 lean pass — TabView shell + raised Log-dose hero, drawer behind Tools, Add funnel + confirm-start-day, start_date writes | working |
+| mac-9d4e | 2026-07-31 20:28 | feature/tabview-shell @ 0bf1c0a | Sources/InjectBuddy/{Core/Calculator,Core/Nav,Features/Calculators} | Phase 1 auth-verify + offline DONE, BUILD SUCCEEDED clean on iPhone 16 Pro sim. Now phase 2 — 6 new calculators (ftv, reverse, glp1titration, femalehrt, nootropic, e2estimator) + unblock blend/bioavailability in NavItems:117-119. NOT touching plotter/tmax (TASK 21 blocked on web SPEC_VERSION bump). No subagents recruited. | working |

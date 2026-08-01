@@ -22,18 +22,20 @@ struct SupabaseBackendClient: BackendClient {
             .value
     }
 
-    /// One protocol by id, for the confirm-start-day screen. `maybeSingle` so a row
-    /// that was deleted between saving and confirming returns nil instead of throwing.
-    /// No user_id filter: RLS already scopes this to the caller, exactly as above.
+    /// One protocol by id, for the confirm-start-day screen. Decodes as an array and
+    /// takes `.first` (this supabase-swift version's `.single()` throws on zero rows
+    /// rather than returning nil) so a row deleted between saving and confirming
+    /// returns nil instead of throwing. No user_id filter: RLS already scopes this to
+    /// the caller, exactly as above.
     func savedDosage(id: String) async throws -> SavedDosage? {
-        try await client
+        let rows: [SavedDosage] = try await client
             .from("saved_dosages")
             .select("id, calculator_type, label, config, created_at, start_date, is_active")
             .eq("id", value: id)
             .limit(1)
             .execute()
             .value
-            .first
+        return rows.first
     }
 
     /// Lets the start day be CHANGED after the fact. CalculatorViewModel.save already

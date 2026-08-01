@@ -10,6 +10,7 @@ import SafariServices
 struct SettingsScreen: View {
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.backend) private var backend
 
     @State private var showEditName = false
@@ -93,12 +94,17 @@ struct SettingsScreen: View {
 
     // MARK: connections
 
+    // Preferences above are local-only (SettingsStore → UserDefaults) so they stay
+    // fully usable offline; only these two sections talk to the backend, so they're
+    // the ones that degrade — same "networked surface" treatment as Dashboard/
+    // Calendar, just inline instead of a full-screen replacement since most of this
+    // screen has nothing to do with the network at all.
     private var connectionsSection: some View {
-        Section("Connections") {
+        Section {
             Button { showSafari = true } label: {
                 HStack {
                     Label("Discord", systemImage: "bubble.left.and.bubble.right.fill")
-                        .foregroundStyle(Theme.label)
+                        .foregroundStyle(network.isOnline ? Theme.label : Theme.secondaryLabel)
                     Spacer()
                     Text("Link")
                         .foregroundStyle(Theme.secondaryLabel)
@@ -108,19 +114,27 @@ struct SettingsScreen: View {
                 }
             }
             .buttonStyle(.plain)
+            .disabled(!network.isOnline)
+        } header: {
+            Text("Connections")
+        } footer: {
+            if !network.isOnline {
+                Text("You're offline — linking Discord needs a connection.")
+            }
         }
     }
 
     // MARK: account
 
     private var accountSection: some View {
-        Section("Account") {
+        Section {
             Button {
                 Task { await sendPasswordReset() }
             } label: {
                 Label("Change password", systemImage: "key")
-                    .foregroundStyle(Theme.label)
+                    .foregroundStyle(network.isOnline ? Theme.label : Theme.secondaryLabel)
             }
+            .disabled(!network.isOnline)
             if let note = passwordResetNote {
                 Text(note)
                     .font(.caption)
@@ -137,6 +151,12 @@ struct SettingsScreen: View {
                 showDeleteConfirm = true
             } label: {
                 Label("Delete account", systemImage: "exclamationmark.triangle")
+            }
+        } header: {
+            Text("Account")
+        } footer: {
+            if !network.isOnline {
+                Text("Password changes need a connection. Sign out still works offline.")
             }
         }
     }
@@ -233,5 +253,6 @@ struct SafariView: UIViewControllerRepresentable {
         .environment(\.backend, MockBackendClient())
         .environmentObject(AuthStore())
         .environmentObject(SettingsStore())
+        .environmentObject(NetworkMonitor())
 }
 #endif

@@ -62,6 +62,22 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         SUPABASE_HOST: $(SUPABASE_HOST)
         SUPABASE_ANON_KEY: $(SUPABASE_ANON_KEY)
+        # Deep-link scheme for BOTH Discord OAuth and the signup email-confirmation
+        # link. Must match SupabaseConfig.oauthRedirectURL
+        # (com.injectbuddy.ios://login-callback) and the Supabase dashboard →
+        # Auth → URL Configuration redirect allow-list. Declared HERE, not by hand in
+        # Info.plist: `info:` makes XcodeGen regenerate that file, so a hand edit is
+        # silently destroyed on the next `xcodegen generate` (it was, on 2026-07-31).
+        CFBundleURLTypes:
+          - CFBundleURLName: com.injectbuddy.ios.oauth
+            CFBundleURLSchemes:
+              - com.injectbuddy.ios
+        # Single-window SwiftUI app; no multi-scene support.
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        # No non-exempt encryption — skips the export-compliance prompt on every
+        # TestFlight/App Store upload.
+        ITSAppUsesNonExemptEncryption: false
 
   InjectBuddyTests:
     type: bundle.unit-test

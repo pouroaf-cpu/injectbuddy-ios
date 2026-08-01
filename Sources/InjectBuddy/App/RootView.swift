@@ -55,9 +55,9 @@ struct BrandMark: View {
                 .foregroundStyle(Theme.accent)
                 .font(.title3)
             Text("inject")
-                .foregroundStyle(Theme.label)
+                .foregroundColor(Theme.label)
             + Text("buddy")
-                .foregroundStyle(Theme.label).bold()
+                .foregroundColor(Theme.label).bold()
         }
         .font(.title2)
     }

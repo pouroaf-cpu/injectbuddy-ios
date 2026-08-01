@@ -18,6 +18,7 @@ struct ConfirmStartScreen: View {
     let dosageId: String
 
     @EnvironmentObject private var navigator: ShellNavigator
+    @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.backend) private var backend
     @StateObject private var vm = ConfirmStartViewModel()
 
@@ -69,12 +70,19 @@ struct ConfirmStartScreen: View {
                             Spacer()
                         }
                     }
-                    .disabled(vm.isSaving)
+                    .disabled(vm.isSaving || !network.isOnline)
 
                     // The protocol is already saved, so leaving costs only the start
                     // day. Without this the only way out is the swipe-back gesture.
                     Button("Set this later") { navigator.goToDashboard() }
                         .foregroundStyle(.secondary)
+                } footer: {
+                    // The protocol row itself already exists — only the start_date
+                    // write needs the network, and "Set this later" is the documented
+                    // way out, so offline is a deferral here rather than a dead end.
+                    if !network.isOnline {
+                        Text("You're offline — confirming the start day needs a connection. Your protocol is already saved; set the day later from the dashboard.")
+                    }
                 }
 
                 if let error = vm.errorMessage {

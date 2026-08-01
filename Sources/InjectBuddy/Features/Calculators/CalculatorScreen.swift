@@ -11,6 +11,7 @@ struct CalculatorScreen: View {
 
     @EnvironmentObject private var navigator: ShellNavigator
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.backend) private var backend
 
     @StateObject private var vm: CalculatorViewModel
@@ -73,10 +74,13 @@ struct CalculatorScreen: View {
             // iOS analogue of the web's html.ib-add-ready), which is TASK 15 proper.
             // Success no longer jumps to the dashboard — it goes to confirm the start
             // day, which otherwise silently defaults to today.
+            // Offline gates the SAVE only — never the maths. Evaluation is pure and
+            // local, so the inputs and the result card stay fully live with no
+            // connection; it's only persisting the protocol that needs the backend.
             PrimaryButton(
                 title: vm.saveState == .saved ? "Added ✓" : "Add",
                 isLoading: vm.saveState == .saving,
-                isEnabled: vm.result.isValid
+                isEnabled: vm.result.isValid && network.isOnline
             ) {
                 Task {
                     await vm.save(backend: backend)
@@ -84,6 +88,13 @@ struct CalculatorScreen: View {
                         navigator.push(.addConfirm(dosageId: id))
                     }
                 }
+            }
+
+            if !network.isOnline {
+                Text("You're offline — the calculator still works, but adding this as a protocol needs a connection.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.secondaryLabel)
+                    .multilineTextAlignment(.center)
             }
 
             if case let .failed(msg) = vm.saveState {

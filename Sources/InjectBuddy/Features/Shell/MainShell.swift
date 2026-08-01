@@ -18,6 +18,7 @@ import SwiftUI
 
 struct MainShell: View {
     @StateObject private var navigator = ShellNavigator()
+    @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
@@ -53,8 +54,39 @@ struct MainShell: View {
             .overlay(alignment: .bottom) { heroButton }
 
             drawerLayer
+
+            offlineBannerLayer
         }
     }
+
+    // MARK: Offline banner (all layouts)
+
+    /// Global connectivity pill. Lives in its own GeometryReader (same pattern as
+    /// drawerLayer's width calc below) so the bottom padding clears the REAL tab
+    /// bar height — system row + whatever home-indicator safe area this device has
+    /// — instead of a device-specific guess. Sits above the bar, never on top of
+    /// it, and `allowsHitTesting(false)` because it is status-only: it must never
+    /// steal a tap meant for the tab bar underneath.
+    private var offlineBannerLayer: some View {
+        GeometryReader { geo in
+            VStack {
+                Spacer()
+                if !network.isOnline {
+                    OfflineBanner()
+                        .padding(.horizontal, Theme.Spacing.md)
+                        .padding(.bottom, geo.safeAreaInsets.bottom + Self.tabBarRowHeight)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .animation(Theme.drawerAnimation, value: network.isOnline)
+        .allowsHitTesting(false)
+    }
+
+    /// Standard iOS compact tab bar row height. The home-indicator safe area on
+    /// top of this comes from GeometryReader above, not hardcoded.
+    private static let tabBarRowHeight: CGFloat = 49
 
     /// Each tab owns a NavigationStack, so pushing a calculator from Add does not
     /// disturb Dashboard's stack and switching tabs preserves where you were.
@@ -155,19 +187,32 @@ struct MainShell: View {
     // MARK: iPad — split view
 
     private var iPadLayout: some View {
-        NavigationSplitView {
-            DrawerList(selection: Binding(
-                get: { navigator.route },
-                set: { navigator.select($0) }
-            ))
-            .navigationTitle("InjectBuddy")
-        } detail: {
-            NavigationStack(path: navigator.pathBinding(for: navigator.tab)) {
-                RouteContent(route: navigator.route, showsHamburger: false)
-                    .navigationDestination(for: AppRoute.self) { pushed in
-                        RouteContent(route: pushed, showsHamburger: false)
-                    }
+        // No bottom tab bar on iPad, so the same banner rides at the top instead —
+        // still non-blocking (allowsHitTesting(false)) and out of the sidebar/detail
+        // content's way.
+        ZStack(alignment: .top) {
+            NavigationSplitView {
+                DrawerList(selection: Binding(
+                    get: { navigator.route },
+                    set: { navigator.select($0) }
+                ))
+                .navigationTitle("InjectBuddy")
+            } detail: {
+                NavigationStack(path: navigator.pathBinding(for: navigator.tab)) {
+                    RouteContent(route: navigator.route, showsHamburger: false)
+                        .navigationDestination(for: AppRoute.self) { pushed in
+                            RouteContent(route: pushed, showsHamburger: false)
+                        }
+                }
+            }
+
+            if !network.isOnline {
+                OfflineBanner()
+                    .padding(.top, Theme.Spacing.sm)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .allowsHitTesting(false)
             }
         }
+        .animation(Theme.drawerAnimation, value: network.isOnline)
     }
 }

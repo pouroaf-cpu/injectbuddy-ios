@@ -134,7 +134,7 @@ private struct CompoundLineRow: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                     Text("Frequency").font(.caption).foregroundStyle(Theme.secondaryLabel)
                     Picker("Frequency", selection: $line.freqDays) {
-                        ForEach(CalcConst.freqs) { f in
+                        ForEach(PlotterCompound.freqs) { f in
                             Text(f.label).tag(f.value)
                         }
                     }

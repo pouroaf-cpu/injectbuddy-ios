@@ -87,7 +87,7 @@ final class CalculatorViewModel: ObservableObject {
     /// whole object, so a short config silently double-inserts.
     func configJSON() -> JSONValue {
         var obj: [String: JSONValue] = [:]
-        let omitted = CalculatorCatalog.configOmittedKeys(for: slug)
+        let omitted = CalculatorCatalog.configOmittedKeys(for: spec.slug)
         for field in spec.fields where !omitted.contains(field.key) {
             switch field.kind {
             case .number, .picker, .stepperDays:
@@ -100,7 +100,7 @@ final class CalculatorViewModel: ObservableObject {
         }
         // Extras win: where a key is both a field and an extra, the extra is the one
         // carrying the web's name and type.
-        for (key, value) in CalculatorCatalog.configExtras(for: slug, values: values) {
+        for (key, value) in CalculatorCatalog.configExtras(for: spec.slug, values: values) {
             obj[key] = value
         }
         return .object(obj)

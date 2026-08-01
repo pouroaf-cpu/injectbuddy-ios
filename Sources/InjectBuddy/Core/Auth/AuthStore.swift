@@ -59,14 +59,32 @@ final class AuthStore: ObservableObject {
         }
     }
 
-    func signUp(email: String, password: String) async {
+    /// Returns `true` when Supabase requires email confirmation before a session exists
+    /// (the common case with confirmations turned on), so AuthFlowView can route to the
+    /// "check your email" screen instead of treating this as a completed sign-in.
+    @discardableResult
+    func signUp(email: String, password: String) async -> Bool {
         lastError = nil
         do {
             _ = try await client.auth.signUp(email: email, password: password)
-            // If email confirmation is required, signUp returns no session; surface it.
-            if (try? await client.auth.session) == nil {
-                lastError = "Check your email to confirm your account, then sign in."
-            }
+            return (try? await client.auth.session) == nil
+        } catch {
+            lastError = Self.message(error)
+            return false
+        }
+    }
+
+    /// Resends the signup confirmation email. Supabase reports success even for an address
+    /// that was never registered, so there's no "not found" branch to surface here — only
+    /// transport/rate-limit failures land in lastError.
+    func resendConfirmationEmail(_ email: String) async {
+        lastError = nil
+        do {
+            try await client.auth.resend(
+                email: email,
+                type: .signup,
+                emailRedirectTo: SupabaseConfig.oauthRedirectURL
+            )
         } catch {
             lastError = Self.message(error)
         }

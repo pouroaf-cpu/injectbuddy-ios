@@ -9,6 +9,7 @@ import SwiftUI
 
 struct CalendarScreen: View {
     @EnvironmentObject private var navigator: ShellNavigator
+    @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.backend) private var backend
 
     @StateObject private var vm = CalendarViewModel()
@@ -28,7 +29,13 @@ struct CalendarScreen: View {
         case .loading:
             LoadingView()
         case .failed(let message):
-            ErrorBanner(message: message) { Task { await reload() } }
+            // Same reasoning as DashboardScreen: no cache + offline is the
+            // design's dedicated offline screen, not a generic error banner.
+            if network.isOnline {
+                ErrorBanner(message: message) { Task { await reload() } }
+            } else {
+                OfflineView { Task { await reload() } }
+            }
         case .empty:
             EmptyStateView(
                 systemImage: "calendar",
@@ -305,11 +312,13 @@ private struct AgendaRow: View {
     CalendarScreen()
         .environment(\.backend, MockBackendClient())
         .environmentObject(ShellNavigator())
+        .environmentObject(NetworkMonitor())
 }
 
 #Preview("Empty") {
     CalendarScreen()
         .environment(\.backend, MockBackendClient(dosages: [], cycles: []))
         .environmentObject(ShellNavigator())
+        .environmentObject(NetworkMonitor())
 }
 #endif

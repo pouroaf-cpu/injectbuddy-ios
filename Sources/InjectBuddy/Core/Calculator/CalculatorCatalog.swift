@@ -87,9 +87,9 @@ struct CalculatorSpec: Equatable {
     let slug: CalculatorSlug
     /// The exact `saved_dosages.calculator_type` the web writes.
     let savedType: String
-    let fields: [CalculatorInput]
     /// Human label seed for the saved-protocol title.
     let saveTitle: String
+    let fields: [CalculatorInput]
 
     static func == (l: CalculatorSpec, r: CalculatorSpec) -> Bool { l.slug == r.slug }
 }

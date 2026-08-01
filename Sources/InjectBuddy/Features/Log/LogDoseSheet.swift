@@ -14,6 +14,7 @@ import SwiftUI
 
 struct LogDoseSheet: View {
     @EnvironmentObject private var navigator: ShellNavigator
+    @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.backend) private var backend
     @Environment(\.dismiss) private var dismiss
 
@@ -29,6 +30,17 @@ struct LogDoseSheet: View {
             Form {
                 if isLoading {
                     Section { HStack { ProgressView(); Text("Loading…").foregroundStyle(.secondary) } }
+                } else if protocols.isEmpty && !network.isOnline {
+                    // The load failed because there's no connection — NOT because the
+                    // user has no protocols. Saying "No protocols yet" here would be a
+                    // lie that pushes them into creating a duplicate.
+                    Section {
+                        Label("You're offline", systemImage: "wifi.slash")
+                            .font(.body.weight(.semibold))
+                        Text("Your protocols couldn't be loaded. Reconnect to log a dose.")
+                            .foregroundStyle(.secondary)
+                        Button("Retry") { Task { await load() } }
+                    }
                 } else if protocols.isEmpty {
                     Section {
                         Text("No protocols yet.")
@@ -64,7 +76,11 @@ struct LogDoseSheet: View {
                                 Spacer()
                             }
                         }
-                        .disabled(isSaving || selectedId == nil)
+                        .disabled(isSaving || selectedId == nil || !network.isOnline)
+                    } footer: {
+                        if !network.isOnline {
+                            Text("You're offline — logging a dose needs a connection.")
+                        }
                     }
                 }
 

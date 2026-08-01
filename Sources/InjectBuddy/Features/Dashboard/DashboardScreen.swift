@@ -8,6 +8,7 @@ import SwiftUI
 struct DashboardScreen: View {
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var navigator: ShellNavigator
+    @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.backend) private var backend
 
     @StateObject private var vm = DashboardViewModel()
@@ -34,7 +35,14 @@ struct DashboardScreen: View {
         case .loading:
             LoadingView()
         case .failed(let message):
-            ErrorBanner(message: message) { Task { await reload() } }
+            // A failed load with nothing cached, while offline, is the "nothing
+            // to show" case the design's offline screen covers — a generic
+            // server-error banner would be misleading here.
+            if network.isOnline {
+                ErrorBanner(message: message) { Task { await reload() } }
+            } else {
+                OfflineView { Task { await reload() } }
+            }
         case .empty:
             EmptyStateView(
                 systemImage: "syringe",
@@ -150,6 +158,7 @@ struct DashboardScreen: View {
         .environmentObject(AuthStore())
         .environmentObject(SettingsStore())
         .environmentObject(ShellNavigator())
+        .environmentObject(NetworkMonitor())
 }
 
 #Preview("Empty") {
@@ -158,5 +167,6 @@ struct DashboardScreen: View {
         .environmentObject(AuthStore())
         .environmentObject(SettingsStore())
         .environmentObject(ShellNavigator())
+        .environmentObject(NetworkMonitor())
 }
 #endif
