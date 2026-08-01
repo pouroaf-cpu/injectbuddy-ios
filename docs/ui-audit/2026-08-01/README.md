@@ -41,6 +41,17 @@ index the PNG.
 | `16-tabbar-over-scrolled-content.png` | Dashboard tab | List content scrolled under the translucent tab bar — worst backdrop the app can produce (it ships no imagery) |
 | `17-tab-dashboard-increasecontrast.png` | Dashboard tab | Accessibility → Increase Contrast **enabled** |
 
+## Known blocker on ever making this repo public
+
+`06-drawer-open.png`, `07-drawer-scrolled-bottom.png` and `08-settings-default.png` show the
+signed-in account's **real email address and avatar photo**. The repo is private (confirmed
+via `gh repo view`), so this is contained, and it was left in place deliberately: purging it
+would mean force-pushing a shared branch mid-collaboration, which is a worse trade than the
+contained exposure. Recorded here so the decision is on paper rather than in someone's memory.
+
+**If this repo is ever made public, these three files must be purged from history first.**
+Further captures of authenticated screens should use a throwaway profile.
+
 ## Reproducing a measurement
 
 Every colour figure in the findings comes from these files. To re-derive one, index the
