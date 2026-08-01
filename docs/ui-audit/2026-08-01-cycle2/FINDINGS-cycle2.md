@@ -1,3 +1,18 @@
+> **Superseded, 2026-08-01 (cycle 3–4).** Resolved by a unique index on
+> `(user_id, calculator_type, config)` plus insert-then-recover in `saveDosage`.
+> Confirmed by row count: 99 → 100 after two saves of the same config, 0 duplicate
+> groups.
+>
+> **And read this before trusting anything upstream of it.** While testing that fix
+> we found protocol saving from iOS had *never worked* — `saveDosage` sent no
+> `user_id`, and the INSERT policy's `WITH CHECK (user_id = auth.uid())` rejected
+> every attempt. So all the config-shape reasoning that led here — `configExtras`,
+> `configOmittedKeys`, the fingerprint discussion, the `syringeMl` double-write trap —
+> was correct in itself but was never validated by anything, because the writes it
+> describes were being refused by the database. It got its first real validation in
+> cycle 3, when a save finally reached the table and round-tripped all 8 TRT keys.
+> Do not read the age of that code as evidence it was working.
+
 # Cycle 2 — blocker: iOS never reaches the `/api/dosages` dedup
 
 The barrel-picker acceptance test was specified as: save the same protocol twice
