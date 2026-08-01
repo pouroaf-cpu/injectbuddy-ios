@@ -17,10 +17,15 @@ status.
 **Also** — how the two
 sides work, what broke and why, and the rig state. Then this file for live status.
 
-**Current state is `docs/ui-audit/2026-08-01-current/`.** The per-cycle folders are
-the audit trail, not the app as it stands — don't open `cycle3` and read it as now.
+**Current state is `docs/ui-audit/2026-08-02-current/`.** The per-cycle folders and
+`2026-08-01-current` are the audit trail, not the app as it stands — don't open
+`cycle3` and read it as now. Every frame from 2026-08-02 onward carries a serial
+and a row in `docs/ui-audit/SCREENSHOT-LOG.md`; earlier frames are unserialised
+and are not backfilled.
 
-Session of 2026-08-01. Branch `feature/tabview-shell`. Latest `edf59d2`.
+Decisions taken while the human was away are in `docs/DECISIONS-2026-08-02.md`.
+
+Session of 2026-08-02. Branch `feature/tabview-shell`. Latest `3b8b8b1`.
 
 ---
 
@@ -40,15 +45,31 @@ Things a cold session will hit within minutes and not understand:
   the host window server. Probe passes in ~47 s.
 - **Screenshots still work** — `xcrun simctl io booted screenshot` reads the
   framebuffer and needs no window server. Every capture tonight was taken this way.
-- **The simulator was ERASED and is signed out.** The device is sitting in iOS
-  first-boot with system permission prompts ("Allow Maps to use your location",
-  a notifications screen) that could not be dismissed because clicks are dead.
-  XCUITest can dismiss them via `addUIInterruptionMonitor`. Expect them.
+- **DEVICE STATE, corrected 2026-08-02 — the erased/first-boot description below
+  is no longer true and a session planning around it will be wrong within
+  minutes.** The booted device is iPhone 16 Pro / iOS 18.3. It has **not** been
+  erased since 2026-08-01. Both `com.injectbuddy.ios` and
+  `com.injectbuddy.ios.uitests.xctrunner` are still installed, the app launches
+  straight past the disclaimer to the signed-in dashboard as `devtools` (Keychain
+  session survived), and the permission prompts were consumed last session.
+  Consequences: `addUIInterruptionMonitor` and `dismissDisclaimerIfPresent` get
+  **no coverage** from runs on this device, and **first-boot is now only reachable
+  via `simctl erase`, at the cost of the session and a real Supabase sign-in to
+  get back.** That last sentence is the part worth remembering.
+  *(Historical, for the erased state: the device sat in iOS first-boot with
+  "Allow Maps to use your location" and a notifications screen, dismissable via
+  `addUIInterruptionMonitor`.)*
 - **The app's session lives in the KEYCHAIN, not the container** — `simctl uninstall`
   does NOT sign you out; `simctl erase` does. Established tonight.
-- **QA credentials exist** for `devtools@injectbuddy.com` and are held by the Windows
-  side. They are **never** to be committed — inject via `launchEnvironment` from the
-  process environment. Never shoot a login screen with the password field unmasked.
+- **QA credentials are now on the Mac** at `injectbuddy-ios/.env.local`
+  (gitignored via `.env.local` and `.env*.local`, verified with `git check-ignore`
+  before the file was written), as `DEVTOOLS_TEST_EMAIL` / `DEVTOOLS_TEST_PASSWORD`
+  — the same names as the webapp's file. **Values live only in that file; no doc,
+  commit or message carries them.** The runner reads `QA_EMAIL` / `QA_PASSWORD`,
+  and `xcodebuild` only forwards host environment carrying the `TEST_RUNNER_`
+  prefix — see `HARNESS-AND-LOOSE-ENDS §2`. Never assert on a credential, never let
+  one into a failure message or an `.xcresult`, never shoot a login screen with the
+  password field unmasked.
 
 ## 0b. Rig — mouse dead, XCUITest alive
 
@@ -78,33 +99,59 @@ Things a cold session will hit within minutes and not understand:
       screenshot cannot show an element at x = -290. It took something driving the
       accessibility layer.
 
-- [ ] **Wiring assertions per calculator — HARNESS RUNS, ASSERTIONS NOT YET GREEN.**
-      Sign-in via `launchEnvironment` works, navigation works, the assertions fire.
-      Three failures, and the useful part is that they are legible:
-      - `testStep_movesByTen`: field stayed "300" after Increase. **Test bug** —
-        `app.buttons["Increase"].firstMatch` matches VIAL STRENGTH's stepper, which
-        comes first on screen. Steppers need per-field identifiers, same as the
-        chips and fields already have.
-      - `testTypeThenChip`: field read "100250". `typeText` APPENDS to the existing
-        "100" rather than replacing, and the keyboard then likely covers the chip
-        row. Needs a clear-then-type helper and a keyboard dismissal.
-      - `testQuickChip`: fails earlier than its assertion message; needs the detail
-        read out of the xcresult.
-      **None of these are yet evidence of an app bug** — and none are evidence of
-      correctness either. Do not report the wiring as verified until they are green
-      for the right reason. A test that passes because it asserted the wrong
-      element is worse than no test. — the point of the harness. The 27 unit
-      tests cover `CalculatorEngine` and `DoseProjection` and stayed green through a
-      bug where the field read 100 while the engine computed 300: they test maths,
-      not the control-to-engine wiring, which is the layer that lied.
-      Shape: tap the "300" chip → assert the field reads 300 → assert the weekly
-      total row reads 300.0 mg. Plus coarse-step ±±, and type→chip→type, which is
-      the sequence that broke.
-      **Needs a signed-in session.** The QA credentials must NOT be committed —
-      inject them via `launchEnvironment` from the process environment so they stay
-      out of the repo entirely.
+- [x] **Wiring assertions — FOUR GREEN, at `3b8b8b1`, and two of the three
+      "test bugs" were app defects.** Run:
+      `TEST_RUNNER_QA_EMAIL=… TEST_RUNNER_QA_PASSWORD=… xcodebuild test
+      -only-testing:InjectBuddyUITests` → `Executed 4 tests, with 0 failures`.
+      What each one now proves, rather than that it passed:
+      - `testQuickChip_fieldAndResultBothFollow` — a chip moves the field, the
+        engine and the result row together, and `result_Weekly total` addresses
+        exactly one element while it does so.
+      - `testStep_movesByTen` — the ± pair belonging to `mgWeek` moves `mgWeek` by
+        its configured step of 10, and vial strength does **not** move. The old
+        version incremented vial strength (`buttons["Increase"].firstMatch`) and
+        asserted on weekly dose.
+      - `testTypeThenChip_neverDesyncs` — with the keypad up the quick values are
+        REACHABLE and the field follows them.
+      - `testOverRange_fieldNeverShowsANumberTheEngineRejected` — new. Asserts the
+        field and the engine agree after any input, not the literal "1000".
+      The diagnosis in the previous version of this item was wrong in two places
+      and it is worth saying how: `testQuickChip` was not failing on a missing
+      element but on an **ambiguous** one — `result_<label>` matched the pinned bar
+      and the in-scroll copy, and an ambiguous `XCUIElement` fails at resolution
+      before printing any assertion message. And `testTypeThenChip` was not a
+      test-side clear-and-type problem; both halves were real app defects (§3).
 
 ## 1. Open — assigned
+
+- [ ] **Tools at AX5 reads as broken.** `IB2245731`, and unchanged from
+      `2026-08-01-current/10-tools-ax5.png`. Six things in one frame:
+      `Semaglu-tide` hyphenated mid-word, `Tirzepatide` wrapping to an orphaned
+      `e` on line two, `Retatru-tide`, the `Tools` title clipped against the
+      header row above it, icons that stayed small while the text went huge, and
+      four rows filling the entire screen. **This frame passed the audit, and
+      passed correctly** — that is what §5.15 exists for.
+      Constraints on the fix: **no `dynamicTypeSize(...up to:)` cap** on
+      calculator names (navigation labels in a dosing app; AX5 users are exactly
+      who needs them legible) and **no `lineLimit`**. Direction to try first: fix
+      the icon at a sensible size instead of letting the layout starve the label,
+      let the row grow vertically since the list scrolls and vertical space is
+      cheap, and stop the hyphenation. The title collision is the screen-header
+      rule (`DESIGN-PARITY §9`) and probably resolves with it.
+      Then re-check the other nine screens at AX5 with the judgment pass, not the
+      metric pass — the expectation is that this is not the only one.
+
+- [ ] **The in-scroll `ResultCard` renders unconditionally, so at default type
+      size the same rows exist twice.** `result_Weekly total` measured as two
+      elements, y=641 (pinned, hittable) and y=896 (in-scroll, not).
+      `CalculatorScreen.swift`'s F12 comment says the breakdown renders in the
+      scroll *instead* when the bar collapses; the code does not do that. Code and
+      comment disagree and the code is what shipped, so the comment is what is
+      wrong until someone decides otherwise.
+      **Not a divergence risk:** both cards are handed the same `CalculatorResult`
+      value and cannot disagree. Addressing was the only problem and it is fixed
+      (`result_` / `detail_result_`). What is left is a product question — whether
+      a user scrolling to the bottom should meet the same three dose figures twice.
 
 Welcome + onboarding — spec in `docs/WELCOME-AND-ONBOARDING.md`. Three pieces, not
 one: the auth flow already exists and is not being rebuilt.
@@ -270,6 +317,26 @@ Safety and accessibility
       empty-state action and error-banner Retry, both found unprompted;
       danger `#FF5757` 3.11 → `#A31313` 7.90:1.
 - [x] **Over-capacity barrel warning** uses icon **and** text, never colour alone.
+- [x] **The field displayed a number the engine did not use — SECOND breach of
+      that invariant.** `mgWeek` is `0...1000`; focusing a populated field did not
+      select it, so typing 250 onto 100 gave `100250`, and `clamp` then handed the
+      engine 1000 in silence. The screen showed `100250 mg/week` beside a
+      `2.500 mL` draw computed from 1000, with a correct over-capacity warning for
+      a number the user could not see. Evidence: `IB2245733` / `IB2245734`.
+      Fixed on BOTH edges of `NumberField` — clamping now rewrites the text, and
+      focusing selects — because one breach on one path is a patch and two is an
+      invariant. **App-wide**: `NumberField` is the only numeric input and
+      `FieldRow` its only call site, so every ranged numeric field in every
+      calculator had this, not just the TRT dose. Pinned by
+      `testOverRange_fieldNeverShowsANumberTheEngineRejected`, which asserts the
+      agreement rather than the string.
+- [x] **Quick-value row unreachable with the keypad up.** The occluder is the
+      **pinned result bar**, not the keyboard — it sits above the keyboard and
+      covers the strip the chips are in, and weekly dose is only the second field
+      on the screen. `quick_mgWeek_400.tap()` reported success and moved nothing.
+      The focused field's quick values now ride in a keyboard toolbar with a Done
+      button, which also supplies the only exit from a `.decimalPad`. Evidence:
+      `IB2245734` before, `IB2245732` after.
 
 Data integrity
 - [x] **iOS protocol saving never worked** — every insert refused by RLS because
@@ -389,3 +456,37 @@ Parity and chrome
 11. **If taps die but `simctl` still screenshots, check the login session** before
    touching the Simulator — CoreSimulator is a daemon with no display dependency,
    so the symptom points the wrong way.
+12. **An XCUITest tap can PASS against an occluded element.**
+   `quick_mgWeek_400.tap()` reported success while the model never moved, because
+   the chip was behind the pinned result bar. A passing tap is not evidence of an
+   interaction; only a state change is. Assert the consequence, never the tap.
+13. **An ambiguous element fails before your assertion runs.** `result_<label>`
+   matched two elements — the pinned bar and the in-scroll copy — and the test
+   died without ever printing its own message, which was then read as "the element
+   is missing" for a whole session. Resolve identifiers through a helper that
+   asserts exactly one match first, and name the surface in the identifier.
+14. **A test cleaned up to be well-behaved stops exercising the path the bug lives
+   on.** The specced fix for `testTypeThenChip` was "clear the field before
+   typing". It would have worked — and nothing in the suite would ever have gone
+   out of range again, so the clamp defect would have been tidied out of reach
+   rather than found. Before making a test better behaved, ask what it stops
+   reaching.
+15. **Every audit gets a judgment pass, before any measuring.** Look at each frame
+   and ask "would I ship this?", and write down anything that reads as wrong even
+   when no number attaches to it. `2026-08-01-current/10-tools-ax5.png` passed the
+   audit, and passed *correctly* — nothing truncated, nothing under 44pt, contrast
+   fine — while showing `Semaglu-tide` hyphenated mid-word, `Tirzepatide` wrapping
+   to an orphaned `e`, a clipped `Tools` title and icons that stayed small while the
+   text went huge. Metrics are a floor, not a verdict: they were chosen to catch the
+   last set of bugs, not the next one. This is rule 9 one level up — not which
+   screens we looked at, but what we were capable of seeing when we looked.
+16. **Every screenshot carries a serial and a log row** — `SCREENSHOT-LOG.md`,
+   append-only, one row per capture event, with the capture time and the commit it
+   was taken at. This project has twice shipped evidence that looked fine and was
+   not. A serial plus a timestamp plus a SHA makes a stale or mislabelled frame
+   detectable instead of plausible. No stamp inside the image: these frames get
+   measured, and marking the pixels to label them means the file is no longer what
+   the device rendered.
+17. **A capture sweep must fail loudly.** With `continueAfterFailure = true`, a
+   failed navigation produced a genuine photograph of the Tools screen under a
+   filename claiming the TRT calculator. Assert the destination before shooting.

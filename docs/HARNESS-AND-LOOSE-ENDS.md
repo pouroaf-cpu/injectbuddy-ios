@@ -9,7 +9,31 @@ State lives in `docs/ui-audit/BOARD.md`; the narrative is in
 
 ---
 
-## 1. The three red assertions — exact state, and what is already ruled out
+## 1. The three red assertions — CLOSED 2026-08-02, and the diagnosis below was wrong
+
+All three are green, plus a fourth. `3b8b8b1`. The original analysis is kept
+underneath because **two of its three "test bugs" were app defects**, and how it
+got that wrong is more useful than the fact that it did.
+
+| Was diagnosed as | Actually was |
+|---|---|
+| `testQuickChip` — identifier missing from the `ViewThatFits` stacked branch | An **ambiguous** identifier. `result_<label>` matched the pinned bar AND the in-scroll copy; an ambiguous `XCUIElement` fails at resolution before printing any assertion message, which is why it "failed without surfacing its message". The `ViewThatFits` gap was real too, but it was never the first failure. |
+| `testStep_movesByTen` — test bug, `firstMatch` hits vial strength | Correct. Fixed with `step_up_<key>` / `step_down_<key>`. |
+| `testTypeThenChip` — test bug, clear the field before typing; keyboard probably covers the chips | **Two app defects.** Typing appended because focusing a populated field did not select it, and that fed a silent `clamp` — field `100250`, engine `1000`. And the chip row was occluded by the **pinned result bar**, not the keyboard; `tap()` reported success and moved nothing. |
+
+Three things worth carrying forward:
+
+1. **An XCUITest tap can pass against an occluded element.** Assert the
+   consequence, never the tap.
+2. **The specced test fix would have hidden the worse bug.** "Clear the field
+   before typing" was correct and would have gone green — and nothing in the suite
+   would ever have gone out of range again, so the clamp defect would have been
+   tidied out of reach. Before making a test better behaved, ask what it stops
+   reaching.
+3. **`result_<label>` now names the pinned bar**; the in-scroll copy is
+   `detail_result_<label>`. Identifiers name a surface.
+
+### Original diagnosis, 2026-08-01 — kept as the record of what reading the source got you
 
 `Tests/InjectBuddyUITests/CalculatorWiringUITests.swift`. All three **run**; sign-in
 and navigation both work, so failures are at the assertion layer, not the plumbing.
@@ -59,10 +83,29 @@ correctness either.** Green them for the right reason before trusting any of it.
 
 ## 2. The harness — things not obvious from reading it
 
+- **Credentials live at `injectbuddy-ios/.env.local`** (gitignored via
+  `.env.local` and `.env*.local`, verified with `git check-ignore` *before* the
+  file was written), as `DEVTOOLS_TEST_EMAIL` / `DEVTOOLS_TEST_PASSWORD` — the
+  same names the webapp uses, so both boxes refer to one thing. **The values are
+  in that file and nowhere else**: not in a doc, not in a commit, not in a message.
 - **`TEST_RUNNER_` prefix is mandatory.** `xcodebuild` does not pass shell
   environment into the runner process. `QA_EMAIL=…` silently yields a *skipped*
   suite that looks like a pass; `TEST_RUNNER_QA_EMAIL=…` works. The first run of
-  these tests reported `** TEST SUCCEEDED **` while executing nothing.
+  these tests reported `** TEST SUCCEEDED **` while executing nothing. The whole
+  invocation:
+
+      set -a; . ./.env.local; set +a
+      TEST_RUNNER_QA_EMAIL="$DEVTOOLS_TEST_EMAIL" \
+      TEST_RUNNER_QA_PASSWORD="$DEVTOOLS_TEST_PASSWORD" \
+      xcodebuild test -project InjectBuddy.xcodeproj -scheme InjectBuddy \
+        -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+        -only-testing:InjectBuddyUITests
+- **The capture sweep is opt-in and separate.** `CaptureCurrentState` skips
+  unless `TEST_RUNNER_CAPTURE=1`, so a normal run is not two minutes of
+  screenshots. It sets `continueAfterFailure = false` deliberately: with it true,
+  a failed navigation produced a genuine photograph of the Tools screen under a
+  filename claiming the TRT calculator. A sweep that cannot fail loudly will keep
+  producing frames that lie.
 - **`XCTSkipUnless` lives in `setUpWithError`** so a machine without credentials
   reports *skipped*, never *failed*. Deliberate: a red test for a missing secret
   trains people to ignore red tests.
@@ -80,22 +123,63 @@ correctness either.** Green them for the right reason before trusting any of it.
 
 ## 3. Addressing elements
 
-Identifiers already in place: `field_<key>`, `quick_<key>_<value>`,
-`result_<label>`. Missing: the ± steppers (see above).
+Identifiers in place, and what each one *names*:
+
+| Identifier | Addresses |
+|---|---|
+| `field_<key>` | the numeric text field |
+| `step_up_<key>` / `step_down_<key>` | that field's ± pair — added 2026-08-02 |
+| `quick_<key>_<value>` | the quick-value chip **under the field** |
+| `kb_quick_<key>_<value>` | the same chip **in the keyboard toolbar** |
+| `kb_done` | the keyboard toolbar's Done |
+| `result_<label>` | the row in the **pinned result bar** |
+| `detail_result_<label>` | the same row in the **in-scroll card** |
+
+**An identifier names a surface, not a value.** Both quick rows and both result
+cards are in the tree at once, so a single name for either pair is ambiguous — and
+an ambiguous `XCUIElement` **fails at resolution, before your assertion runs**.
+That failure has no message of its own, which is how "the element is missing" was
+believed for a session. `CalculatorWiringUITests.unique(_:type:)` counts first and
+names the duplicates when it finds them.
+
+**`kb_done` is the one exception, and it is not fixable from the app side.** A
+keyboard `ToolbarItemGroup` bridges its items to UIKit and publishes the
+identifier on both the bridged bar button and the hosted SwiftUI label — measured
+as two elements at (348, 539, 38, 44) and (345, 539, 44, 44). Reordering the
+modifiers changed nothing; `accessibilityElement(children: .ignore)` changed
+nothing, to the pixel. The test narrows to `.button` for that one control only.
+
+**An XCUITest tap can PASS against an occluded element.** `quick_mgWeek_400.tap()`
+reported success while the model never moved, because the chip was behind the
+pinned result bar. A passing tap is not evidence of an interaction; only a state
+change is.
 
 **Prefer the *hittable* match over `firstMatch` when a label may appear twice.** The
 off-canvas drawer duplicates every calculator name; before the accessibility fix
 those resolved at x = −290. `firstMatch` is a coin toss in that situation.
 
-## 4. Device state
+## 4. Device state — corrected 2026-08-02
 
-Erased and **signed out**, sitting in iOS first-boot with:
-- an "Allow *Maps* to use your location" alert, and
-- a notifications opt-in screen.
+**The previous text here said erased and signed out at iOS first-boot. That is no
+longer true, and a cold session planning around it is wrong within minutes.**
 
-Neither was dismissed — clicks were dead. The harness clears them via
-`addUIInterruptionMonitor` (subject to the "next interaction" caveat above), or a
-human can click them once in the Simulator window.
+Observed on 2026-08-02: iPhone 16 Pro / iOS 18.3, booted, **not erased** since the
+previous session. Both `com.injectbuddy.ios` and
+`com.injectbuddy.ios.uitests.xctrunner` are still installed. Launching the app
+goes straight past the disclaimer to the signed-in dashboard as `devtools` — the
+Keychain session survived — and the location alert and notifications opt-in were
+consumed last session.
+
+Two consequences:
+
+- `addUIInterruptionMonitor` and `dismissDisclaimerIfPresent` get **no coverage**
+  from runs on this device. They are still in `setUp`, still correct, and
+  currently unexercised. Do not read a green suite as evidence that first-run
+  works.
+- **First-boot is now only reachable via `simctl erase`, and that costs the
+  session** — the Keychain goes with it and the next run does a real Supabase
+  sign-in. Worth doing deliberately, once, when first-run is the thing under test.
+  Not worth doing in the middle of a block.
 
 ## 5. Mid-thoughts, left open deliberately
 
@@ -108,7 +192,14 @@ human can click them once in the Simulator window.
   correct code and useful for fills, where the desaturation isn't visible. It is not
   a fix for text and the comment says so — don't delete it, and don't reach for it on
   text.
-- **The keyboard covering the quick-value row** (see 1.3) is unresolved and probably
-  deserves the same treatment the pinned result bar got.
+- ~~The keyboard covering the quick-value row deserves the same treatment the
+  pinned result bar got.~~ **Resolved 2026-08-02, and the premise was wrong: the
+  pinned result bar IS the occluder.** It sits above the keyboard and covers the
+  strip the chips are in. The focused field's quick values now ride in a keyboard
+  toolbar, reachable by construction rather than by where a field happens to sit
+  in the form, with a Done button — the `.decimalPad` had no dismiss affordance at
+  all. Left open: with a hardware keyboard attached the software keypad is
+  suppressed and that accessory bar sits directly on the tab bar (visible in
+  `IB2245732`). Real for anyone on a Bluetooth keyboard. Written down, not fixed.
 - **The disclaimer gate is still unverified end-to-end by a human.** The harness taps
   through it, but nobody has watched a genuine first run since the app was erased.
