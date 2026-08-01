@@ -89,6 +89,24 @@ targets:
         # next `xcodegen generate`.
         UIUserInterfaceStyle: Light
 
+  InjectBuddyUITests:
+    # Drives the app through the automation/accessibility layer INSIDE the
+    # simulator runtime. It does not post CGEvents and does not go through the
+    # host window server — which is what makes it work when synthesized clicks
+    # are dead, and what makes the control-to-engine wiring testable at all.
+    # The 27 unit tests cover CalculatorEngine and DoseProjection; they stayed
+    # green through a bug where the field showed 100 and the engine computed 300.
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/InjectBuddyUITests
+    dependencies:
+      - target: InjectBuddy
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.injectbuddy.ios.uitests
+        GENERATE_INFOPLIST_FILE: "YES"
+
   InjectBuddyTests:
     type: bundle.unit-test
     platform: iOS
@@ -107,9 +125,11 @@ schemes:
       targets:
         InjectBuddy: all
         InjectBuddyTests: [test]
+        InjectBuddyUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - InjectBuddyTests
+        - InjectBuddyUITests

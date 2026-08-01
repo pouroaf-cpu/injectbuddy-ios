@@ -226,17 +226,18 @@ struct MainShell: View {
 
     private var heroButton: some View {
         Circle()
-            // The FAB stays TEAL — the PWA's does, and the fill is brand identity.
-            // What changed is the GLYPH: it was white on #0FBCAD, which is 2.38:1,
-            // the same failure fixed everywhere else and then left sitting on the
-            // most prominent control in the app. Navy on teal is 6.63:1 and is
-            // brand-colour-on-brand-colour rather than an invented pairing.
-            .fill(Theme.accent)
+            // NAVY fill, white glyph — 15.79:1, up from the 6.43:1 measured on the
+            // previous navy-on-teal. The PWA moved its FAB to navy, so navy is the
+            // brand rule here rather than a departure from it. Teal keeps the
+            // wordmark, greeting, "Next dose", "+ Add", the selected tab, the
+            // protocol spines, the tints and the welcome curves — it stops owning
+            // this one control, it does not disappear.
+            .fill(Theme.navy)
             .frame(width: 54, height: 54)
             .overlay(
                 Image(systemName: MainTab.log.icon)
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(Theme.navy)
+                    .foregroundStyle(.white)
             )
             .overlay(Circle().stroke(Theme.background, lineWidth: 4))
             .shadow(color: .black.opacity(0.18), radius: 8, y: 3)

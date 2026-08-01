@@ -15,27 +15,33 @@ Session of 2026-08-01. Branch `feature/tabview-shell`. Latest `edf59d2`.
 
 ---
 
-## 0. Rig failure, not an app bug — and the observation it contaminated
+## 0. Rig — mouse dead, XCUITest alive
 
-- [x] **"The DisclaimerGate cannot be dismissed" was WRONG. It was the input path.**
-      Separated by testing the two paths independently on the same device:
-      - **Keyboard works** — `Cmd-Shift-H` backgrounded the app to the home screen.
-      - **Mouse does not** — clicking the InjectBuddy icon on the home screen did
-        nothing, and neither did a swipe-to-home.
-      - The helper is fine: `AXIsProcessTrusted()` is `true` and the cursor
-        physically moves, so `CGEvent` posts at OS level. The Simulator stopped
-        accepting *synthesized clicks* after the `simctl erase` + restart.
-      So no tap ever reached the button. Claiming a first-run lockout from that was
-      attributing a tooling failure to the app — the exact error class §5.1 exists
-      for, made twice in one session.
+- [x] **"The DisclaimerGate cannot be dismissed" was WRONG — it was the input path.**
+      Keyboard works (`Cmd-Shift-H` backgrounds the app); clicking an app icon or a
+      system alert does nothing; `AXIsProcessTrusted()` is true and the cursor moves,
+      so `CGEvent` posts fine and the Simulator simply stopped accepting synthesized
+      clicks after `simctl erase`. Survives quit + `kill -9` + reopen, twice.
+      Claiming a first-run lockout from that was attributing a rig failure to the
+      app — §5.1, made twice in one session.
 
-- [ ] **CONTAMINATED, re-verify on a healthy rig:** the same session measured the
-      gate's CTA at `#CCD2DE` — `Theme.navy` at exactly 20% alpha — with no label,
-      in a frame that was byte-identical 6 s apart. That looked settled, but a
-      Simulator wedged for input may equally be presenting a stale or partial
-      frame, so the rendering observation inherits the same doubt as the tap.
-      **Do not treat it as a defect until it reproduces where clicks land.** It may
-      still be real; it is simply not yet evidence.
+- [x] **XCUITest harness — PROBE PASSES with the mouse still dead.** It drives the
+      app through the automation layer inside the runtime, never touching the host
+      window server, so it is immune to exactly the failure above. This is the
+      infrastructure flagged as missing when the slug sweep failed and again when
+      clicks died — two stoppages, now closed.
+      `Tests/InjectBuddyUITests`, target in `project.yml`, wired into the scheme.
+
+- [ ] **Wiring assertions per calculator** — the point of the harness. The 27 unit
+      tests cover `CalculatorEngine` and `DoseProjection` and stayed green through a
+      bug where the field read 100 while the engine computed 300: they test maths,
+      not the control-to-engine wiring, which is the layer that lied.
+      Shape: tap the "300" chip → assert the field reads 300 → assert the weekly
+      total row reads 300.0 mg. Plus coarse-step ±±, and type→chip→type, which is
+      the sequence that broke.
+      **Needs a signed-in session.** The QA credentials must NOT be committed —
+      inject them via `launchEnvironment` from the process environment so they stay
+      out of the repo entirely.
 
 ## 1. Open — assigned
 

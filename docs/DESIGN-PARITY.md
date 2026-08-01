@@ -147,7 +147,7 @@ earlier pass made navy scarce "so it dominates" and drained the brand; brand win
 | Role | Token | Pairing | Measured |
 |---|---|---|---|
 | Actions — primary CTAs, header icon buttons | `navy` #001D5C | white on it | **15.79:1** |
-| The FAB | `accent` #0FBCAD fill, **navy glyph** | #001D5C on #0FBCAD | **6.43:1** |
+| The FAB | `navy` #001D5C fill, **white glyph** | #FFFFFF on #001D5C | **15.79:1** |
 | Teal text anywhere | `tealTextStrong` #075E56 | on white/canvas | 7.65:1 |
 | Large teal text only | `tealText` #0A9D90 | on white | 3.37:1 |
 | Tints, selected states | `accentSoft` #EAFAF8 | #075E56 on it | 7.12:1 |
@@ -249,3 +249,15 @@ wordmark, no centred title. Repeating the brand above every question competes wi
 the one thing the screen exists to ask. So the two headers share the *behaviour*
 (44 pt back control that doesn't drift, wrap-never-truncate, centring at any line
 count) and not the composition.
+
+
+### §8 amendment — the FAB is navy (2026-08-01)
+
+Reverses the earlier reasoning on this row, deliberately. The fill was kept teal to
+avoid draining the last large teal surface; the PWA has since moved its FAB to navy,
+so navy **is** the brand rule here rather than a departure from it. White on
+`#001D5C` is 15.79:1, against 6.43:1 for the navy-on-teal it replaces — so the most
+prominent control in the app also became its highest-contrast one.
+
+Teal is not diminished: it keeps the wordmark, the greeting, "Next dose", "+ Add",
+the selected tab item, the protocol spines, the tints and the welcome curves.
