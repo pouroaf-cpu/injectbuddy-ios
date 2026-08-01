@@ -32,8 +32,9 @@ struct AuthFlowView: View {
                 Spacer(minLength: Theme.Spacing.xl)
                 BrandMark().font(.largeTitle)
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(Theme.Typeface.cardMeta)
                     .foregroundStyle(Theme.secondaryLabel)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if mode == .verify {
                     verifyContent
@@ -54,13 +55,13 @@ struct AuthFlowView: View {
 
                     if let error = auth.lastError {
                         Text(error)
-                            .font(.footnote)
+                            .font(Theme.Typeface.cardMeta)
                             .foregroundStyle(Theme.danger)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if resetSent {
                         Text("If that email exists, a reset link is on its way.")
-                            .font(.footnote)
+                            .font(Theme.Typeface.cardMeta)
                             .foregroundStyle(Theme.success)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -84,7 +85,7 @@ struct AuthFlowView: View {
             .frame(maxWidth: 480)
             .frame(maxWidth: .infinity)
         }
-        .background(Theme.background.ignoresSafeArea())
+        .background(Theme.canvas.ignoresSafeArea())
         .scrollDismissesKeyboard(.interactively)
         .onDisappear { cooldownTask?.cancel() }
     }
@@ -94,13 +95,15 @@ struct AuthFlowView: View {
     @ViewBuilder private var verifyContent: some View {
         VStack(spacing: Theme.Spacing.sm) {
             Text("We sent a confirmation link to")
-                .font(.subheadline)
+                .font(Theme.Typeface.cardMeta)
                 .foregroundStyle(Theme.secondaryLabel)
+                .fixedSize(horizontal: false, vertical: true)
             Text(email)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.label)
+                .font(Theme.Typeface.cardTitle)
+                .foregroundStyle(Theme.inkNavy)
+                .fixedSize(horizontal: false, vertical: true)
             Text("Open it on this device to activate your account, then come back here and sign in.")
-                .font(.footnote)
+                .font(Theme.Typeface.cardMeta)
                 .foregroundStyle(Theme.secondaryLabel)
         }
         .multilineTextAlignment(.center)
@@ -108,13 +111,13 @@ struct AuthFlowView: View {
 
         if let error = auth.lastError {
             Text(error)
-                .font(.footnote)
+                .font(Theme.Typeface.cardMeta)
                 .foregroundStyle(Theme.danger)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         if resendConfirmed {
             Text("Confirmation email resent.")
-                .font(.footnote)
+                .font(Theme.Typeface.cardMeta)
                 .foregroundStyle(Theme.success)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -161,16 +164,20 @@ struct AuthFlowView: View {
         case .login:
             HStack {
                 Button("Forgot password?") { switchTo(.reset) }
+                    .tint(Theme.tealTextStrong)
                 Spacer()
                 Button("Create account") { switchTo(.signUp) }
+                    .tint(Theme.tealTextStrong)
             }
-            .font(.footnote)
+            .font(Theme.Typeface.cardMeta)
         case .signUp:
             Button("Already have an account? Sign in") { switchTo(.login) }
-                .font(.footnote)
+                .font(Theme.Typeface.cardMeta)
+                .tint(Theme.tealTextStrong)
         case .reset, .verify:
             Button("‹ Back to sign in") { switchTo(.login) }
-                .font(.footnote)
+                .tint(Theme.tealTextStrong)
+                .font(Theme.Typeface.cardMeta)
         }
     }
 

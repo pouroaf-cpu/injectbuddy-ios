@@ -17,7 +17,13 @@ Session of 2026-08-01. Branch `feature/tabview-shell`. Latest `edf59d2`.
 Welcome + onboarding — spec in `docs/WELCOME-AND-ONBOARDING.md`. Three pieces, not
 one: the auth flow already exists and is not being rebuilt.
 
-- [ ] **2. Restyle `AuthFlowView`.** `grep -c "Theme.Typeface"` returns **0** — the
+- [~] **2. Restyle `AuthFlowView` — CODE DONE, VISUALLY UNVERIFIED.** Builds, tests
+      green. Not screenshotted: the simulator holds a signed-in session and
+      `AuthFlowView` only renders when signed out. Signing out to photograph it
+      would end the session and there is no password on this side to sign back in
+      with — it would cost every authenticated screen for the rest of the work.
+      Needs either the account password entered by the human, or a throwaway
+      account. **Not ticked until measured**, same bar as everything else. `grep -c "Theme.Typeface"` returns **0** — the
       second screen found in that state after the log sheet, and the first screen a
       new user ever sees. Type scale + palette + the 44 pt field family. Secondary
       labels off `#0FBCAD` (2.13–2.38:1) onto `#075E56`. **Behaviour unchanged** —

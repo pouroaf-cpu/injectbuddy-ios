@@ -43,15 +43,17 @@ struct OAuthButton: View {
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity)
+                .font(Theme.Typeface.cardMeta)
+                .frame(maxWidth: .infinity, minHeight: Theme.minTarget)
                 .padding(.vertical, 13)
                 .overlay(
                     RoundedRectangle(cornerRadius: Theme.Radius.control)
-                        .stroke(Theme.separator, lineWidth: 1)
+                        // #8E8E93 at 3.26:1, not `separator` at 1.96 — this is a
+                        // control boundary, which 1.4.11 wants at 3:1.
+                        .stroke(Theme.fieldBorder, lineWidth: 1)
                 )
         }
-        .foregroundStyle(Theme.label)
+        .foregroundStyle(Theme.inkNavy)
     }
 }
 
@@ -65,6 +67,7 @@ struct AuthField: View {
     var isSecure: Bool = false
 
     @State private var reveal = false
+    @FocusState private var focused: Bool
 
     var body: some View {
         HStack(spacing: Theme.Spacing.sm) {
@@ -79,19 +82,29 @@ struct AuthField: View {
                 }
             }
             .keyboardType(keyboard)
+            .focused($focused)
+            .font(.system(size: 17, weight: .medium))
+            .foregroundStyle(Theme.ink)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             if isSecure {
                 Button { reveal.toggle() } label: {
                     Image(systemName: reveal ? "eye.slash" : "eye")
-                        .foregroundStyle(Theme.secondaryLabel)
+                        .foregroundStyle(Theme.tealTextStrong)
+                        .frame(width: Theme.minTarget, height: Theme.minTarget)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(reveal ? "Hide password" : "Show password")
             }
         }
-        .padding(.vertical, 13)
+        // Same treatment as every calculator field — 44pt, r10, 1pt #8E8E93,
+        // white — established as the app-wide standard by the control inventory.
+        // This carried the original invisible-field bug too: secondaryBackground
+        // on a secondaryBackground page is 1.00:1.
+        .frame(minHeight: Theme.minTarget)
         .padding(.horizontal, Theme.Spacing.md)
-        .background(Theme.secondaryBackground)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
+        .fieldChrome(isFocused: focused)
     }
 }
 
