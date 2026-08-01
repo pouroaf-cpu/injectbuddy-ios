@@ -8,6 +8,9 @@ Do not tick anything on inspection — every closed item below was closed by a
 measurement or a screenshot, and that bar holds. If something can't be verified,
 move it to §4 rather than ticking it.
 
+**New session? Read `docs/SESSION-HANDOVER-2026-08-01.md` first** — how the two
+sides work, what broke and why, and the rig state. Then this file for live status.
+
 **Current state is `docs/ui-audit/2026-08-01-current/`.** The per-cycle folders are
 the audit trail, not the app as it stands — don't open `cycle3` and read it as now.
 
