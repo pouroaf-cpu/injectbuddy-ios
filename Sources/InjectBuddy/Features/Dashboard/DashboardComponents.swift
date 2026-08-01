@@ -9,22 +9,26 @@ import SwiftUI
 
 /// PWA `DashHeader.tsx:25` — 24px / weight 800 / -0.03em.
 ///
-/// SHIPPED SOLID, NOT GRADIENT — deliberately, after measuring twice.
+/// SHIPPED SOLID. Three attempts, three measurements, and the sweep does not survive
+/// any of them on this SDK:
+///   1. `.overlay { LinearGradient }.mask(Text)`      -> #5F6B6D
+///   2. `.foregroundStyle(LinearGradient)`            -> #4B5557
+///   3. 25 stops PRE-BLENDED in sRGB (`Theme.srgbStops`) -> #4A5456
+/// against an expected #075E56, and a SOLID fill of that same colour renders
+/// #095F57 correctly on the same screen in the same frame.
 ///
-/// The brief was to copy the PWA's animated teal gradient. Two implementations
-/// were built and both rendered the headline as a desaturated slate instead of
-/// teal, measured off the running app at the glyph core:
-///   1. `.overlay { LinearGradient }.mask(Text(...))`  -> #5F6B6D
-///   2. `.foregroundStyle(LinearGradient(...))`        -> #4B5557
-/// Neither is a colour in the ramp. Expected was #075E56 (7,94,86); #4B5557 is
-/// (75,85,87) — barely any green-blue separation left, i.e. grey with a cyan
-/// cast. Contrast was acceptable (~7:1) but the COLOUR was wrong, which is the
-/// regression that was reported in the first place.
+/// What the evidence actually says, which is narrower than "linear-light
+/// interpolation": a gradient whose stops are all IDENTICAL renders exactly right,
+/// and a gradient with two distinct stops renders desaturated — and pre-blending in
+/// sRGB so that each segment spans a near-zero range does NOT help. So the fault
+/// triggers on the presence of more than one distinct stop, not on the width of the
+/// interpolation. That kills both available fixes: `LinearGradient` exposes no
+/// colour-space control in the iOS 18.2 SDK (only `MeshGradient` takes a
+/// `Gradient.ColorSpace`), and hand-blending does not avoid it.
 ///
-/// Rather than ship a third guess, this renders solid `tealTextStrong` — #075E56,
-/// 7.65:1 on canvas, correct hue, identical at every animation phase because
-/// there is no animation. The sweep is worth having and is tracked separately;
-/// it is not worth another wrong-coloured headline to get there.
+/// Solid #075E56 is 7.65:1, the correct hue, and identical at every animation phase.
+/// `Theme.srgbStops` is kept — it is correct and useful for fills, where the
+/// desaturation is not visible against a dark surface — but not for text.
 struct GreetingHeadline: View {
     let prefix: String
     let name: String
@@ -287,6 +291,20 @@ struct ProtocolCard: View {
                             .stroke(Theme.line, lineWidth: 1)
                     )
             )
+            // Per-compound colour spine down the leading edge, as the PWA runs on its
+            // primary tile. Redundant with the icon chip's tint by design — it is
+            // decoration reinforcing an identity the text already carries, never the
+            // sole signal for anything.
+            .overlay(alignment: .leading) {
+                UnevenRoundedRectangle(
+                    topLeadingRadius: Theme.Radius.card,
+                    bottomLeadingRadius: Theme.Radius.card
+                )
+                .fill(DashboardColor.color(for: `protocol`.slug))
+                .frame(width: 4)
+                .accessibilityHidden(true)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

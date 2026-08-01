@@ -58,7 +58,7 @@ struct DashboardScreen: View {
 
     private func loaded(_ data: DashboardData) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
                 greeting
 
                 if let next = data.nextDose {
@@ -126,7 +126,7 @@ struct DashboardScreen: View {
         _ title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             Text(title.uppercased())
                 .font(Theme.Typeface.eyebrow)
                 .foregroundStyle(Theme.navy)

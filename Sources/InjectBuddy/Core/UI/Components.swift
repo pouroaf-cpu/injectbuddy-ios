@@ -175,7 +175,10 @@ extension View {
 struct CardBackground: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .padding(Theme.Spacing.md)
+            // PWA cards breathe: same content, roughly 1.6x the vertical room.
+            // 16pt -> 20pt here plus the larger section spacing in DashboardScreen
+            // closes most of that without a layout rewrite.
+            .padding(Theme.Spacing.lg - Theme.Spacing.xs)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
     }
 }

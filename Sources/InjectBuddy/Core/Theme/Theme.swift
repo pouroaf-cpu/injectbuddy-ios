@@ -132,6 +132,55 @@ enum Theme {
     /// Minimum comfortable hit target. HIG floor is 44×44 pt.
     static let minTarget: CGFloat = 44
 
+    // MARK: - sRGB-interpolated gradients
+    //
+    // SwiftUI interpolates gradient stops in a linear-light space, which desaturates
+    // dark saturated colours badly. Measured on this palette: a two-stop ramp between
+    // #075E56 and #0A9D90 rendered #4B5557 -> #798A8D -> #4B5557 — right shape, no
+    // chroma — while a gradient whose two stops were IDENTICAL rendered #075E56
+    // exactly. The lift lands hardest on the darkest channel: red goes 7 -> 75 while
+    // green and blue barely move.
+    //
+    // `LinearGradient` exposes no colour-space control in the iOS 18.2 SDK (only
+    // `MeshGradient` takes a `Gradient.ColorSpace`), so the fix is to do the blending
+    // ourselves: interpolate in sRGB here and hand the gradient many closely-spaced
+    // stops, leaving each segment a range too small to drift measurably.
+
+    /// Stops interpolated in sRGB between the given 0xRRGGBB anchors.
+    static func srgbStops(_ anchors: [UInt32], perSegment: Int = 12) -> [Gradient.Stop] {
+        guard anchors.count > 1 else {
+            return anchors.map { Gradient.Stop(color: Color(hex: $0), location: 0) }
+        }
+        func channels(_ hex: UInt32) -> (Double, Double, Double) {
+            (Double((hex >> 16) & 0xFF), Double((hex >> 8) & 0xFF), Double(hex & 0xFF))
+        }
+        var stops: [Gradient.Stop] = []
+        let segments = anchors.count - 1
+        for segment in 0..<segments {
+            let from = channels(anchors[segment])
+            let to = channels(anchors[segment + 1])
+            // The last sub-step of a segment is the next segment's first, so drop it
+            // except on the final segment — otherwise stops land on top of each other.
+            let upper = segment == segments - 1 ? perSegment : perSegment - 1
+            for step in 0...upper {
+                let t = Double(step) / Double(perSegment)
+                let location = (Double(segment) + t) / Double(segments)
+                stops.append(Gradient.Stop(
+                    color: Color(.sRGB,
+                                 red: (from.0 + (to.0 - from.0) * t) / 255,
+                                 green: (from.1 + (to.1 - from.1) * t) / 255,
+                                 blue: (from.2 + (to.2 - from.2) * t) / 255),
+                    location: location))
+            }
+        }
+        return stops
+    }
+
+    /// Greeting sweep. Every anchor is legal on its own — #075E56 is 7.65:1 and
+    /// #0A9D90 is 3.37:1 — so no phase of the animation can drop the text below the
+    /// 3:1 large-text floor.
+    static let greetingStops = srgbStops([0x075E56, 0x0A9D90, 0x075E56])
+
     /// Drawer open/close animation — matches the web drawer feel (~0.26s spring).
     static let drawerAnimation: Animation = .spring(response: 0.26, dampingFraction: 0.86)
 }
