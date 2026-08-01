@@ -5,6 +5,13 @@
 
 Audit only — nothing in this report has been fixed.
 
+> **Status: stopped early, by decision, not finished.** On 2026-08-01 the contrast sweep was
+> cut short in favour of the design-parity rebuild, on the grounds that measuring screens
+> that are about to be rewritten is waste. What is here was measured and stands as the
+> before-state record. What was never reached is listed in §5. The screens most likely to
+> hold unmeasured failures are Calendar, Add, Cycle Plotter and the auth flow — only
+> Dashboard, Tools, the drawer, Settings, the log-dose sheet and two calculators were swept.
+
 ---
 
 ## 0. Method and calibration
