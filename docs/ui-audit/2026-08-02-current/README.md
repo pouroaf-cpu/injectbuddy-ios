@@ -50,6 +50,7 @@ side reading the table against a checkout.
 | IB2245747 | `10-tools-ax5-IB2245747.png` | Tools at AX5 |
 | IB2245748 | `12-calculator-trt-ax5-IB2245748.png` | TRT Dose at AX5 — the first capture of this screen at large text ever taken |
 | IB2245752 | `13-calculator-steroid-ax5-IB2245752.png` | **Steroid Dosage at AX5 — first capture ever.** The BEFORE frame for the sheared dose field, and three defects nobody had seen |
+| IB2245753 | `14-calculator-trt-ester-ax5-IB2245753.png` | TRT's `Ester` picker at AX5 — the same overlap on a second screen, proving it is the shared control |
 | IB2245751 | `11-calculator-keyboard-toolbar-IB2245751.png` | TRT Dose, weekly dose focused, keypad up |
 
 ## What changed on 2026-08-02, second pass — taken at `369fbc5`

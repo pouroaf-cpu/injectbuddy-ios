@@ -124,6 +124,62 @@ Things a cold session will hit within minutes and not understand:
 
 ## 1. Open — assigned
 
+- [ ] **SAFETY — `Add` is enabled over a dose the user cannot read.** `IB2245752`,
+      `Steroid Dosage` at AX5. `field_mgWeek` spans y 636.33…701.33 against a plate top
+      of pt 651.67, so `Weekly dose` is sheared through its own digits — and `Add` sits
+      below it at full width, perfectly legible, enabled, and **`Add` writes a
+      protocol**. One complete input is usable on that screen at AX5 and it is not the
+      dose.
+      **This is `D12` word for word, and T24's finding on a different screen:** an
+      action you can reach for a value you can't is worse than an action you can't
+      reach, because the second one stops you. Filed as safety, not layout — the
+      severity is what decides the order it gets fixed in.
+      The pinning gate cannot fix it: at AX5 the bar is already at its FLOOR — the
+      result card is stood down entirely and what remains is the committing action D12
+      requires. The fix belongs to that screen's layout. Carried meanwhile as a named
+      expected failure in `PinnedBarReachabilityUITests.expectedShears`, so every other
+      screen stays asserted at AX5 and the run goes red the day this one starts
+      passing (§5.30).
+
+- [ ] **APP-WIDE — every menu picker draws OUTSIDE its own control at large text once
+      its selected string is long enough.** `IB2245752` (`Steroid Dosage` · `Compound`,
+      `Oxandrolone (Anavar)`) and `IB2245753` (`TRT Dose` · `Ester`,
+      `Testosterone Enanthate`). The selected value wraps to three lines that overflow
+      the field chrome and render **on top of the label above it** — two strings in the
+      same pixels, neither legible.
+      **Not one screen, and the evidence is structural rather than inferred.**
+      `FieldRow.content` is the only call site: `.picker` and `.stringPicker` both
+      render `Picker(...).pickerStyle(.menu).fieldChrome()`, so **12 picker fields
+      across 8 calculators** share it — TRT Dose (Frequency, Ester), TRT & EOD (Ester),
+      Peptide (Dose unit), Semaglutide / Tirzepatide / Retatrutide (Concentration,
+      Dose), Free T Index (TT unit), Steroid Dosage (Compound). This is the T1 shape:
+      "the compound picker on Steroid Dosage" and "every picker in the app" are
+      different findings and only the second is true.
+      **The observed case is nowhere near the worst.** Longest strings the control is
+      ever handed, from the catalog rather than from a screen:
+      `Equipoise (Boldenone Undecylenate)` and `Primobolan (Methenolone Enanthate)` at
+      **34 characters**, `Nandrolone Phenylpropionate (NPP)` at 33 and
+      `Drostanolone Propionate (Mast-P)` at 32 — the last two on TRT's **Ester** picker,
+      not Steroid Dosage's. `Oxandrolone (Anavar)`, which produced `IB2245752`, is 20.
+      **Length-dependent, not universal:** `Frequency`'s `2×/week` sits cleanly inside
+      its box in the same frame as the overflowing Ester.
+      **No existing check can see this.** Nothing is truncated and nothing is clipped —
+      the text gets the width it asks for and takes the height it wants — so the ratio
+      sweep, T19's renderer probe and the reachability sweep are all blind to it. It is
+      a fourth mechanism in the family that produced F1.
+      Two more call sites are OUTSIDE this control and need checking separately:
+      `CyclePlotterScreen` renders two `.menu` pickers of its own without `fieldChrome`.
+
+- [ ] **`Steroid Dosage`'s screen title truncates to `Steroid Dos…` at AX5.**
+      `IB2245752`. §5.7 bans this outright — never accept silent clipping on a title, a
+      value or a unit. Probably resolves with the screen-header rule
+      (`DESIGN-PARITY §9`), which is already open.
+
+- [ ] **`Oxan-drolone`, hyphenated mid-word.** `IB2245752`. Same family as
+      `Semaglu-tide` on Tools (`IB2245747`), so one shared cause rather than two
+      screen-specific bugs — worth fixing once, on whatever sets the hyphenation policy
+      for these labels.
+
 - [x] **The result bar owns 52.40% of the content area at DEFAULT size — CLOSED,
       measured.** Gated on a **measured share**, not a Dynamic Type category. The bar
       now lays out four candidate states hidden, at their own ideal heights, and takes
@@ -187,24 +243,6 @@ Things a cold session will hit within minutes and not understand:
       should extend to the keypad-up state is undecided — extending it naively would
       assert something the keyboard makes unsatisfiable, which is the same trap as
       asserting the straddle rule at AX5.
-
-- [ ] **`Steroid Dosage`'s `Compound` picker RENDERS OUTSIDE ITS OWN CONTROL at AX5 and
-      overlaps its neighbours.** `IB2245752`. `Oxandrolone (Anavar)` wraps to three lines
-      that overflow the field chrome and draw on top of the `Compound` label above and
-      the `Vial strength` label below — two strings in the same pixels, neither legible.
-      **Not truncation: overlap.** Nothing is hidden, so no truncation check can see it,
-      and the renderer probe cannot either — the text gets the width it asks for and
-      takes the height it wants. It is the worst thing in that frame and it is on the
-      control that selects WHICH COMPOUND is being dosed.
-      Found by shooting a screen nobody had ever captured at large text.
-
-- [ ] **`Steroid Dosage`'s screen title truncates to `Steroid Dos…` at AX5.**
-      `IB2245752`. §5.7 bans this outright — never accept silent clipping on a title, a
-      value or a unit. Probably the screen-header rule (`DESIGN-PARITY §9`).
-
-- [ ] **`Oxan-drolone`, hyphenated mid-word.** `IB2245752`. Same family as
-      `Semaglu-tide` on Tools (`IB2245747`), so this is one shared cause rather than two
-      screen-specific bugs — worth fixing once.
 
 - [ ] **`Steroid Dosage` shears `field_mgWeek` at AX5.** See above. The bar is at its
       floor and cannot move; this needs the form to stop leaving a control across the

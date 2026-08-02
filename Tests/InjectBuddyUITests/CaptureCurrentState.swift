@@ -433,6 +433,27 @@ final class CaptureCurrentState: XCTestCase {
         shot("13-calculator-steroid-\(size).png")
     }
 
+    /// TRT's `Ester` picker, scrolled into view — a SECOND screen and a SECOND control,
+    /// to settle whether the overlap on `Steroid Dosage` is that screen's or the shared
+    /// picker's. T1's lesson: "the TRT dose field" and "every dose field in the app"
+    /// were different findings and only the second was true.
+    func testCaptureEsterPickerAtSize() {
+        openTRT()
+        let size = ProcessInfo.processInfo.environment["SIZE_LABEL"] ?? "unknown"
+
+        let ester = app.buttons["control_esterType"]
+        guard let form = app.scrollViews.allElementsBoundByIndex
+            .first(where: { $0.isHittable && $0.frame.minX >= 0 }) else {
+            return XCTFail("No on-screen scroll view.")
+        }
+        for _ in 0..<8 where !(ester.exists && ester.isHittable) {
+            form.swipeUp(velocity: XCUIGestureVelocity(rawValue: 220))
+        }
+        XCTAssertTrue(ester.exists, "control_esterType never appeared.")
+        print("ESTER frame=\(ester.frame) label=\(ester.label)")
+        shot("14-calculator-trt-ester-\(size).png")
+    }
+
     /// Set the size from the host first:
     ///   xcrun simctl ui booted content_size accessibility-extra-extra-extra-large
     func testCaptureAX5Set() {
