@@ -124,6 +124,72 @@ Things a cold session will hit within minutes and not understand:
 
 ## 1. Open — assigned
 
+- [ ] **SAFETY — AN INPUT IS SHEARED BY THE PINNED BAR AT DEFAULT SIZE, with `Add`
+      enabled below it.** `IB2245770`, `BPC+TB500`. `TB-500 bac water` is cut through
+      its own control by the plate's top edge; `Add` sits under it at full width,
+      legible and enabled. **This is F-A's shape and D12 word for word** — except F-A
+      is an AX5 finding on one screen and this is **the size everyone uses**, on a
+      screen nobody had photographed until `9b4afcb`. It has been shipping the whole
+      time.
+      **WHY NOTHING CAUGHT IT, and this is worth more than the defect:**
+      `PinnedBarReachabilityUITests` covers **three** calculators — TRT Dose,
+      Reconstitution, Steroid Dosage. D12's assertion is aimed at **3 of 15 screens**.
+      §5.33 a third time: the check is sound and its AIM is short. Fixing the aim
+      (cover all 15) is the real item; the frame is only where it surfaced.
+
+- [ ] **Result cards are sheared by the plate at default size too.** `BMI`
+      (`IB2245771`) and `Free T Index` (`IB2245772`) are cut through the word
+      `Normal`; `Semaglutide` (`IB2245766`) through `Units (U-100)`. The in-scroll
+      card runs under the plate wherever it is tall enough, and **nothing watches
+      result rows against the plate** — the reachability sweep reads `field_*` and
+      `control_*` only. Same aim gap as the item above, so they are likely one fix.
+
+- [ ] **SAFETY / DATA — `Add` WRITES A PROTOCOL ROW FROM A CALCULATOR THAT COMPUTES NO
+      DOSE. Driven, not inferred.** `IB2245771`, `IB2245772`. `canSaveProtocol` is
+      **false** for `bmi`, `freeTestIndex` and `cyclePlotter`, and its own comment says
+      the flag exists so such a calculator does not "walk the user into a wall at the
+      last step". `AddScreen` honours it. **`CalculatorScreen` never references it** —
+      the CTA is gated on `vm.result.isValid && network.isOnline` — so both screens
+      render a full-width, fully enabled `Add`.
+      **WHAT THE BUTTON ACTUALLY DOES, measured on BMI:** it writes a row and advances
+      to the start-day confirmation. The row landed in `saved_dosages` as
+      `calculator_type: bmi`, `label: BMI`,
+      `config: {heightCm:180, heightFt:5, heightIn:10, imperial:false, weightKg:80,
+      weightLb:180}`, `start_date: 2026-08-02`, `status: draft`, `is_active: false`.
+      The confirmation screen then reads **"ADDED TO YOUR PROTOCOLS"** over the height
+      and weight, and asks the user to "Confirm the day this protocol begins so the
+      calendar and dose reminders line up." **A body measurement is given a start date
+      and wired into the calendar and dose reminders.**
+      **`draft` IS NOT A MITIGATION.** `SupabaseBackendClient.savedDosages()` selects
+      `id, calculator_type, label, config, created_at, start_date, is_active` ordered by
+      `created_at` with **no filter on `status` or `is_active`** — so the row is in the
+      user's protocol list the moment it is written.
+      The test row was deleted (`2d9d1bc2…`); `bmi`/`freetest`/`plotter` rows back to 0.
+      **The fix is not a new flag.** `canSaveProtocol` exists and `AddScreen` already
+      honours it; the code that would honour it on the calculator screen is the code
+      that is missing.
+      Two smaller things measured on the way: the CTA reports `enabled=true` and
+      **`hittable=false`** at (16, 687, 370, 72) with XCUITest unable to
+      `AXScrollToVisible` it, though the frame is on screen and above the tab bar —
+      unexplained, and it means the tap had to be driven by coordinate. Nothing here is
+      concluded from the tap returning; the outcome was read from the app and from the
+      database.
+
+- [ ] **`Cycle Plotter` is absent from the screen whose job is listing calculators.**
+      `CalculatorCategory.members` enumerates **14 of the 15 slugs** and
+      `.cyclePlotter` is in none, so `ToolsScreen` cannot render it — while that
+      screen's own comment says it "Shows ALL calculators including the ones that
+      cannot save a protocol (BMI, Free T Index, **the plotter**)". A shipped
+      calculator missing from the browse surface, with a comment asserting the
+      opposite: T18's shape a third time — the source describing an intention rather
+      than the behaviour.
+      Found by the capture sweep **dying on it**: thirteen calculators were located on
+      that list by the identical mechanism and this one never appeared after twelve
+      scrolls. Its only route is the dashboard's `Add a protocol` dialog, which
+      enumerates `allCases`, needs **eight drags** to bring the entry into the tree
+      (16 actions on an 874pt display), and offers all three non-saving calculators
+      under a title promising a protocol. Frame: `IB2245775`.
+
 - [ ] **SAFETY — `Add` is enabled over a dose the user cannot read.** `IB2245752`,
       `Steroid Dosage` at AX5. `field_mgWeek` spans y 636.33…701.33 against a plate top
       of pt 651.67, so `Weekly dose` is sheared through its own digits — and `Add` sits
@@ -199,10 +265,38 @@ Things a cold session will hit within minutes and not understand:
       Two of those are at DEFAULT size and neither was on the board — §5.22 again, the
       default frames are the half nobody looks at.
 
-- [ ] **The raised hero covers the tail of the disclaimer on every calculator, at
-      DEFAULT size.** `Maths only — not medical advice.` runs to x 191.3 and the hero
-      circle starts at x 172.0 — the last ~19pt of the sentence is behind it. Found by
-      the overlap check, at the size everyone looks at, on every calculator.
+- [ ] **THE DISCLAIMER IS UNREADABLE AT REST ON EVERY CALCULATOR — and that is not
+      what this finding used to say.** Measured at rest on all fourteen at `9b4afcb`.
+      **Superseding the original wording** ("the raised hero covers the tail of the
+      disclaimer on every calculator … the last ~19pt is behind it"), which was right
+      that something is wrong and wrong about what, where and how many.
+      **The hero/disclaimer intersection is SIX calculators, not every one, and it is
+      identical on all six** — Reconstitution, Semaglutide, Tirzepatide, Retatrutide,
+      BMI, Free T Index, each `(172, 762, 19.33 × 13.0)` = 251.3pt². The hero never
+      moves: fixed at `(172, 762, 58, 58)` on every screen at every scroll offset,
+      which is F-G from another angle. What varies is where each form's content ends.
+      The other eight put the disclaimer below an 874pt display (y 909.67–1120.67),
+      except `BPC-157` at y 841.67 — on screen, clear of the hero, and **inside the
+      tab bar's region, which starts at y 792**.
+      **AND ON THE SIX, THE DISCLAIMER IS NOT DRAWN AT ALL.** `IB2245765` is the
+      proof, cropped and read off the pixels rather than trusted from the number: the
+      tree reports `Maths only — not medical advice.` at y 761.67, on screen; the
+      pixels at y 720–820 are the navy `Add` plate, the hero circle and the tab bar;
+      and the string appears **nowhere in the frame**. The plate is opaque
+      (`.regularMaterial`, measured #FEFEFE) and T25 established nothing renders behind
+      it.
+      **So the finding as filed describes an ACCESSIBILITY-TREE INTERSECTION BETWEEN
+      TWO ELEMENTS, ONE OF WHICH IS NOT DRAWN.** See §5.34 — the overlap suite reads a
+      tree with no z-order and no clipping. The real state is worse and simpler: at
+      rest, on every calculator measured, the "not medical advice" line is unreadable
+      — below the display, behind the tab bar, or under the pinned bar. On a dosing
+      app it is never legible without going looking for it.
+      **It is DETERMINISTIC, not intermittent.** The same 19.33 × 13.0 came back
+      byte-identical from a standalone walk probe and from the sweep. Two of the three
+      `isIntermittent` entries for this pair — `TRT Dose` and `Steroid Dosage` — name a
+      collision that **cannot occur at rest at all** and should be DELETED rather than
+      flagged; and because `isIntermittent` switches off the both-ends assertion, the
+      check that would have caught those dead entries is the one the flag disabled.
 
 - [ ] **Content draws into the tab bar and past the bottom of the display at AX5.**
       A picker value on TRT and a result row on Reconstitution both reach into the tab
@@ -977,3 +1071,75 @@ Parity and chrome
    before being trusted. The whole evidence chain — serial, log row, commit SHA — is
    worth exactly what the link between a name and a file is worth.
 
+32. **An exemption is safe when the exempted set CANNOT GROW — enumerate it, do not
+   predicate it.** `AuditFolderConsistencyTests` grandfathers the pre-serial capture
+   folders out of the serial rule. Written as a date predicate — "folders dated before
+   2026-08-02" — the set is evaluated at runtime and closed only by CONVENTION: a folder
+   named `2026-07-30-something` created next week satisfies it and walks straight out of
+   the rule, and the innocent version (someone reorganising an old capture) is likelier
+   than the adversarial one. Written as a literal list it is closed by construction.
+   **The general test:** ask what could join the exempted set tomorrow. If the answer is
+   "nothing", it is a grandfather clause. If it is "anything of that kind, including
+   things not built yet", it is a NARROWING and the debt needs naming instead (§5.30).
+   And assert the exemption FROM THE OTHER END: an entry that never matches anything is
+   exempting nothing and hiding that it exempts nothing.
+
+33. **When a finding is closed by a check, RECORD WHAT SURFACE THE CHECK WAS AIMED AT.**
+   The finding gets remembered as closed and the AIM gets forgotten — and the aim is the
+   whole of what was actually established.
+   **F-D is why it is a rule.** F1 was a truncation finding FOUND ON A RESULT CARD. The
+   check that closed it compares `field_<key>` against `unit_<key>`, so it never looked
+   at a result row in its life. Its logic was not wrong; its AIM was. A green tick sat
+   over the surface the finding was found on for two days, and a closed item does not
+   get re-examined.
+   **It has now paid out twice more, on the same day it was written.**
+   `PinnedBarReachabilityUITests` implements D12 and is aimed at 3 of 15 calculators —
+   `IB2245770` is an input sheared by the plate AT DEFAULT SIZE on one of the twelve it
+   never looks at. And nothing at all is aimed at result rows against the plate, which
+   is three more sheared frames in the same sweep.
+   So a closure reads "closed by X, **aimed at Y**", and when Y is not the surface the
+   finding was found on, that is a second finding rather than a footnote.
+
+34. **THE ACCESSIBILITY TREE HAS NO Z-ORDER AND NO CLIPPING, so a geometric check
+   cannot tell "these share pixels" from "one of these is behind an opaque plate".**
+   `LeafOverlapUITests` is the newest check here and this is its blind spot, found the
+   day after it landed. It reported the hero overlapping
+   `Maths only — not medical advice.` by 19.33 × 13.0pt on six calculators. Cropping
+   `IB2245765` and reading the pixels: at y 720–820 there is the navy `Add` plate, the
+   hero circle and the tab bar, and **the disclaimer string is nowhere in the frame at
+   all**. Both elements are in the tree, the geometry is correct, and one of them is not
+   drawn.
+   The suite is still right that something is wrong — it is wrong about what. **Never
+   read a red overlap as proof of a VISIBLE defect without looking at the frame**, and
+   never read a green one as proof the content is legible: an element hidden under an
+   opaque surface produces no overlap with anything and no complaint from any check we
+   own. Caught only because the frame was cropped instead of the number being trusted.
+
+35. **An assertion can observe the wrong MOMENT rather than the wrong thing, and it
+   fails in a way that reads like a finding.** Two in one afternoon, same shape:
+   "`Cycle Plotter` is not in the dialog either — it would be unreachable from anywhere
+   in the app" was reported about a dialog **that had never opened**, because the tap
+   landed on the tab bar's `Add` rather than the section's. And "No dashboard scroll
+   view" came from a single query issued straight after a tab switch, which cannot
+   distinguish *not there* from *not there yet* — it passed in a standalone probe
+   precisely because the app had settled there and the real run had not.
+   **A probe that is greener than the run it models is not a simpler version of it.**
+   So: assert the PRECONDITION before drawing a conclusion from its contents, and retry
+   anything read across a transition. A failing assertion is evidence about the app only
+   once you know it was looking at the app you think it was.
+
+36. **A CHECK MUST BE ABLE TO OBSERVE THE CONDITION ITS OUTPUT ASSERTS.** The capture
+   harness names every frame in a default-size sweep `…-default…` and files them in a
+   folder documented as default size — and until `9b4afcb` nothing in it could see the
+   device's type size. `bar_gate` published `ax=true/false`, which reads **identically
+   at `large`, `xLarge` and `xxxLarge`**, so a sweep run at the wrong size produced a
+   full set of frames whose names asserted something the run had no way to check, and
+   reported success.
+   That is the **seventh** check found reporting success while observing nothing, and it
+   is the one that would have quietly invalidated every "at default size" claim made in
+   this audit. The probe now publishes `size=<category>` and the run fails before
+   writing a single frame unless it reads `size=large`.
+   **Generalised:** whenever output — a filename, a folder, a log row, a commit message
+   — asserts the conditions a run happened under, something in the run must MEASURE
+   those conditions. Otherwise the assertion is a label applied by intention, and
+   intention is exactly what the rig does not preserve.
