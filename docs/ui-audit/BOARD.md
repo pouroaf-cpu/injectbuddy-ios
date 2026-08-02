@@ -1129,41 +1129,6 @@ Parity and chrome
    `2026-08-01-current` is exempt because the serial rule starts on 2026-08-02 and says
    so in writing — and even that exemption is asserted from the other end, so a
    pre-serial folder that gains serials rejoins the rule instead of falling in a gap.
-33. **When a finding is closed by a check, record WHAT SURFACE THE CHECK WAS AIMED AT.**
-   The finding gets remembered as closed and the aim gets forgotten. F1 — unit truncation,
-   `Draw… 0.25…`, the worst finding of the original audit — was closed by a check pointed
-   at `field_<key>` / `unit_<key>` pairs. That logic was correct everywhere it looked, and
-   it never looked at the result card, **which is the surface F1 was found on**. Anyone
-   reading a green tick over that surface was reading a tick over something nothing was
-   watching, for two days, until T19's renderer probe measured three result rows
-   truncating.
-   The failure was not in the logic. It was in the AIM, and aim is invisible in a tick.
-   So every closed item owes an answer to: what does the check that closed it actually
-   observe, and what does it not? Cheap to ask, and the answer belongs next to the tick.
-   Do not run it as a sweep — sweeps done in a hurry are where regressions come from
-   (§D9). Add the line as each area is touched; T11 is the natural first pass, and it
-   should treat result cards as an UNSURVEYED SURFACE rather than a re-check.
-32. **An exemption is safe when the exempted set CANNOT GROW.** Two scoping decisions
-   came up an hour apart and only one of them was legitimate, so the test that separates
-   them is worth having. Switching the straddle assertion off at accessibility sizes was
-   a NARROWING: the exempted set was open — every screen at AX5, forever, including the
-   ten not yet surveyed and every screen not yet written — so it silenced cases nobody
-   had looked at. Grandfathering `2026-08-01-current` out of the serial rule is a
-   GRANDFATHER CLAUSE: the set is folders that already existed when the rule landed, and
-   nothing can join it because time only moves one way. Same word, opposite structure.
-   Ask what could join the set tomorrow. If the answer is "nothing", it is a grandfather
-   clause. If it is "anything of that kind, including things not built yet", it is a
-   narrowing and the debt needs naming instead (§5.30).
-   And write the closed set as an ENUMERATED LIST, not a predicate. "Folders dated
-   before 2026-08-02" is evaluated at runtime, so it is closed only by convention — a
-   folder named `2026-07-30-something` created next week satisfies it and walks out of
-   the rule, and the innocent version (someone reorganising an old capture) is likelier
-   than the adversarial one. A literal list is closed by construction.
-   The alternative that looks obvious and is worse: backfilling serials onto those
-   frames. That manufactures a provenance which never existed — §5.16's reasoning with
-   the sign flipped, since an in-image stamp was refused for mutating evidence in order
-   to label it. A documented gap is honest; an invented serial is a number that looks
-   issued and was not.
 31. **A name that outlives its content is the failure mode this project keeps
    rediscovering, and nothing was checking the names.** The `2026-08-02-current` README
    listed `IB2245743` and `IB2245744` after those files had been superseded, and never
@@ -1187,6 +1152,18 @@ Parity and chrome
    things not built yet", it is a NARROWING and the debt needs naming instead (§5.30).
    And assert the exemption FROM THE OTHER END: an entry that never matches anything is
    exempting nothing and hiding that it exempts nothing.
+   **THE PAIR THAT MADE THE DISTINCTION VISIBLE, an hour apart, only one legitimate.**
+   Switching the straddle assertion off at accessibility sizes was a NARROWING: the
+   exempted set was open — every screen at AX5, forever, including the ten not yet
+   surveyed and every screen not yet written — so it silenced cases nobody had looked at.
+   Grandfathering `2026-08-01-current` out of the serial rule is a GRANDFATHER CLAUSE:
+   the set is folders that already existed when the rule landed, and nothing can join it
+   because time only moves one way. Same word, opposite structure.
+   **The alternative that looks obvious and is worse:** backfilling serials onto those
+   frames. That manufactures a provenance which never existed — §5.16's reasoning with
+   the sign flipped, since an in-image stamp was refused for mutating evidence in order
+   to label it. A documented gap is honest; an invented serial is a number that looks
+   issued and was not.
 
 33. **When a finding is closed by a check, RECORD WHAT SURFACE THE CHECK WAS AIMED AT.**
    The finding gets remembered as closed and the AIM gets forgotten — and the aim is the
@@ -1203,6 +1180,16 @@ Parity and chrome
    is three more sheared frames in the same sweep.
    So a closure reads "closed by X, **aimed at Y**", and when Y is not the surface the
    finding was found on, that is a second finding rather than a footnote.
+   Do not run it as a sweep — sweeps done in a hurry are where regressions come from
+   (§D9). Add the line as each area is touched; T11 is the natural first pass, and it
+   should treat result cards as an UNSURVEYED SURFACE rather than a re-check.
+   **AMENDED BY §5.38, and the amendment matters more than the rule it qualifies.** The
+   D12 example above — "aimed at 3 of 15 calculators" — was true and was **not the
+   reason** that suite was green over a defect. It was also addressing the wrong element
+   entirely. Recording an aim is necessary and it is not sufficient: a check can be
+   pointed at the right screen and still be reading something else on it. Ask BOTH — what
+   surface, and what element — because an aim gap and an addressing gap present
+   identically and their remedies are opposite.
 
 34. **THE ACCESSIBILITY TREE HAS NO Z-ORDER AND NO CLIPPING, so a geometric check
    cannot tell "these share pixels" from "one of these is behind an opaque plate".**
@@ -1316,11 +1303,48 @@ Parity and chrome
    explicit that it was luck: prefer `.background`, size zero where you can, and when a
    probe must span a region, ask what it is now standing in front of.
 
-**HOUSEKEEPING, FOUND WHILE ADDING THE ABOVE AND NOT FIXED HERE:** this list contains
-**two different rules numbered 32 and two numbered 33** — an earlier pass at ~L1064/1050
-and the canonical text at ~L1096/1109. `9b7d9b2` landed the full text without removing
-the drafts. §5.NN citations are used across the repo and in the TASKLIST, so a citation
-to §5.32 is currently ambiguous. Deliberately not silently reorganised mid-item; it is
-§5.31 pointed at the rules list for the second time, and the check the TASKLIST already
-proposes — assert every §5.NN cited anywhere in the repo exists exactly once in
-`BOARD.md` — would catch this as well as the missing-text case it was designed for.
+---
+
+### The rules list, checked against itself
+
+**FIXED, AND IT WAS WORSE THAN THE CASE THE CHECK WAS PROPOSED FOR.** The check was
+proposed to catch *missing text* — §5.32 and §5.33 were cited as settled by the TASKLIST,
+by the directing side and by a comment inside `AuditFolderConsistencyTests` while nothing
+stood behind either number. What was on disk was **two different rules numbered 32 and
+two numbered 33**, both pairs real and substantive. `003e859` wrote 31–33 in **descending
+order** (`33, 32, 31`); `9b7d9b2`, scanning forward from 30 for the next free number, did
+not see them and wrote fresh text for 32 and 33 at the end. For a day, every `§5.32`
+citation in this repository resolved to a coin flip — **including the one inside the test
+that exists to enforce that rule.**
+The duplicates are merged, not deleted: everything unique to each draft was folded into
+the surviving entry (§5.32 keeps the narrowing-versus-grandfathering pair and the
+backfilled-serials argument; §5.33 keeps the do-not-sweep tail). The list is now `1…39`,
+contiguous, each number once, ascending — parsed and asserted, not eyeballed.
+`BoardRuleCitationTests` now asserts three things and **the third is the one that would
+have prevented it**: numbers unique, every `§5.NN` cited anywhere in the repo resolves,
+and the rules ascend without gaps. An ordering defect became a correctness defect, because
+"find the next free number" is a forward scan and a descending run is invisible to it.
+Shown red in all three directions before being trusted (§5.24).
+
+**STILL OPEN, FOUND BY THE SAME WORK: THE ENTIRE `D` SERIES IS CITED AND NEVER DEFINED.**
+`D9`, `D12` and now `D19` are referenced in `BOARD.md`, both handovers,
+`SCREENSHOT-LOG.md` and `2026-08-02-current/README.md` — and **no file in this repository
+defines any of them.** `D12` in particular is load-bearing: it is quoted as the invariant
+`PinnedBarReachabilityUITests` implements, described as "word for word" in three findings,
+and a reader cannot check any of that against a source. This is §5.31 for the third time
+and the exact case the new check was *designed* for, sitting one letter outside its
+matcher. Deliberately not auto-fixed: writing definitions for D9/D12/D19 from their
+citations would manufacture a provenance that never existed (§5.32's closing argument).
+Either the definitions exist off-repo and belong here, or the series should be retired in
+favour of the `§5.NN` rules it overlaps. **A human decision, filed rather than guessed.**
+
+**`D19` — the directing side's own call, recorded because it was wrong three times and
+correcting it is worth more than the original claim.** "`assertReachable` already contains
+`Add is on screen but not hittable` and would go red on BMI today — it does not, only
+because of the aim" was stated in three separate messages, written into §1 of this board,
+and committed into a spec (`85d5b4b`). It would not have gone red anywhere. The check was
+resolving `Add` by label against the tab bar and choosing between two matches using
+`isHittable`, the property under test. The failure was reasoning about what an assertion
+would do **by reading it** — the thing this project has a rule against — while
+simultaneously instructing the other side to reproduce defects before trusting
+assertions. See §5.38.
