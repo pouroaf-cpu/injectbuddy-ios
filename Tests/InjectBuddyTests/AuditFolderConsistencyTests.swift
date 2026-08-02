@@ -30,12 +30,6 @@ final class AuditFolderConsistencyTests: XCTestCase {
             .deletingLastPathComponent()           // repo root
     }
 
-    /// The date the serial rule starts. `SCREENSHOT-LOG.md` states it and
-    /// `DECISIONS-2026-08-02 §11` explains why nothing earlier is backfilled: those
-    /// frames have no reliable per-frame capture time, and inventing one would be the
-    /// fabricated-evidence problem the log exists to prevent.
-    private static let serialRuleStarts = "2026-08-02"
-
     /// Every `*-current` folder, so a future dated folder is covered the day it is
     /// created rather than the day someone remembers to add it here.
     private func currentFolders() throws -> [URL] {
@@ -47,31 +41,52 @@ final class AuditFolderConsistencyTests: XCTestCase {
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
-    /// Folders the serial rule applies to.
+    /// The folders that existed when the serial rule landed, ENUMERATED.
     ///
-    /// SCOPED BY A DOCUMENTED BOUNDARY, not by which folders happen to pass. The first
-    /// run of this check went red eleven times on `2026-08-01-current` — correctly, in
-    /// the sense that its frames genuinely are unlisted and unserialised, and wrongly,
-    /// in the sense that this is the deliberate, dated, written-down state of that
-    /// folder rather than a defect. Excluding it because it fails would be narrowing an
-    /// assertion until it passes, which is the thing that got corrected on the AX5
-    /// straddle rule an hour earlier.
+    /// Not "folders dated before 2026-08-02". A date predicate is evaluated at runtime,
+    /// so the exempt set is closed only by CONVENTION: a folder named
+    /// `2026-07-30-something` created next week satisfies it and walks straight out of
+    /// the rule, and the innocent version — someone reorganising an old capture into a
+    /// new folder — is likelier than the adversarial one. A literal list is closed by
+    /// construction. Nothing can join it without someone editing this array.
+    ///
+    /// The general test, and it is what separates this from narrowing an assertion
+    /// until it passes: **an exemption is safe when the exempted set cannot grow.** Ask
+    /// what could join it tomorrow. Here: nothing. See BOARD §5.32.
+    ///
+    /// These frames are NOT backfilled with serials, deliberately. They have no
+    /// reliable per-frame capture time, and issuing serials now would manufacture a
+    /// provenance that never existed — T17's reasoning with the sign flipped, since an
+    /// in-image stamp was refused for mutating evidence in order to label it. A
+    /// documented gap is honest; an invented serial is a number that looks issued and
+    /// was not.
+    private static let preSerialFolders: Set<String> = [
+        "2026-08-01-current",
+    ]
+
+    /// Folders the serial rule applies to: everything not in the grandfathered list.
     private func serialisedFolders() throws -> [URL] {
-        try currentFolders().filter { $0.lastPathComponent >= Self.serialRuleStarts }
+        try currentFolders().filter { !Self.preSerialFolders.contains($0.lastPathComponent) }
     }
 
-    /// ...and the exclusion is asserted from the other end. If a pre-serial folder ever
-    /// gains serialised rows it has joined the rule and must be covered; without this,
-    /// the boundary is a place coverage can quietly leak out of.
+    /// ...and the exemption is asserted from the other end. If a grandfathered folder
+    /// ever gains serialised rows it has joined the rule and must be covered; without
+    /// this, the list is a place coverage can quietly leak out of.
     func testPreSerialFoldersReallyArePreSerial() throws {
-        for folder in try currentFolders()
-        where folder.lastPathComponent < Self.serialRuleStarts {
-            let rows = try frameTableFiles(in: folder)
+        let present = Set(try currentFolders().map { $0.lastPathComponent })
+        for name in Self.preSerialFolders {
+            guard present.contains(name) else {
+                XCTFail("`preSerialFolders` names \(name) and there is no such folder. A "
+                        + "grandfather clause for something that is not there exempts nothing "
+                        + "and hides that it exempts nothing.")
+                continue
+            }
+            let rows = try frameTableFiles(in: repoRoot
+                .appendingPathComponent("docs/ui-audit").appendingPathComponent(name))
             XCTAssertTrue(rows.isEmpty,
-                          "\(folder.lastPathComponent) is dated before the serial rule "
-                          + "(\(Self.serialRuleStarts)) and yet lists \(rows.count) serialised "
-                          + "frame(s). It is no longer pre-serial, so it is no longer exempt — "
-                          + "move it inside the rule rather than leaving it in a gap.")
+                          "\(name) is grandfathered out of the serial rule and yet lists "
+                          + "\(rows.count) serialised frame(s). It is no longer pre-serial, so "
+                          + "it is no longer exempt — remove it from `preSerialFolders`.")
         }
     }
 

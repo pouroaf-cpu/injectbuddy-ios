@@ -388,6 +388,41 @@ one: the auth flow already exists and is not being rebuilt.
       are stock `Form`/`List` and are *probably* the same 44 pt list-row treatment
       as the log sheet, but that is a guess and guesses do not get ticked.
 
+- [x] **T19 — the RENDERER publishes whether it truncated, and it found that the
+      result rows were never covered at all.** `truncationProbe` lays each value view
+      out twice — once as it renders, once free of any width constraint — and publishes
+      whether the second is wider. Layout answering a question about layout, rather than
+      the accessibility layer answering a question it cannot see (§5.23). DEBUG only.
+      **Shown red before being trusted.** Reproduced with `FORCE_INLINE_FIELD=1` at AX5:
+      13 probes fire. Green at default — 93 probes clean across 11 calculators.
+      **It does NOT supersede T4b's ratio, and the diff is the interesting part.** On the
+      same reproduced defect, ratio 9 failures, renderer 13. Caught by the renderer and
+      **not** by the ratio:
+
+      | | rendered | ideal |
+      |---|---|---|
+      | `BPC+TB500 · field_bpcVial` | 131.67pt | 138.67pt |
+      | `BPC+TB500 · field_tbDose` | 131.67pt | 137.67pt |
+      | `BPC+TB500 · field_tbVial` | 131.67pt | 138.67pt |
+      | `BPC+TB500 · result_BPC-157 draw` | 247.33pt | 347.67pt |
+      | `BPC+TB500 · result_TB-500 draw` | 247.33pt | 347.67pt |
+      | `Peptide · result_Volume` | 319.00pt | 525.00pt |
+
+      The three fields are the documented blind spot — a long value beside a short unit
+      keeps the ratio and passes green. **The three `result_` rows are worse than that:
+      the ratio compares `field_<key>` against `unit_<key>`, so it never looked at the
+      result card at all.** That is the surface F1 was found on — `Draw… 0.25…`, the
+      unit-loss that was the worst finding of the original audit — and it has had no
+      truncation check since. Not a gap in the ratio's logic; a gap in what it was ever
+      pointed at.
+      And one case the ratio catches that the renderer does not: `Free T Index · shbg`,
+      value cell 79.0pt against a 147.0pt unit, where the string still fits. That is a
+      squeezed layout without truncation. **Both checks stay** — they answer different
+      questions, and neither is a superset of the other.
+      Coverage: numeric fields and result rows. The probe on a `TextField` compares a
+      `Text` of the same string against the field's whole frame, so it is CONSERVATIVE —
+      UIKit's internal inset means a value clipped by only that inset can still pass.
+
 ## 2. Open — unassigned, needs a human decision
 
 - [ ] **Whole sections of the PWA have no iOS screen at all.** The PWA dashboard is
@@ -784,6 +819,27 @@ Parity and chrome
    `2026-08-01-current` is exempt because the serial rule starts on 2026-08-02 and says
    so in writing — and even that exemption is asserted from the other end, so a
    pre-serial folder that gains serials rejoins the rule instead of falling in a gap.
+32. **An exemption is safe when the exempted set CANNOT GROW.** Two scoping decisions
+   came up an hour apart and only one of them was legitimate, so the test that separates
+   them is worth having. Switching the straddle assertion off at accessibility sizes was
+   a NARROWING: the exempted set was open — every screen at AX5, forever, including the
+   ten not yet surveyed and every screen not yet written — so it silenced cases nobody
+   had looked at. Grandfathering `2026-08-01-current` out of the serial rule is a
+   GRANDFATHER CLAUSE: the set is folders that already existed when the rule landed, and
+   nothing can join it because time only moves one way. Same word, opposite structure.
+   Ask what could join the set tomorrow. If the answer is "nothing", it is a grandfather
+   clause. If it is "anything of that kind, including things not built yet", it is a
+   narrowing and the debt needs naming instead (§5.30).
+   And write the closed set as an ENUMERATED LIST, not a predicate. "Folders dated
+   before 2026-08-02" is evaluated at runtime, so it is closed only by convention — a
+   folder named `2026-07-30-something` created next week satisfies it and walks out of
+   the rule, and the innocent version (someone reorganising an old capture) is likelier
+   than the adversarial one. A literal list is closed by construction.
+   The alternative that looks obvious and is worse: backfilling serials onto those
+   frames. That manufactures a provenance which never existed — §5.16's reasoning with
+   the sign flipped, since an in-image stamp was refused for mutating evidence in order
+   to label it. A documented gap is honest; an invented serial is a number that looks
+   issued and was not.
 31. **A name that outlives its content is the failure mode this project keeps
    rediscovering, and nothing was checking the names.** The `2026-08-02-current` README
    listed `IB2245743` and `IB2245744` after those files had been superseded, and never

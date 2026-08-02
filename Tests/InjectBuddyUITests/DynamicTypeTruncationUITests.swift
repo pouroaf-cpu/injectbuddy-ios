@@ -148,6 +148,46 @@ final class DynamicTypeTruncationUITests: XCTestCase {
                 this is measured geometrically.
                 """)
         }
+
+        checkRendererProbes(on: screen)
+    }
+
+    /// T19 — the RENDERER's own verdict, not a proxy.
+    ///
+    /// The ratio assertion above is real and it goes red on all three mechanisms that
+    /// have produced this bug. Its blind spot is documented and reachable: a LONG VALUE
+    /// beside a SHORT UNIT keeps the ratio, so `1000` truncated to `10…` next to `mg`
+    /// passes it green — and `Reconstitution.targetConc` holds 1000 in a 49.7pt cell.
+    ///
+    /// `truncationProbe` lays each value view out twice, once as it renders and once
+    /// free of any width constraint, and publishes whether the second is wider than the
+    /// first. That is layout answering a question about layout. Asking the accessibility
+    /// layer instead is what produced the assertion that could not fail.
+    private func checkRendererProbes(on screen: String) {
+        let probes = app.descendants(matching: .any).allElementsBoundByIndex
+            .filter { $0.identifier.hasPrefix("trunc_") }
+
+        guard !probes.isEmpty else {
+            // Said out loud. A sweep that silently measures nothing is the failure this
+            // whole file exists to stop, and these probes are DEBUG-only — a Release
+            // build would find none and must not read as "nothing truncated".
+            print("TRUNCATION-SWEEP: \(screen) published NO renderer probes — "
+                  + "DEBUG build? Nothing was measured by T19 here.")
+            return
+        }
+
+        for probe in probes {
+            XCTAssertEqual(
+                probe.label, "false",
+                """
+                \(screen) · \(probe.identifier.dropFirst("trunc_".count)): THE RENDERER \
+                SAYS THIS TRUNCATED. \(probe.value.map { "\($0)" } ?? "no widths") — the \
+                view needs more width than it was given, so what is on screen is not the \
+                whole value. This is the check that sees a long value beside a short \
+                unit, which the ratio assertion above cannot.
+                """)
+        }
+        print("TRUNCATION-SWEEP: \(screen) — \(probes.count) renderer probes clean.")
     }
 
     // MARK: - Navigation

@@ -828,6 +828,10 @@ private struct PrimaryResultRow: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text(value)
                 .accessibilityIdentifier(identifier)
+                // T19: the renderer publishes whether this truncated, rather than the
+                // harness inferring it from a ratio. `identifier` already names the
+                // surface, so the probe inherits that naming for free.
+                .truncationProbe(identifier)
                 .font(Theme.Typeface.display)
                 .tracking(Theme.Typeface.displayTracking)
                 .monospacedDigit()
@@ -859,6 +863,7 @@ private struct SecondaryResultRow: View {
         Text(value)
             .font(Theme.Typeface.resultLabel.weight(.semibold))
             .accessibilityIdentifier(identifier)
+            .truncationProbe(identifier)
             .monospacedDigit()
             .foregroundStyle(Theme.ink)
     }
@@ -1213,6 +1218,21 @@ private struct NumberField: View {
         Group {
             TextField("0", text: $text)
                 .accessibilityIdentifier("field_\(key)")
+                // T19 — and this is the probe that closes T4b's DOCUMENTED blind spot.
+                // The shipped sweep asserts a RATIO (a value cell is never narrower than
+                // its own unit), which is blind to a long value beside a short unit:
+                // `1000` truncated to `10…` next to `mg` keeps the ratio and passes.
+                // Reconstitution.targetConc holds 1000 in a 49.7pt cell, so four-digit
+                // doses are ordinary here.
+                //
+                // CAVEAT, stated because a green run must not be over-read: the ideal
+                // width is measured from a Text carrying the same string and the same
+                // font, while the rendered width is the TextField's whole frame — which
+                // includes UIKit's internal insets. So this probe is CONSERVATIVE: it
+                // fires when the string needs more than the entire cell, and a value
+                // clipped by only the inset can still slip through. It is strictly
+                // better than the ratio and it is not exact.
+                .truncationProbe("field_\(key)")
                 .keyboardType(.decimalPad)
                 .focused(focusedKey, equals: key)
                 // Was `.system(size: 17, weight: .semibold)` — a FROZEN size at a
