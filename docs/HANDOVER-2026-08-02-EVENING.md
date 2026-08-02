@@ -157,3 +157,17 @@ present in one run and absent in the next on the same screen at the same size. W
 given up is the assertion that those specific pairs must still occur. What is kept is the
 suppression when they appear, and the failure on any UNNAMED overlap — so the suite can
 still speak.
+
+**THE INTERMITTENCY IS A PROPERTY OF UNCONTROLLED TEST STATE, NOT OF THE DEFECT.** The
+defects do not come and go; the OBSERVATION does, because the frames are read at whatever
+scroll offset the run happens to leave the form at. Pin the scroll position before
+reading and the intermittency disappears — and the moment it is deterministic,
+`isIntermittent` comes off and the both-ends assertion goes back on, restoring the
+mechanism to full strength.
+
+**Until that is done these four entries CAN NEVER BE PAID OFF AUTOMATICALLY.** A fix will
+not make the suite go red asking for their deletion, the way the three picker entries
+will. **They must be deleted by hand** when the hero/disclaimer collision and the
+`Units (U-100)`-into-the-tab-bar finding are closed. Four entries that cannot self-retire
+are a small debt tonight and an invisible one in a month; whoever holds this should know
+they are holding it.
