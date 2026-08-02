@@ -209,10 +209,22 @@ Things a cold session will hit within minutes and not understand:
       bar; `Testosterone Enanthate` extends to y 915 on an 874pt display. `heroOverhang`
       is 22pt and reserves for the circle, not for this.
 
-- [ ] **The hero glyph is IN THE ACCESSIBILITY TREE despite `accessibilityHidden(true)`.**
-      `Image 'syringe'` appears as a leaf at (172, 762, 58, 58) in every calculator's
-      tree. §5.6 records the hero as swept and carrying the flag; the tree says
-      otherwise. Not yet diagnosed — it may be a second glyph rather than the circle's.
+- [ ] **`accessibilityHidden(true)` DOES NOT REMOVE THE HERO GLYPH, and §5.6 was wrong
+      rather than incomplete.** `Image 'syringe'` sits in the tree as a leaf at
+      (172, 762, 58, 58) on every calculator — the circle's own frame, centred at x = 201
+      on a 402pt window, ancestors all generic full-window containers rather than the
+      TabBar, so it IS the raised hero and not a second glyph. **Measured twice:** present
+      with the flag on the composed hero, and still present with the flag applied directly
+      to the `Image`. Byte-identical frame both times.
+      A decorative glyph is therefore a VoiceOver stop on every screen in the app, and
+      §5.6's sweep — which recorded the hero as "already carries
+      `accessibilityHidden(true)`" — was reading the source rather than the tree. That is
+      §5.1 on our own audit.
+      **This invalidates an assumption in `RESULT-PANEL-SPEC §5`**, which specs the
+      barrel-fit strip as `.accessibilityHidden(true)` and relies on that to keep a
+      decorative duplicate of the dose figures out of the tree. It must not ship on that
+      assumption: the absence has to be asserted on the strip itself, red first with the
+      modifier removed. A working mechanism is not yet identified.
 
 - [ ] **`Steroid Dosage`'s screen title truncates to `Steroid Dos…` at AX5.**
       `IB2245752`. §5.7 bans this outright — never accept silent clipping on a title, a

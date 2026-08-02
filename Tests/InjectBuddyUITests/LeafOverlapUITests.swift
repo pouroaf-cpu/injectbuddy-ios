@@ -197,6 +197,38 @@ final class LeafOverlapUITests: XCTestCase {
             .first { $0.type == "TabBar" }?.frame ?? .null
         XCTAssertFalse(tabBarFrame.isNull, "\(screen): no TabBar node in the tree.",
                        file: file, line: line)
+        // BOTH ENDS on the region itself. A region defined by a node is only as
+        // trustworthy as the node, and the first cut of this collapsing rule failed by
+        // EATING THE EVIDENCE — content that had overflowed past the tab bar stopped
+        // being under test. So the region is pinned: it spans the full width, sits at
+        // the bottom of the window, and is a bar rather than a panel. If the TabBar node
+        // ever reports something larger, this fails instead of quietly swallowing more.
+        XCTAssertEqual(tabBarFrame.width, window.width, accuracy: 1.0,
+                       "\(screen): TabBar is \(tabBarFrame.width)pt wide against a "
+                       + "\(window.width)pt window — that is not the tab bar.",
+                       file: file, line: line)
+        XCTAssertEqual(tabBarFrame.maxY, window.maxY, accuracy: 1.0,
+                       "\(screen): TabBar does not end at the bottom of the window.",
+                       file: file, line: line)
+        XCTAssertLessThan(tabBarFrame.height, window.height * 0.2,
+                          "\(screen): TabBar is \(tabBarFrame.height)pt tall — the region "
+                          + "has grown and is now absorbing content it should be testing.",
+                          file: file, line: line)
+
+        // Ancestor chain of every `syringe` glyph, to settle whether the element in the
+        // tree is the raised hero (which carries accessibilityHidden(true)) or a second
+        // glyph somewhere else. That distinction decides whether §5.6's sweep was WRONG
+        // or merely INCOMPLETE, and they need different fixes.
+        for (i, node) in nodes.enumerated() where node.key.contains("syringe") {
+            var chain: [String] = ["\(node.type)'\(node.key)'\(node.frame)"]
+            var depth = node.depth
+            for j in stride(from: i - 1, through: 0, by: -1) where nodes[j].depth < depth {
+                chain.append("\(nodes[j].type)'\(nodes[j].key)'\(nodes[j].frame)")
+                depth = nodes[j].depth
+                if chain.count > 6 { break }
+            }
+            print("SYRINGE \(screen) :: " + chain.reversed().joined(separator: " > "))
+        }
 
         // Read from the app's own gate probe — the same witness the reachability sweep
         // uses, and not the thing under test here.

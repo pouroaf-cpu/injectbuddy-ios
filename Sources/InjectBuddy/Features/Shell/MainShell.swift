@@ -238,6 +238,33 @@ struct MainShell: View {
                 Image(systemName: MainTab.log.icon)
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(.white)
+                    // THIS DOES NOT WORK, AND THAT IS THE FINDING. Kept because it is
+                    // correct by intent, and annotated because a modifier that reads as
+                    // a guarantee and delivers nothing is worse than no modifier.
+                    //
+                    // MEASURED, TWICE. `Image 'syringe'` sits in the accessibility tree
+                    // as a leaf at (172, 762, 58, 58) — the circle's own frame, centred
+                    // at x = 201 on a 402pt window, ancestors all generic full-window
+                    // containers rather than the TabBar — on every calculator screen.
+                    // It is there with `.accessibilityHidden(true)` on the composed hero
+                    // at the end of this chain, and it is STILL there with the modifier
+                    // applied directly to this Image. Byte-identical frame both times.
+                    //
+                    // So BOARD §5.6 recording the hero as "already carries
+                    // accessibilityHidden(true)" was WRONG rather than incomplete: the
+                    // flag is applied and the element is announced anyway. A decorative
+                    // glyph is a VoiceOver stop on every screen in the app.
+                    //
+                    // CONSEQUENCE BEYOND THIS CONTROL: `accessibilityHidden` cannot be
+                    // relied on here as the mechanism for keeping a decorative duplicate
+                    // out of the tree. Anything specced on that assumption — the
+                    // barrel-fit strip in RESULT-PANEL-SPEC §5 is specced on exactly it —
+                    // needs the absence PROVEN on the element itself, red first with the
+                    // modifier removed, before it ships.
+                    //
+                    // Found by the leaf-overlap check while it was looking for something
+                    // else entirely.
+                    .accessibilityHidden(true)
             )
             .overlay(Circle().stroke(Theme.background, lineWidth: 4))
             .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
