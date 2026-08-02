@@ -1,3 +1,10 @@
+> **RETIRED 2026-08-03 — do not follow this file.**
+>
+> The claim-a-row protocol it belongs to is retired (see `AGENT-WORKFLOW.md`). The board has been
+> empty since 2026-07-31. Kept as a record.
+
+---
+
 # Injectbuddy iOS — ACTIVE board
 
 Who is editing what **right now**. Protocol: `AGENT-WORKFLOW.md`.

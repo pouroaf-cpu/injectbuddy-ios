@@ -1,3 +1,12 @@
+> **RETIRED 2026-08-03 — do not follow this file.**
+>
+> It describes a multi-agent claim-a-row-in-`ACTIVE.md` arrangement. This project now runs as one
+> paired session — a directing Windows session and a single serial Mac builder — so there is nobody
+> to collide with and no row to claim. Startup docs are `MAC-SIDE-README.md` and
+> `WIN-SIDE-README.md`.
+
+---
+
 # Agent Workflow — claim a row, do the work, remove the row
 
 Every agent working on the iOS plan follows this lifecycle. It mirrors

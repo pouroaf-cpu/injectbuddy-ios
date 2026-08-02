@@ -1,3 +1,11 @@
+> **RETIRED 2026-08-03 — do not follow this file.**
+>
+> It describes a greenfield project ("No Swift project exists yet — TASK 1 scaffolds it"). The app
+> has since been built. Its Definition of Done refers to a drawer that no longer exists. Kept only
+> as a record of the original intent. Startup docs are `MAC-SIDE-README.md` and `WIN-SIDE-README.md`.
+
+---
+
 # Build Instructions — Injectbuddy iOS
 
 Read this before coding. Design is in `WIREFRAME-PLAN.md`; backlog in `TASKS.md`.
