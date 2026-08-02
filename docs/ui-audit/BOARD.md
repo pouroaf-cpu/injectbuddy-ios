@@ -188,6 +188,24 @@ Things a cold session will hit within minutes and not understand:
       assert something the keyboard makes unsatisfiable, which is the same trap as
       asserting the straddle rule at AX5.
 
+- [ ] **`Steroid Dosage`'s `Compound` picker RENDERS OUTSIDE ITS OWN CONTROL at AX5 and
+      overlaps its neighbours.** `IB2245752`. `Oxandrolone (Anavar)` wraps to three lines
+      that overflow the field chrome and draw on top of the `Compound` label above and
+      the `Vial strength` label below — two strings in the same pixels, neither legible.
+      **Not truncation: overlap.** Nothing is hidden, so no truncation check can see it,
+      and the renderer probe cannot either — the text gets the width it asks for and
+      takes the height it wants. It is the worst thing in that frame and it is on the
+      control that selects WHICH COMPOUND is being dosed.
+      Found by shooting a screen nobody had ever captured at large text.
+
+- [ ] **`Steroid Dosage`'s screen title truncates to `Steroid Dos…` at AX5.**
+      `IB2245752`. §5.7 bans this outright — never accept silent clipping on a title, a
+      value or a unit. Probably the screen-header rule (`DESIGN-PARITY §9`).
+
+- [ ] **`Oxan-drolone`, hyphenated mid-word.** `IB2245752`. Same family as
+      `Semaglu-tide` on Tools (`IB2245747`), so this is one shared cause rather than two
+      screen-specific bugs — worth fixing once.
+
 - [ ] **`Steroid Dosage` shears `field_mgWeek` at AX5.** See above. The bar is at its
       floor and cannot move; this needs the form to stop leaving a control across the
       plate edge, or the plate edge to stop being opaque to it. Open, and carried as a

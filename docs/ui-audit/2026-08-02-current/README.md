@@ -49,6 +49,7 @@ side reading the table against a checkout.
 | IB2245746 | `09-dashboard-ax5-IB2245746.png` | Dashboard at AX5, greeting capped |
 | IB2245747 | `10-tools-ax5-IB2245747.png` | Tools at AX5 |
 | IB2245748 | `12-calculator-trt-ax5-IB2245748.png` | TRT Dose at AX5 — the first capture of this screen at large text ever taken |
+| IB2245752 | `13-calculator-steroid-ax5-IB2245752.png` | **Steroid Dosage at AX5 — first capture ever.** The BEFORE frame for the sheared dose field, and three defects nobody had seen |
 | IB2245751 | `11-calculator-keyboard-toolbar-IB2245751.png` | TRT Dose, weekly dose focused, keypad up |
 
 ## What changed on 2026-08-02, second pass — taken at `369fbc5`
@@ -101,6 +102,31 @@ because the navy fill is opaque. Filed as **T25** with the evidence.
 - **`IB2245751`** — with the keypad up, `Frequency` is sheared by the plate edge. The
   reachability sweep asserts at rest, where the content area is the whole screen; with
   the keypad up it is a fraction of it. Recorded rather than cropped out.
+
+## IB2245752 — Steroid Dosage at AX5, and it is worse than the finding that prompted it
+
+Shot because the highest-severity open item on the board existed only as coordinates —
+`field_mgWeek` spanning y 636.33…701.33 against a plate top of pt 651.67 — and nobody
+can look at a pair of numbers. The capture **asserts the shear is present before it
+writes the file**, so this frame cannot be a photograph of a screen where the defect is
+absent.
+
+§5.15 held again. This screen had never been captured at large text, and it carries
+three defects beyond the one it was shot for:
+
+1. **The `Compound` picker draws OUTSIDE its own control.** `Oxandrolone (Anavar)` wraps
+   to three lines that overflow the field chrome and render on top of the `Compound`
+   label above it and the `Vial strength` label below. Two strings occupy the same
+   pixels and neither is legible. This is not truncation — nothing is hidden, it is
+   **overlap**, and it is the worst thing in the frame.
+2. **The screen title truncates — `Steroid Dos…`.** §5.7 bans exactly this: never accept
+   silent clipping on a title, a value or a unit.
+3. **`Oxan-drolone`, hyphenated mid-word.** Same family as `Semaglu-tide` on the Tools
+   screen (`IB2245747`), so it is a shared cause rather than two screen-specific bugs.
+4. **The sheared dose field** — the finding this was taken for. `Weekly dose` is cut
+   through its digits by the plate's top edge, and it is the only other input on screen.
+
+One complete input is usable on this screen at AX5, and it is not the dose.
 
 ## Read these first
 

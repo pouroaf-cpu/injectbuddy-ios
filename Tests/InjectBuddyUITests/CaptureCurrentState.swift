@@ -127,7 +127,13 @@ final class CaptureCurrentState: XCTestCase {
         _ = app.wait(for: .runningForeground, timeout: 2)
     }
 
-    private func openTRT() {
+    private func openTRT() { openCalculator(named: "TRT Dose", expecting: "field_mgWeek") }
+
+    /// Any calculator by its row label, asserting the DESTINATION before returning.
+    /// `12-calculator-trt-ax5` was once a genuine photograph of the Tools screen under
+    /// a filename claiming the calculator, because navigation failed and the run
+    /// continued — so arriving is asserted, not assumed.
+    private func openCalculator(named name: String, expecting field: String) {
         tab("Tools")
 
         // Scroll until the row is actually hittable, rather than swiping a fixed
@@ -145,7 +151,7 @@ final class CaptureCurrentState: XCTestCase {
         // off-screen as the same condition: keep scrolling.
         var row: XCUIElement?
         for attempt in 0..<12 {
-            row = app.staticTexts.matching(identifier: "TRT Dose")
+            row = app.staticTexts.matching(identifier: name)
                 .allElementsBoundByIndex
                 .first { $0.isHittable }
             if row != nil { break }
@@ -158,19 +164,19 @@ final class CaptureCurrentState: XCTestCase {
                               + app.scrollViews.allElementsBoundByIndex)
                 .first { $0.isHittable && $0.frame.minX >= 0 }
             guard let list = scrollable else {
-                XCTFail("Nothing scrollable on screen after \(attempt) attempts.")
+                XCTFail("Nothing scrollable on screen after \(attempt) attempts looking for \(name).")
                 return
             }
             list.swipeUp()
         }
 
-        guard let trt = row else {
-            XCTFail("TRT Dose never became hittable after 12 scrolls.")
+        guard let hit = row else {
+            XCTFail("\(name) never became hittable after 12 scrolls.")
             return
         }
-        trt.tap()
-        XCTAssertTrue(app.textFields["field_mgWeek"].waitForExistence(timeout: 8),
-                      "Tapped TRT Dose and did not land on the calculator.")
+        hit.tap()
+        XCTAssertTrue(app.textFields[field].waitForExistence(timeout: 8),
+                      "Tapped \(name) and did not land on it — \(field) never appeared.")
     }
 
     /// Default type size. Numbering matches `2026-08-01-current` so the two sets
@@ -385,6 +391,46 @@ final class CaptureCurrentState: XCTestCase {
                           app.windows.firstMatch.frame.maxY,
                           "Keyboard is off-screen — hardware keyboard attached?")
         shot("11-calculator-keyboard-toolbar.png")
+    }
+
+    /// `Steroid Dosage` at whatever size the device is set to, for the shear that the
+    /// reachability sweep found and nobody has ever seen.
+    ///
+    /// The finding exists only as coordinates — `field_mgWeek` spanning y 636.33…701.33
+    /// against a plate top of 651.67 — and the person who has to decide how much it
+    /// matters cannot read a pair of numbers. §5.15: this screen has never been captured
+    /// at large text, and the last screen that had never been captured at large text
+    /// held the worst finding on the board.
+    ///
+    /// The BEFORE frame is the one that matters. A fix commit with no photograph of what
+    /// it fixed is a claim.
+    ///
+    ///     xcrun simctl ui booted content_size accessibility-extra-extra-extra-large \
+    ///       && TEST_RUNNER_CAPTURE=1 TEST_RUNNER_SIZE_LABEL=ax5 xcodebuild test … \
+    ///          -only-testing:InjectBuddyUITests/CaptureCurrentState/testCaptureSteroidDosage ; \
+    ///     xcrun simctl ui booted content_size large
+    func testCaptureSteroidDosage() {
+        openCalculator(named: "Steroid Dosage", expecting: "field_mgWeek")
+        let size = ProcessInfo.processInfo.environment["SIZE_LABEL"] ?? "unknown"
+
+        // Assert the DEFECT is in the frame before shooting it. A "before" photograph
+        // that does not contain the thing it is evidence of is worse than none — it
+        // reads as proof and disproves nothing, which is the whole §5.24 family. If the
+        // shear is not there, the run fails and no file is written.
+        let plate = app.descendants(matching: .any).matching(identifier: "bar_plate").firstMatch
+        XCTAssertTrue(plate.waitForExistence(timeout: 5), "No bar_plate — cannot locate the edge.")
+        let field = app.textFields["field_mgWeek"]
+        XCTAssertTrue(field.exists, "No field_mgWeek on Steroid Dosage.")
+        let plateTop = plate.frame.minY
+        let f = field.frame
+        XCTAssertTrue(f.minY < plateTop && f.maxY > plateTop,
+                      "field_mgWeek is NOT sheared here (spans \(f.minY)…\(f.maxY), plate top "
+                      + "\(plateTop)) — this frame is not evidence of the finding. Either the "
+                      + "defect is gone, in which case delete its expectedShears entry, or the "
+                      + "rig is not at the size the filename claims.")
+        print("SHEAR field_mgWeek spans \(f.minY)…\(f.maxY), plateTop=\(plateTop)")
+
+        shot("13-calculator-steroid-\(size).png")
     }
 
     /// Set the size from the host first:
