@@ -1,4 +1,4 @@
-# Current state — 2026-08-02, after the type-scale re-baseline
+# Current state — 2026-08-02, after the measured pinning gate
 
 iPhone 16 Pro, iOS 18.3, light, sRGB, unscaled. Numbering matches
 `2026-08-01-current` so the two read side by side. Every frame carries a serial
@@ -28,6 +28,13 @@ The pre-fix evidence frames (`IB2245733`, `IB2245734`) and the whole pre-
 type-scale set are superseded; their rows in `../SCREENSHOT-LOG.md` name the
 commit each file can be retrieved from.
 
+**Serials corrected 2026-08-02.** This table listed `IB2245743` and `IB2245744` for
+the two AX5 frames after those files had been superseded by `IB2245746` and
+`IB2245747`, and it never listed `IB2245748` at all. So the README named serials that
+were not in the folder — the same class of problem as a filename that outlives its
+content, and exactly what the log exists to make detectable. Caught by the directing
+side reading the table against a checkout.
+
 ## Frames
 
 | Serial | File | Screen |
@@ -36,13 +43,64 @@ commit each file can be retrieved from.
 | IB2245737 | `03-calendar-IB2245737.png` | Calendar |
 | IB2245738 | `04-tools-IB2245738.png` | Tools |
 | IB2245739 | `05-add-IB2245739.png` | Add |
-| IB2245740 | `06-calculator-trt-IB2245740.png` | TRT Dose, at rest |
-| IB2245741 | `07-calculator-barrel-row-IB2245741.png` | TRT Dose scrolled — segmented barrel row |
+| IB2245749 | `06-calculator-trt-IB2245749.png` | TRT Dose, at rest — **after the measured pinning gate** |
+| IB2245750 | `07-calculator-barrel-row-IB2245750.png` | TRT Dose scrolled to the end |
 | IB2245742 | `08-logdose-sheet-IB2245742.png` | Log-dose sheet |
 | IB2245746 | `09-dashboard-ax5-IB2245746.png` | Dashboard at AX5, greeting capped |
 | IB2245747 | `10-tools-ax5-IB2245747.png` | Tools at AX5 |
 | IB2245748 | `12-calculator-trt-ax5-IB2245748.png` | TRT Dose at AX5 — the first capture of this screen at large text ever taken |
-| IB2245745 | `11-calculator-keyboard-toolbar-IB2245745.png` | TRT Dose, weekly dose focused, keypad up |
+| IB2245751 | `11-calculator-keyboard-toolbar-IB2245751.png` | TRT Dose, weekly dose focused, keypad up |
+
+## What changed on 2026-08-02, second pass — taken at `369fbc5`
+
+Three frames only, at DEFAULT type size. Dashboard, calendar, tools, add and the log
+sheet are untouched by this work and were not reshot: a reshoot with no change spends
+a serial saying nothing.
+
+**`IB2245749` against the superseded `IB2245740` — the frame that matters.** Same
+screen, same size, same values, so it is comparable by eye and by band profile.
+
+| | IB2245740 | IB2245749 |
+|---|---|---|
+| plate top | pt 456.33 | pt 564.67 |
+| plate height | 334.34pt | 226.00pt |
+| **share of content area** (638.34pt) | **52.40%** | **35.40%** |
+| share of full frame (874pt) | 38.25% | 25.85% |
+| inputs complete without scrolling | 2 of 5 | 4 of 5 |
+| `Frequency` | sheared through its control | whole |
+| plate | `.bar`, #DBDBDB | `.regularMaterial`, #FEFEFE + 1px hairline |
+
+The bar is no longer gated on a Dynamic Type category. It measures four candidate
+states and takes the tallest that fits within 40% of the content area — so the same
+mechanism produces `lead` here and stands the bar down entirely at AX5, where the
+full bar would be 104% of the content area.
+
+### The request the human made was NOT delivered
+
+He asked for **transparent with a light blur, so the bar reads as floating over the
+form rather than as furniture covering it.** What shipped is a **tone change**. The
+grey slab is gone, which fixes the complaint; the blur is not there, because nothing
+of the form renders behind the pinned bar for a material to be translucent over.
+
+Measured: `.ultraThinMaterial` — the most transparent material — sampled **#767676 at
+four different scroll positions, identical**. A material over a moving backdrop cannot
+return the same value four times. The full ladder runs opposite to the names:
+`ultraThin #767676 · thin #D3D3D3 · bar #DBDBDB · regular #FEFEFE · thick #FFFFFF`.
+
+Contrast never failed and is not why: worst composite `#075E56` **7.14–7.59:1**, navy
+eyebrow 14.60–15.65:1, `Add` white-on-navy **15.79:1 exactly** at every position,
+because the navy fill is opaque. Filed as **T25** with the evidence.
+
+### What these frames show that is still wrong
+
+- **`IB2245750`** — `Draw per injection · 0.250 mL` appears **twice** at full display
+  treatment, once in the scroll and once in the pinned bar, about 500px apart. The
+  duplication predates this work but the `lead` rung makes it conspicuous: both copies
+  are now the same single headline figure rather than two differently-sized lists.
+  Open finding.
+- **`IB2245751`** — with the keypad up, `Frequency` is sheared by the plate edge. The
+  reachability sweep asserts at rest, where the content area is the whole screen; with
+  the keypad up it is a fraction of it. Recorded rather than cropped out.
 
 ## Read these first
 
@@ -53,7 +111,7 @@ point size; in `IB2245746` it scales. The second frame is also the open question
 the greeting now takes roughly 40% of the dashboard at AX5. That is Dynamic Type
 working, and it is still worth a decision.
 
-**`IB2245745` — the keyboard toolbar with the keypad actually up.** The focused
+**`IB2245751` — the keyboard toolbar with the keypad actually up.** The focused
 field's quick values and Done sit above the keypad and clear of the pinned result
 bar, and the inline quick row is hidden while that field is being edited. The
 earlier version of this frame was taken with a hardware keyboard attached, so iOS
@@ -74,13 +132,6 @@ scaling at all. Opposite problems.
 - **`01-welcome-launch`** — the welcome screen is the signed-out path. Shooting it
   means signing out, which discards the Keychain session and costs a real Supabase
   sign-in to get back. Nothing on that screen changed today.
-**Serials corrected 2026-08-02.** This table listed `IB2245743` and `IB2245744` for
-the two AX5 frames after those files had been superseded by `IB2245746` and
-`IB2245747`, and it never listed `IB2245748` at all. So the README named serials that
-were not in the folder — the same class of problem as a filename that outlives its
-content, and exactly what the log exists to make detectable. Caught by the directing
-side reading the table against a checkout.
-
 - **`12-calculator-trt-ax5`** — attempted twice, then captured on the third attempt as
   `IB2245748`; the note below is the record of the two failures. At AX5 the
   Tools list needs more scrolling than the harness does to bring the TRT row into

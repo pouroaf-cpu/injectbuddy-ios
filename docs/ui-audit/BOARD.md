@@ -162,6 +162,25 @@ Things a cold session will hit within minutes and not understand:
       committing action, which `D12` requires. The fix is in that screen's layout, not
       in the bar, so it is filed rather than folded in. Listed here as open, below.
 
+- [ ] **The same headline dose figure now renders twice, conspicuously.** `IB2245750`:
+      scrolled to the end of the TRT form, `Draw per injection · 0.250 mL` appears in
+      the in-scroll card AND in the pinned `lead` bar, both at full display treatment,
+      about 500px apart. The duplication predates T20 — the in-scroll card has always
+      rendered unconditionally — but the `lead` rung **made it worse to look at**: the
+      two copies are now the same single headline figure rather than two lists of
+      different lengths. Found by the judgment pass on this session's own change, which
+      is the only reason it is here. Not a divergence risk (one `CalculatorResult`), so
+      it is a product question: whether the pinned copy should suppress itself when the
+      in-scroll card is on screen.
+
+- [ ] **`Frequency` is sheared by the plate edge with the keypad up.** `IB2245751`.
+      The reachability sweep asserts **at rest**, where the content area is the whole
+      screen; with the keypad up it is a fraction of it and the bar is in its `compact`
+      rung. Recorded rather than cropped out of the evidence. Whether the invariant
+      should extend to the keypad-up state is undecided — extending it naively would
+      assert something the keyboard makes unsatisfiable, which is the same trap as
+      asserting the straddle rule at AX5.
+
 - [ ] **`Steroid Dosage` shears `field_mgWeek` at AX5.** See above. The bar is at its
       floor and cannot move; this needs the form to stop leaving a control across the
       plate edge, or the plate edge to stop being opaque to it. Open.

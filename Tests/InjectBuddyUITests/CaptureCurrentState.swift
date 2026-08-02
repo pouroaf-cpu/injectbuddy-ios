@@ -352,6 +352,41 @@ final class CaptureCurrentState: XCTestCase {
         }
     }
 
+    /// The three frames T20/T21 actually changed, at DEFAULT size only.
+    ///
+    /// Deliberately not the whole set. Dashboard, calendar, tools, add and the log
+    /// sheet are untouched by this work, and a reshoot with no change spends a serial
+    /// and a log row saying nothing — which also makes the log harder to read for the
+    /// frames that did move.
+    func testCaptureT20Refresh() {
+        openTRT()
+        let gate = app.descendants(matching: .any).matching(identifier: "bar_gate").firstMatch
+        XCTAssertTrue(gate.exists, "bar_gate probe absent — DEBUG build?")
+        print("GATE \(gate.label)")
+        shot("06-calculator-trt.png")
+
+        let form = app.scrollViews.allElementsBoundByIndex
+            .first { $0.isHittable && $0.frame.minX >= 0 }
+        XCTAssertNotNil(form, "No on-screen scroll view to scroll.")
+        form?.swipeUp()
+        shot("07-calculator-barrel-row.png")
+
+        // Back to the top before focusing, so the keypad frame is comparable with the
+        // one it supersedes rather than being shot at an arbitrary scroll offset.
+        form?.swipeDown()
+        form?.swipeDown()
+        let field = app.textFields["field_mgWeek"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "No weekly dose field.")
+        field.tap()
+        field.typeText("300")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5),
+                      "No keyboard — the frame would not prove anything.")
+        XCTAssertLessThan(app.keyboards.firstMatch.frame.minY,
+                          app.windows.firstMatch.frame.maxY,
+                          "Keyboard is off-screen — hardware keyboard attached?")
+        shot("11-calculator-keyboard-toolbar.png")
+    }
+
     /// Set the size from the host first:
     ///   xcrun simctl ui booted content_size accessibility-extra-extra-extra-large
     func testCaptureAX5Set() {
