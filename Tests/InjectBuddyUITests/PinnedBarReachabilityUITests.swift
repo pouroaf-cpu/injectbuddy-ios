@@ -111,32 +111,59 @@ final class PinnedBarReachabilityUITests: XCTestCase {
         // "at rest" for every control after it, and the straddle check would be
         // reporting on positions no user ever sees.
         var measured: [String] = []
+        var covered: Set<String> = []
         for control in inputControls() {
             guard control.exists else { continue }
             let f = control.frame
             guard f.height > 0 else { continue }
             measured.append(control.identifier)
             let straddles = f.minY < plateTop && f.maxY > plateTop
-            // NOT asserted at accessibility sizes, and the reason is a measurement
-            // rather than convenience. At AX5 the pinned bar is already at its FLOOR —
-            // the gate has stood the result card down entirely and what remains is
-            // `Add` plus the hero clearance, which D12 makes mandatory. A control can
-            // still land across that edge purely because the form is taller than the
-            // viewport, and no gate can move an edge that is already as high as it
-            // goes. Asserting it here would be asserting something unsatisfiable, and
-            // a permanently-red test is one people learn to ignore.
+
+            // NAMED EXPECTED FAILURE, not a narrowed condition.
             //
-            // The AX5 case this found is REAL and is not being hidden by the scoping:
-            // Steroid Dosage shears `field_mgWeek`, a dose field, at AX5. It is filed
-            // as an open finding, because the fix is in that screen's layout and not
-            // in the bar. What still holds at every size is REACHABILITY, below.
-            if !isAccessibilitySize {
+            // The first cut of this simply stopped asserting the straddle rule at
+            // accessibility sizes, because one screen — Steroid Dosage — shears
+            // `field_mgWeek` at AX5 with the bar already at its floor, and a
+            // permanently-red test is one people learn to ignore. That bought silence
+            // on ONE known screen and paid for it with the assertion on EVERY screen at
+            // AX5: including the ten not yet surveyed, at the size every finding this
+            // week came out of, on the half of D12 that says the input must be
+            // reachable too. It was a size gate on the assertion — the exact thing this
+            // task rejected as a gate on the bar, and wrong for the same reason. A size
+            // is a guess at where the problem lives.
+            //
+            // So the debt is NAMED, and asserted FROM BOTH ENDS: a listed case must
+            // still fail, and if it starts passing the run goes red and says to delete
+            // the entry. A narrowed check stays narrow forever and nobody remembers
+            // why; a listed one has to shrink. A filed finding plus a green suite still
+            // reads as green — the list puts the debt where people actually look.
+            if let known = Self.expectedShear(screen: screen,
+                                              control: control.identifier,
+                                              isAccessibilitySize: isAccessibilitySize) {
+                covered.insert(known.key)
+                XCTAssertTrue(straddles,
+                              "\(screen): `\(control.identifier)` NO LONGER shears — it is a known "
+                              + "failure (\(known.finding)) and it is now clean. Delete its entry "
+                              + "from `expectedShears`; a list that outlives its debt is a "
+                              + "narrowed assertion with extra steps.",
+                              file: file, line: line)
+            } else {
                 XCTAssertFalse(straddles,
                                "\(screen): `\(control.identifier)` is sheared by the result bar — "
                                + "control spans y \(f.minY)…\(f.maxY), plate top is \(plateTop). "
                                + "The user sees part of an input they are committing.",
                                file: file, line: line)
             }
+        }
+
+        // An entry naming a control that is not on screen suppresses nothing and hides
+        // that it suppresses nothing.
+        for known in Self.expectedShears
+        where known.screen == screen && known.isAccessibilitySize == isAccessibilitySize {
+            XCTAssertTrue(covered.contains(known.key),
+                          "\(screen): `expectedShears` names `\(known.control)` and nothing on "
+                          + "screen answers to that identifier. The entry is stale.",
+                          file: file, line: line)
         }
 
         // PASS 2 — REACHABILITY, at every size, and this is the half with teeth. D12:
@@ -157,6 +184,42 @@ final class PinnedBarReachabilityUITests: XCTestCase {
                        + "suite just passed by looking at nothing.",
                        file: file, line: line)
         print("REACH \(screen): plateTop=\(plateTop) measured=\(measured.count) \(measured)")
+    }
+
+    // MARK: - Known failures, named rather than narrowed around
+
+    /// One straddle this suite is currently expected to find, with the finding it
+    /// belongs to. Every entry is a debt: it must still fail, and the moment it stops
+    /// failing the run says so.
+    struct ExpectedShear {
+        let screen: String
+        let control: String
+        /// Which size the shear happens at. `Steroid Dosage` is clean at default and
+        /// shears at AX5, so the entry has to name the size or it would suppress a
+        /// default-size regression it knows nothing about.
+        let isAccessibilitySize: Bool
+        let finding: String
+        var key: String { "\(screen)|\(control)|\(isAccessibilitySize)" }
+    }
+
+    /// FOUND BY THIS SUITE, on its first run at AX5. The bar is at its floor there —
+    /// the result card is stood down entirely and what is left is the committing action
+    /// D12 requires — so no pinning gate can lift that edge. The fix belongs to the
+    /// screen's layout, which is why it is a debt and not a bug in the bar.
+    static let expectedShears: [ExpectedShear] = [
+        .init(screen: "Steroid Dosage",
+              control: "field_mgWeek",
+              isAccessibilitySize: true,
+              finding: "BOARD §1 — Steroid Dosage shears field_mgWeek at AX5"),
+    ]
+
+    static func expectedShear(screen: String,
+                              control: String,
+                              isAccessibilitySize: Bool) -> ExpectedShear? {
+        expectedShears.first {
+            $0.screen == screen && $0.control == control
+                && $0.isAccessibilitySize == isAccessibilitySize
+        }
     }
 
     /// Whether the app is rendering at an accessibility type size, read from the app's

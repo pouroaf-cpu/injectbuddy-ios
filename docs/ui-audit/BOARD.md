@@ -153,6 +153,13 @@ Things a cold session will hit within minutes and not understand:
       below renders `0.250 mL` as a small ink secondary row instead of the 7.65:1 teal
       display face. 0.40 is chosen for margin rather than fit — 0.36 would sit 0.6
       points from a measured value and change rung on a font-metric revision.
+      **The cross-check was measured, not conceded.** Keeping the weekly total as one
+      secondary line under the lead figure — the `leadPlusTotal` rung — measures
+      **260.33pt = 40.76%**, over the cap by **4.86pt**. So the trade was forced, not
+      chosen: `lead` is what fits. The rung stays in the ladder because on a screen or a
+      device where it does fit the gate takes it and the cross-check stays pinned, which
+      is the point of measuring rather than ruling. Its branch was driven and observed
+      at `BAR_SHARE_CAP=0.45` rather than left as a path nobody has seen render.
 
 - [x] **A dose field is sheared at AX5 on `Steroid Dosage` — FOUND BY THE NEW
       REACHABILITY SWEEP, on its first run at that size.** `field_mgWeek` spans
@@ -183,7 +190,10 @@ Things a cold session will hit within minutes and not understand:
 
 - [ ] **`Steroid Dosage` shears `field_mgWeek` at AX5.** See above. The bar is at its
       floor and cannot move; this needs the form to stop leaving a control across the
-      plate edge, or the plate edge to stop being opaque to it. Open.
+      plate edge, or the plate edge to stop being opaque to it. Open, and carried as a
+      **named expected failure** in `PinnedBarReachabilityUITests.expectedShears` — so
+      the suite still asserts the rule on every other screen at AX5, and goes red the
+      day this one starts passing. §5.30.
 
 - [ ] **T25 — nothing renders behind the pinned bar, so a translucent plate has
       nothing to be translucent over.** Filed out of T21, and it is a **hypothesis, not
@@ -751,4 +761,37 @@ Parity and chrome
    of different code. Nearly happened. Fixed rather than written down (D8): the
    directory is emptied at run start, and a frame that is not on disk afterwards fails
    the run instead of resolving to whatever is there.
+30. **When an assertion is unsatisfiable, name what makes it unsatisfiable — do not
+   narrow the condition until it passes.** The reachability sweep found a real shear on
+   `Steroid Dosage` at AX5 that no pinning gate can fix, because the bar is already at
+   its floor there. The first response was to stop asserting the straddle rule at
+   accessibility sizes. That bought silence on ONE known screen and paid for it with the
+   assertion on EVERY screen at AX5 — including the ten not yet surveyed, at the size
+   every finding this week came out of. It was a size gate on a test, which is the same
+   mistake as a size gate on the bar and wrong for the same reason: a size is a guess at
+   where the problem lives.
+   The replacement is a NAMED EXPECTED-FAILURE LIST, asserted from both ends: a listed
+   case must still fail, and the run goes red the moment it starts passing, telling you
+   to delete the entry. An entry naming a control that is not on screen fails too, so a
+   stale entry cannot sit there suppressing nothing. Both directions were reproduced
+   before being trusted.
+   The difference is not cosmetic. **A narrowed check stays narrow forever and nobody
+   remembers why; a listed one has to shrink.** And a filed finding plus a green suite
+   still reads as green — the list puts the debt in the place people actually look,
+   which is the run.
+   Corollary, from applying the same rule to the folder check below: scoping by a
+   DOCUMENTED, DATED boundary is legitimate where scoping by "which ones fail" is not.
+   `2026-08-01-current` is exempt because the serial rule starts on 2026-08-02 and says
+   so in writing — and even that exemption is asserted from the other end, so a
+   pre-serial folder that gains serials rejoins the rule instead of falling in a gap.
+31. **A name that outlives its content is the failure mode this project keeps
+   rediscovering, and nothing was checking the names.** The `2026-08-02-current` README
+   listed `IB2245743` and `IB2245744` after those files had been superseded, and never
+   listed `IB2245748` at all — a table naming frames that were not there, and a folder
+   holding a frame the table did not know about. **Neither harness ran that check; a
+   human caught it by reading the table against a checkout.** Now
+   `AuditFolderConsistencyTests` asserts it in BOTH directions, because the failure that
+   happened was one direction and the other is just as reachable. Shown red both ways
+   before being trusted. The whole evidence chain — serial, log row, commit SHA — is
+   worth exactly what the link between a name and a file is worth.
 

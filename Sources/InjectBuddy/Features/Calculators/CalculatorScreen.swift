@@ -204,6 +204,10 @@ struct CalculatorScreen: View {
     enum PinnedMode: String, CaseIterable {
         /// Primary values plus the weekly-total cross-check.
         case full
+        /// The lead figure at full treatment, KEEPING the weekly-total cross-check as a
+        /// single secondary line. Added after `lead` shipped and the trade it makes was
+        /// measured rather than assumed — see `maxPinnedShare`.
+        case leadPlusTotal
         /// The lead figure alone, at full treatment — label above, display face, teal.
         case lead
         /// One small line. The keypad-up form.
@@ -237,7 +241,8 @@ struct CalculatorScreen: View {
         guard pinnedMode != .unpinned else { return [] }
         return Set(ResultCard.rows(for: vm.result,
                                    isPinned: true,
-                                   leadOnly: pinnedMode == .lead,
+                                   leadOnly: pinnedMode == .lead || pinnedMode == .leadPlusTotal,
+                                   withTotal: pinnedMode == .leadPlusTotal,
                                    isCompact: pinnedMode == .compact).map(\.label))
     }
 
@@ -421,11 +426,18 @@ struct CalculatorScreen: View {
             case .full:
                 // The primary values plus the weekly-total cross-check.
                 ResultCard(result: vm.result, isPinned: true, barrelMl: barrelMl)
+            case .leadPlusTotal:
+                // The lead figure at full treatment WITH the weekly total under it.
+                // This rung exists because the rung below gives up the cross-check, and
+                // whether that was necessary turned out to be a measurement nobody had
+                // taken.
+                ResultCard(result: vm.result, isPinned: true,
+                           leadOnly: true, withTotal: true, barrelMl: barrelMl)
             case .lead:
-                // The lead figure, still at full treatment. What is given up is the
-                // weekly total — the cross-check that confirms the app understood the
-                // dose you typed — and the secondary values. Both are one scroll away
-                // in the in-scroll card, which renders every row unconditionally.
+                // The lead figure alone. What is given up is the weekly total — the
+                // cross-check that confirms the app understood the dose you typed — and
+                // the secondary values. Both are one scroll away in the in-scroll card,
+                // which renders every row unconditionally.
                 ResultCard(result: vm.result, isPinned: true, leadOnly: true, barrelMl: barrelMl)
             case .compact:
                 // One line — label + value + unit, still unable to truncate. This is
@@ -580,6 +592,8 @@ private struct ResultCard: View {
     /// display face, so the number the user acts on keeps its size and its 7.65:1
     /// teal. This is the rung between `full` and the one-line `isCompact` form.
     var leadOnly: Bool = false
+    /// With `leadOnly`, keeps the weekly-total cross-check as one secondary line.
+    var withTotal: Bool = false
     var barrelMl: Double?
 
     /// You cannot draw 1.2 mL into a 1 mL barrel. Surfaced as an icon PLUS text —
@@ -587,7 +601,8 @@ private struct ResultCard: View {
     /// of all one that says the dose does not physically fit the syringe.
     /// Rows the pinned bar keeps: every emphasised value, plus the weekly total.
     private var visibleRows: [ResultRow] {
-        Self.rows(for: result, isPinned: isPinned, leadOnly: leadOnly, isCompact: isCompact)
+        Self.rows(for: result, isPinned: isPinned, leadOnly: leadOnly,
+                  withTotal: withTotal, isCompact: isCompact)
     }
 
     /// Which rows a given instance shows. STATIC, and used by the screen as well as
@@ -595,13 +610,19 @@ private struct ResultCard: View {
     /// currently displaying in order to hand out identifiers (see `identifier(for:)`)
     /// — and two copies of this rule would drift the moment a rung was added.
     static func rows(for result: CalculatorResult,
-                     isPinned: Bool, leadOnly: Bool, isCompact: Bool) -> [ResultRow] {
+                     isPinned: Bool, leadOnly: Bool, withTotal: Bool = false,
+                     isCompact: Bool) -> [ResultRow] {
         guard isPinned else { return result.rows }
         // The lead and compact rungs keep ONE row: the first emphasised figure. Not
         // "the first row" — an unemphasised row leading the list would put a
         // restatement of the inputs where the dose belongs.
         if leadOnly || isCompact {
-            return result.rows.first(where: { $0.emphasis }).map { [$0] } ?? []
+            guard let lead = result.rows.first(where: { $0.emphasis }) else { return [] }
+            guard withTotal else { return [lead] }
+            let total = result.rows.first {
+                !$0.emphasis && $0.label.lowercased().contains("weekly total")
+            }
+            return [lead] + (total.map { [$0] } ?? [])
         }
         return result.rows.filter {
             $0.emphasis || $0.label.lowercased().contains("weekly total")
@@ -682,18 +703,41 @@ private struct ResultCard: View {
                     if let note = capacityNote { CapacityWarning(text: note) }
                 }
             } else if result.isValid {
-                // PINNED: the primary values plus the weekly total. The total is the
-                // CROSS-CHECK, not a derived nicety — the user typed "400 mg/week"
-                // and this is how they confirm the app understood them. Hiding the
-                // figure that closes that loop to save vertical space is the wrong
-                // trade in a dosing app.
+                // PINNED, `full` rung: the primary values plus the weekly total.
+                //
+                // The total is the CROSS-CHECK, not a derived nicety — the user typed
+                // "400 mg/week" and this is how they confirm the app understood them.
+                //
+                // WHAT THIS COMMENT USED TO SAY, and it was true when written:
+                // *"hiding the figure that closes that loop to save vertical space is
+                // the wrong trade in a dosing app."* That is no longer what the app
+                // does, and leaving the sentence standing would have been finding T18
+                // exactly — a comment asserting the opposite of the code, correct when
+                // written, wrong now, and load-bearing for whoever reads it next.
+                //
+                // What is true now: the pinned bar SURRENDERS the total above the
+                // measured cap. At default size on the TRT calculator the gate selects
+                // `lead`, which carries the draw figure alone, so this branch is not
+                // what renders there.
+                //
+                // The trade was MEASURED, not assumed, because it is the kind of thing
+                // that gets rationalised. Keeping the total as one secondary line —
+                // the `leadPlusTotal` rung — measures 260.33pt against a 638.67pt
+                // content area: **40.76%, over the 0.40 cap by 4.86pt.** So it does not
+                // fit, and the rung exists anyway because on a screen or a device where
+                // it does fit the gate takes it and the cross-check stays pinned. That
+                // is the point of a ladder: the room decides, not a rule about rows.
+                //
+                // Where the total goes when it is surrendered: the in-scroll card,
+                // which renders every row unconditionally, and which is now genuinely
+                // reachable — four of five inputs fit above the bar at default, so the
+                // scroll that reaches it is an ordinary gesture rather than the
+                // theoretical one it was when the bar owned 52% of the screen.
                 //
                 // The rest — dose per injection, injections/week, volume verdict —
                 // moves into the scroll. They restate the inputs, and the verdict
                 // already has a louder channel: the over-capacity warning fires with
-                // icon and text when it actually matters. Nothing is lost, only
-                // relocated, and default now behaves like AX5 rather than inventing
-                // a third mode.
+                // icon and text when it actually matters.
                 ForEach(visibleRows) { row in
                     if row.emphasis {
                         PrimaryResultRow(label: row.label, value: row.value,
