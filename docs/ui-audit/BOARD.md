@@ -170,6 +170,50 @@ Things a cold session will hit within minutes and not understand:
       Two more call sites are OUTSIDE this control and need checking separately:
       `CyclePlotterScreen` renders two `.menu` pickers of its own without `fieldChrome`.
 
+- [ ] **A NEW CHECK, AND IT IS CURRENTLY RED: no two content leaves may share pixels.**
+      `LeafOverlapUITests`. Overlap is the fourth mechanism in the F1 family and the
+      first one **no existing check could see** — nothing truncates and nothing clips, so
+      the ratio sweep, T19's renderer probe and the reachability sweep are all blind by
+      construction. The invariant names no mechanism: two frames sharing pixels.
+      **Leaves, not siblings.** The sibling formulation was specified and would have gone
+      GREEN on the frame it was written for: on `IB2245752` the two strings that collide
+      are `Oxandrolone (Anavar)` (a child of the picker button) and `Compound` (the
+      button's sibling) — an uncle and a nephew. Leaves get it for free, and a container
+      is never a leaf so a child drawn inside its own parent is not a violation.
+      **Shown red on the target defect** — `Compound` × `Oxandrolone (Anavar)`, sharing
+      148.6 × 49.3pt — before being trusted anywhere.
+      **STATE: AX5 green with 8 named debts; DEFAULT still red.** Not claimed as green.
+      What it has found so far, each a real defect:
+      | where | pair | size |
+      |---|---|---|
+      | Steroid Dosage | `Compound` × `Oxandrolone (Anavar)` | AX5 |
+      | Steroid Dosage | `Oxandrolone (Anavar)` × `Vial strength` | AX5 |
+      | TRT Dose | `Ester` × `Testosterone Enanthate` | AX5 |
+      | TRT Dose | `2×/week` × tab bar | AX5 |
+      | TRT Dose | `2×/week` × hero glyph | AX5 |
+      | Reconstitution | `result_Add bac water` × tab bar | AX5 |
+      | Reconstitution | `result_Add bac water` × hero glyph | AX5 |
+      | Reconstitution | `Add bac water` × hero glyph | AX5 |
+      | **all three** | `Maths only — not medical advice.` × hero glyph | **default** |
+      | Reconstitution | `result_Units (U-100)` × tab bar | **default** |
+      Two of those are at DEFAULT size and neither was on the board — §5.22 again, the
+      default frames are the half nobody looks at.
+
+- [ ] **The raised hero covers the tail of the disclaimer on every calculator, at
+      DEFAULT size.** `Maths only — not medical advice.` runs to x 191.3 and the hero
+      circle starts at x 172.0 — the last ~19pt of the sentence is behind it. Found by
+      the overlap check, at the size everyone looks at, on every calculator.
+
+- [ ] **Content draws into the tab bar and past the bottom of the display at AX5.**
+      A picker value on TRT and a result row on Reconstitution both reach into the tab
+      bar; `Testosterone Enanthate` extends to y 915 on an 874pt display. `heroOverhang`
+      is 22pt and reserves for the circle, not for this.
+
+- [ ] **The hero glyph is IN THE ACCESSIBILITY TREE despite `accessibilityHidden(true)`.**
+      `Image 'syringe'` appears as a leaf at (172, 762, 58, 58) in every calculator's
+      tree. §5.6 records the hero as swept and carrying the flag; the tree says
+      otherwise. Not yet diagnosed — it may be a second glyph rather than the circle's.
+
 - [ ] **`Steroid Dosage`'s screen title truncates to `Steroid Dos…` at AX5.**
       `IB2245752`. §5.7 bans this outright — never accept silent clipping on a title, a
       value or a unit. Probably resolves with the screen-header rule

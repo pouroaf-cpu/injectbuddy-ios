@@ -964,6 +964,21 @@ private struct FieldRow: View {
             }
             .pickerStyle(.menu)
             .tint(Theme.tealTextStrong)
+            // OPEN DEFECT: this control's selected value DRAWS OUTSIDE ITS OWN CHROME
+            // at large text and lands on the label above it. Measured on IB2245752 —
+            // `Oxandrolone (Anavar)` occupies {{83.3, 192.7}, {193.0, 183.3}} inside a
+            // button of {{15.5, 245.5}, {371.3, 78.3}}, overlapping `Compound` by
+            // 148.6 x 49.3pt. App-wide: 12 picker fields across 8 calculators render
+            // through here. See BOARD §1 and `LeafOverlapUITests`.
+            //
+            // RULED OUT, and recorded rather than banked: adding
+            // `.fixedSize(horizontal: false, vertical: true)` here — the obvious "let it
+            // grow" fix — changed the geometry by NOTHING. Re-measured after the change:
+            // the same 193.0 x 183.3 text in the same 371.3 x 78.3 button, identical to
+            // the byte. `.pickerStyle(.menu)` does not let its label's multiline height
+            // reach the control's frame, so the growth has to come from replacing the
+            // style with a `Menu` whose label we lay out ourselves. That is a change to
+            // a control on 12 call sites and it gets its own pass, not a rushed one.
             .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
             .padding(.horizontal, Theme.Spacing.md)
             .fieldChrome()
@@ -985,6 +1000,21 @@ private struct FieldRow: View {
             }
             .pickerStyle(.menu)
             .tint(Theme.tealTextStrong)
+            // OPEN DEFECT: this control's selected value DRAWS OUTSIDE ITS OWN CHROME
+            // at large text and lands on the label above it. Measured on IB2245752 —
+            // `Oxandrolone (Anavar)` occupies {{83.3, 192.7}, {193.0, 183.3}} inside a
+            // button of {{15.5, 245.5}, {371.3, 78.3}}, overlapping `Compound` by
+            // 148.6 x 49.3pt. App-wide: 12 picker fields across 8 calculators render
+            // through here. See BOARD §1 and `LeafOverlapUITests`.
+            //
+            // RULED OUT, and recorded rather than banked: adding
+            // `.fixedSize(horizontal: false, vertical: true)` here — the obvious "let it
+            // grow" fix — changed the geometry by NOTHING. Re-measured after the change:
+            // the same 193.0 x 183.3 text in the same 371.3 x 78.3 button, identical to
+            // the byte. `.pickerStyle(.menu)` does not let its label's multiline height
+            // reach the control's frame, so the growth has to come from replacing the
+            // style with a `Menu` whose label we lay out ourselves. That is a change to
+            // a control on 12 call sites and it gets its own pass, not a rushed one.
             .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
             .padding(.horizontal, Theme.Spacing.md)
             .fieldChrome()
