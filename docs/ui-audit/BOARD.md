@@ -144,8 +144,15 @@ Things a cold session will hit within minutes and not understand:
       result rows against the plate** — the reachability sweep reads `field_*` and
       `control_*` only. Same aim gap as the item above, so they are likely one fix.
 
-- [ ] **SAFETY / DATA — `Add` WRITES A PROTOCOL ROW FROM A CALCULATOR THAT COMPUTES NO
-      DOSE. Driven, not inferred.** `IB2245771`, `IB2245772`. `canSaveProtocol` is
+- [ ] ~~**SAFETY / DATA — `Add` WRITES A PROTOCOL ROW FROM A CALCULATOR THAT COMPUTES NO
+      DOSE.**~~ **THE WRITE IS CLOSED — see §3.** Kept here in full because the DISPLAY
+      half is still open and is a different finding: `savedDosages()` filters on neither
+      `status` nor `is_active`, 71 of 102 production rows are `draft`, and 24 of 39
+      users have nothing active at all. Gating the CTA stops new rows of this kind being
+      created; it does nothing about the rows already on people's screens. Do not read
+      the tick in §3 as covering both ends.
+      The original filing, unedited:
+      `IB2245771`, `IB2245772`. `canSaveProtocol` is
       **false** for `bmi`, `freeTestIndex` and `cyclePlotter`, and its own comment says
       the flag exists so such a calculator does not "walk the user into a wall at the
       last step". `AddScreen` honours it. **`CalculatorScreen` never references it** —
@@ -190,7 +197,26 @@ Things a cold session will hit within minutes and not understand:
       (16 actions on an 874pt display), and offers all three non-saving calculators
       under a title promising a protocol. Frame: `IB2245775`.
 
-- [ ] **A PRIMARY CTA REPORTS ITSELF AS NOT HITTABLE, on screen and unobstructed.**
+- [ ] ~~**A PRIMARY CTA REPORTS ITSELF AS NOT HITTABLE, on screen and unobstructed.**~~
+      **RESOLVED — see §3.** The cause was the `bar_plate` measurement probe attached as
+      `.overlay` instead of `.background`, sitting on the CTA in the accessibility tree.
+      Two things in the filing below are now known to be WRONG, and both are worth
+      keeping visible rather than editing away:
+      **(1) IT WAS NEVER A BMI FINDING.** Filed as measured on BMI because BMI was the
+      screen being driven. It was true on TRT Dose, Reconstitution and Steroid Dosage
+      too — every calculator, since they all render the one shared `resultBar`. §5.37
+      exactly: the sentence stated the scope of the sample.
+      **(2) THE CLAIM THAT D12 "WOULD GO RED ON BMI TODAY, AND DOES NOT ONLY BECAUSE OF
+      THE AIM" WAS FALSE.** `assertReachable` resolved `Add` by LABEL, and the bottom
+      tab bar has an `Add` slot with the same label; its `first { $0.isHittable }`
+      picked the tab item, which is always enabled and always hittable. So on all three
+      screens it already covers, the assertion was measuring the tab bar and going
+      green. Widening the aim to fifteen screens would have widened a check that was
+      looking at the wrong element — fifteen green results about the tab bar. The CTA
+      now carries `cta_add` and is addressed by identifier, counted rather than
+      `firstMatch`ed. **This is the eighth check found reporting success while observing
+      nothing, and the first one found by fixing a different bug.** See §5.38.
+      The original filing, unedited:
       Measured on `BMI` while driving the `Add` write: the button reports
       `enabled=true` and **`hittable=false`** at `(16, 687, 370, 72)` — wholly on
       screen, above the tab bar (top y 792), below the hero (y 762 is inside its own
@@ -718,6 +744,62 @@ Four things sit outside it.
 ## 3. Closed — with the evidence that closed it
 
 Safety and accessibility
+- [x] **SAFETY / DATA — `Add` no longer writes a protocol row from a calculator that
+      computes no dose.** `CalculatorScreen`'s CTA is gated on
+      `slug.canSaveProtocol && vm.result.isValid && network.isOnline`. One condition
+      added; the flag and `AddScreen`'s use of it were already there.
+      **CLOSED BY A MEASUREMENT, AND THE MEASUREMENT WAS WATCHED FAILING FIRST.**
+      `CalculatorWiringUITests.testAddCTA_isGatedOnCanSaveProtocol`, run against the
+      tree *before* the gate, reported both offenders by name and by frame:
+      `BMI: Add is ENABLED … (frame (16.0, 687.0, 370.0, 72.0))` and
+      `Free T Index: Add is ENABLED … (frame (16.0, 687.0, 370.0, 72.0))`.
+      With the gate: `Executed 5 tests, with 0 failures`.
+      **AIMED AT** (§5.33): the two non-saving calculators that are `CalculatorScreen`s
+      and reachable from Tools, plus `TRT Dose` as the other end. It does NOT cover
+      `Cycle Plotter` — the third `canSaveProtocol == false` slug — which routes to
+      `CyclePlotterScreen`, renders no `cta_add` at all, and is absent from Tools
+      anyway (open finding above). Excluded with the reason stated, not silently.
+      **BOTH ENDS** (§5.30): the `TRT Dose` leg asserts the CTA is still ENABLED, and it
+      passed in the same run as the two reds. A gate on a CTA that is only asserted from
+      the dead side passes just as happily with every CTA in the app dead.
+      `save(backend:)` has exactly one caller — this button's closure — so disabling the
+      control closes the write rather than hiding it.
+      NOT CLOSED BY THIS: the row-display half. `savedDosages()` still filters on
+      neither `status` nor `is_active`, and 71 of 102 production rows are `draft`. One
+      end wrote rows that should not exist; the other still displays rows that were
+      never started. This closes the write only.
+- [x] **A PRIMARY CTA REPORTED ITSELF NOT HITTABLE — cause found, and it was the
+      measurement probe.** The `bar_plate` element existed so D12 could read the plate's
+      rendered top edge. It was attached as **`.overlay`**, so a `Color.clear` carrying
+      `.accessibilityElement()` sat ON TOP of the whole result bar — including the `Add`
+      button inside it. The accessibility layer therefore reported the primary CTA of
+      **every calculator** as `hittable=false`, and `AXScrollToVisible` failed with
+      `kAXErrorCannotComplete`. Changed to **`.background`**, which is proposed the same
+      size and does not sit over the control.
+      **THE CONTROLLED COMPARISON, one variable, both directions:**
+      | probe | `bar_plate` frame | `Add` hittable |
+      |---|---|---|
+      | `.overlay` | `(0.0, 564.6666666666666, 402.0, 226.33333333333337)` | **no** — 3 of 3 red |
+      | `.background` | `(0.0, 564.6666666666666, 402.0, 226.33333333333337)` | **yes** — 3 of 3 green |
+      The frame the probe exists to publish is byte-identical, so no straddle verdict
+      moves. **`PLATE <screen>: top=… frame=…` is now printed before anything is
+      asserted** — `continueAfterFailure` is false, so the trailing `REACH` line never
+      printed on a failing run and the one number every straddle verdict is measured
+      against was invisible in exactly the runs that needed it.
+      **THIS RESOLVES F-K, and it resolves it as branch (a).** The filing left two
+      possibilities open — the framework is wrong about the button, or it is genuinely
+      occluded. It was neither a lie nor an occlusion: it was **true**, and we put the
+      thing there. It matters for the reason the filing gave — VoiceOver and Switch
+      Control reach that CTA through exactly the layer that was reporting it
+      unreachable.
+      **AIMED AT** (§5.33): `TRT Dose`, `Reconstitution`, `Steroid Dosage` at default
+      size — the three screens D12 opens. The other eleven are not measured by anything
+      yet; `bar_plate` is rendered by the one shared `resultBar`, so the same fix
+      reaches them, but that is an inference and not a measurement. G2 is what tests it.
+      Regression run at default: `Executed 11 tests, with 0 failures` across
+      `CalculatorWiringUITests`, `PinnedBarReachabilityUITests` and `LeafOverlapUITests`
+      — the last included because moving an element between `.overlay` and `.background`
+      changes the accessibility tree that suite measures.
 - [x] **AX5 unit truncation.** `Draw… 0.25…` → `Draw per injection / 0.250 mL`.
       Primary rows stack label-above-value; no value+unit pair carries a
       `lineLimit`. cycle1/04.
@@ -1182,3 +1264,63 @@ Parity and chrome
    failure at opposite ends of the same sentence — F-D was the ratio sweep's aim, and
    D12 aimed at 3 of 15 calculators is the same thing again. A scope nobody wrote down
    is read as "all of it" by the next person, and by you in a week.
+
+38. **A CHECK THAT ADDRESSES A CONTROL BY A STRING THE APP USES TWICE IS MEASURING
+   WHICHEVER ONE IT FOUND, AND CANNOT TELL YOU WHICH.** `PinnedBarReachabilityUITests`
+   asked for `buttons.matching(identifier: "Add").first { $0.isHittable }`, with
+   `?? buttons["Add"]` behind it. **The bottom tab bar has an `Add` slot with the same
+   label.** So the query had two answers on every calculator, and the selector it used
+   to choose — "the hittable one" — is the very property being asserted. On any screen
+   where the real CTA was not hittable, which is the entire finding the assertion
+   exists to catch, it selected the TAB ITEM and went green. Three screens, both
+   assertions, silently satisfied by an element from a different view.
+   **This is the eighth check found reporting success while observing nothing, and the
+   first found by accident** — it surfaced only because the CTA was given an identifier
+   for an unrelated reason (gating it on `canSaveProtocol`) and the suite immediately
+   went red on all three screens. Nobody was looking for it.
+   **Three things it costs, in order of how badly:**
+   (a) A fallback (`??`) whose branch is invisible in the result. A run cannot tell you
+       it took it. If the fallback resolves to something plausible, it is not a fallback,
+       it is a second answer with no label.
+   (b) A selector that filters on the property under test. `first { $0.isHittable }`
+       cannot ever report "not hittable"; it reports "no element", or it reports a
+       different element. Never choose the subject of an assertion by the predicate of
+       that assertion.
+   (c) **A plan built on the false negative.** The queue had "widen D12 from 3 screens
+       to 15" ahead of the fixing work, on the reasoning that its hittability assertion
+       "already exists and would go red on BMI today". It would not have. Widening the
+       aim would have produced fifteen green results about a tab bar. **An aim gap and
+       an addressing gap look identical from the outside — both present as a check that
+       is green where you expected red — and the remedies are opposite.** Before
+       widening a check's aim, confirm it measures the right element at its current aim.
+   **The remedy is an identifier and a COUNT.** `cta_add`, resolved through the
+   count-first helper that fails by NAMING the duplicates. `firstMatch` and
+   `first { … }` both answer a question you did not ask when the query is ambiguous;
+   only counting tells you the query was ambiguous.
+
+39. **A PROBE ADDED SO SOMETHING COULD BE MEASURED BECAME THE DEFECT IT WAS MEASURING —
+   check where you attached it, not just what it publishes.** `bar_plate` exists so the
+   reachability check can read the plate's rendered top edge instead of trusting the
+   pinning gate's arithmetic, which was the right instinct and is still the right
+   design. It was attached with **`.overlay`**. A `Color.clear` carrying
+   `.accessibilityElement()` therefore sat on top of the whole result bar in the
+   accessibility tree, including the `Add` button inside it, and made the primary CTA of
+   every calculator report `hittable=false`. `.background` publishes a byte-identical
+   frame — `(0.0, 564.6666666666666, 402.0, 226.33333333333337)`, measured both ways —
+   and does not sit over the control.
+   **The general shape: an accessibility probe is not passive.** It is a real element in
+   the tree the harness reads, and — worse — the tree that VoiceOver and Switch Control
+   read. A zero-cost observer that changes what it observes is the oldest trap there is,
+   and here it changed the thing for USERS, not merely for the test. `gateProbe` is the
+   version that got this right by accident (`Color.clear` at 0×0), and it is worth being
+   explicit that it was luck: prefer `.background`, size zero where you can, and when a
+   probe must span a region, ask what it is now standing in front of.
+
+**HOUSEKEEPING, FOUND WHILE ADDING THE ABOVE AND NOT FIXED HERE:** this list contains
+**two different rules numbered 32 and two numbered 33** — an earlier pass at ~L1064/1050
+and the canonical text at ~L1096/1109. `9b7d9b2` landed the full text without removing
+the drafts. §5.NN citations are used across the repo and in the TASKLIST, so a citation
+to §5.32 is currently ambiguous. Deliberately not silently reorganised mid-item; it is
+§5.31 pointed at the rules list for the second time, and the check the TASKLIST already
+proposes — assert every §5.NN cited anywhere in the repo exists exactly once in
+`BOARD.md` — would catch this as well as the missing-text case it was designed for.

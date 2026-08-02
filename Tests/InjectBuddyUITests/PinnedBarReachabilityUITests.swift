@@ -84,12 +84,37 @@ final class PinnedBarReachabilityUITests: XCTestCase {
                       "No bar_plate on \(screen) — cannot locate the plate's top edge.",
                       file: file, line: line)
         let plateTop = plate.frame.minY
+        // Printed BEFORE anything is asserted, because `continueAfterFailure` is false
+        // and the trailing `REACH` line never prints on a failing run — so the one
+        // number every straddle verdict is measured against was invisible in exactly
+        // the runs where you need it. It is also how the `bar_plate` probe's move from
+        // `.overlay` to `.background` was shown not to move the plate: 564.6666666666666
+        // on all three screens, before and after.
+        print("PLATE \(screen): top=\(plateTop) frame=\(plate.frame)")
 
         // 1. THE COMMITTING ACTION. `Add` writes a protocol, so "mostly visible" is
         //    not a category — it is either wholly on screen or the screen is offering
         //    a write the user cannot see the whole of.
-        let add = app.buttons.matching(identifier: "Add").allElementsBoundByIndex
-            .first { $0.isHittable } ?? app.buttons["Add"]
+        //
+        //    ADDRESSED BY IDENTIFIER, NOT BY LABEL. This used to read
+        //    `buttons.matching(identifier: "Add").first { $0.isHittable }` with
+        //    `?? buttons["Add"]` behind it, and THE BOTTOM TAB BAR HAS AN `Add` SLOT
+        //    with the same label. Two elements answered; the fallback answered with
+        //    the tab item, which is always enabled and always hittable. So on any
+        //    screen where the real CTA was NOT hittable — the finding this suite
+        //    exists to catch — the assertion would have measured the tab bar and gone
+        //    green. §5.36: a check must be able to observe the condition its output
+        //    asserts. Counted, never `firstMatch`ed, so a duplicate is a named failure.
+        let ctas = app.buttons.matching(identifier: "cta_add").allElementsBoundByIndex
+        guard ctas.count == 1 else {
+            XCTFail("\(screen): `cta_add` should address exactly one button, found "
+                    + "\(ctas.count): "
+                    + ctas.map { "enabled=\($0.isEnabled) frame=\($0.frame)" }
+                        .joined(separator: " | "),
+                    file: file, line: line)
+            return
+        }
+        let add = ctas[0]
         XCTAssertTrue(add.exists, "No Add button on \(screen).", file: file, line: line)
         let window = app.windows.firstMatch.frame
         XCTAssertTrue(window.contains(add.frame),
@@ -98,6 +123,16 @@ final class PinnedBarReachabilityUITests: XCTestCase {
         XCTAssertTrue(add.isHittable,
                       "\(screen): Add is on screen but not hittable — something is over it.",
                       file: file, line: line)
+
+        // NOTE FOR THE WIDENING (G2). All three screens this suite currently opens can
+        // save a protocol, so `Add` is enabled on every one of them and `isHittable` is
+        // the right question. `BMI` and `Free T Index` CANNOT save, and their CTA is now
+        // deliberately disabled — a disabled control is not hittable, so widening this
+        // suite to all fourteen without splitting the invariant will fail those two for
+        // a reason that is the FIX rather than the defect. The invariant on a
+        // non-saving calculator is "the committing action is wholly on screen and
+        // NOT ENABLED"; on a saving one it is "wholly on screen and hittable". Split it
+        // there, do not relax it here.
 
         // 2. NO INPUT STRADDLES THE PLATE. Straddling is the defect the T20 finding
         //    names: `Frequency` cut through the middle of its control, `Weekly dose`

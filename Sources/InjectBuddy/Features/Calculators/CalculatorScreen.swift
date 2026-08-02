@@ -365,7 +365,19 @@ struct CalculatorScreen: View {
             // deriving it as "tab bar top minus whichever candidate height the gate
             // chose" would be asserting against the gate's own arithmetic — the proxy
             // checking itself. This is the rendered frame.
-            .overlay {
+            //
+            // `.background`, NOT `.overlay`, AND THAT IS THE WHOLE OF FINDING F-K.
+            // As an overlay this `Color.clear` was an accessibility element laid ON TOP
+            // of the entire bar — including the `Add` button inside it — so the
+            // accessibility layer reported the primary CTA of every calculator as
+            // `hittable=false`, and `AXScrollToVisible` on it failed with
+            // `kAXErrorCannotComplete`. That is not a cosmetic complaint: VoiceOver and
+            // Switch Control reach that button through exactly the layer that was
+            // reporting it unreachable.
+            // A background is proposed the same size, so `bar_plate.frame` — the only
+            // thing this probe exists to publish — is byte-identical, and it no longer
+            // sits over the control.
+            .background {
                 Color.clear
                     .accessibilityElement()
                     .accessibilityIdentifier("bar_plate")
@@ -461,10 +473,26 @@ struct CalculatorScreen: View {
             // Offline gates the SAVE only — never the maths. Evaluation is pure and
             // local, so the inputs and the result card stay fully live with no
             // connection; it's only persisting the protocol that needs the backend.
+            //
+            // `slug.canSaveProtocol` IS THE FIRST CONDITION, and it is first because it
+            // is the only one that is a property of the CALCULATOR rather than of this
+            // moment. Without it `Add` was live on `bmi` and `freeTestIndex`, and
+            // pressing it on BMI wrote a `saved_dosages` row from a height and a weight
+            // and pushed `.addConfirm`, which reads "ADDED TO YOUR PROTOCOLS" and asks
+            // for the day the protocol begins "so the calendar and dose reminders line
+            // up". A body measurement was given a start date and wired into a dosing
+            // schedule. Driven on the device, confirmed in the database, row deleted.
+            //
+            // The flag is not new and neither is the intent: its own comment says it
+            // exists so a calculator with no save path does not "walk the user into a
+            // wall at the last step", and `AddScreen` has always filtered on it. The
+            // code that was missing is this reference, on the one screen that owns the
+            // button. `save(backend:)` has exactly one caller — this closure — so
+            // disabling the control does close the write rather than merely hide it.
             PrimaryButton(
                 title: vm.saveState == .saved ? "Added ✓" : "Add",
                 isLoading: vm.saveState == .saving,
-                isEnabled: vm.result.isValid && network.isOnline
+                isEnabled: slug.canSaveProtocol && vm.result.isValid && network.isOnline
             ) {
                 Task {
                     await vm.save(backend: backend)
@@ -473,6 +501,16 @@ struct CalculatorScreen: View {
                     }
                 }
             }
+            // ADDRESSABLE, because until this identifier existed no assertion could
+            // name this button. THE BOTTOM TAB BAR HAS AN `Add` SLOT WITH THE SAME
+            // LABEL, so `buttons["Add"]` on a calculator matches two elements and
+            // resolves to whichever the tree happens to yield — and the tab item is
+            // always enabled and always hittable. Any check reading that one reports
+            // success about a control it never looked at (§5.36). The three hidden bar
+            // candidates carry this identifier too, but they are `.accessibilityHidden`,
+            // so tests resolve it through `unique(_:)` and fail loudly rather than
+            // quietly picking one of four.
+            .accessibilityIdentifier("cta_add")
 
             if !network.isOnline {
                 Text("You're offline — the calculator still works, but adding this as a protocol needs a connection.")

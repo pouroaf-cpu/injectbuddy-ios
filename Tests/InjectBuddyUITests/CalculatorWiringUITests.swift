@@ -94,6 +94,65 @@ final class CalculatorWiringUITests: XCTestCase {
                       "Sign-in did not reach the app.")
     }
 
+    /// Any calculator by row label, asserting arrival on the NAVIGATION BAR TITLE.
+    ///
+    /// `openTRTCalculator` taps the first hittable row and concludes nothing about
+    /// where it landed. That is survivable while every test in this file is about one
+    /// screen's fields; it is not survivable for a test whose whole subject is WHICH
+    /// calculator is on screen. Measuring the wrong screen is quieter than
+    /// photographing one — the run goes green about a screen nobody asked about, which
+    /// is how a capture of the Tools list once shipped under a calculator's filename.
+    /// The title is the screen's own identity and every route publishes it.
+    private func openCalculator(named name: String) {
+        // Pop back to the Tools ROOT first. Tapping the tab while pushed onto a
+        // calculator does not necessarily unwind it, and the second screen in a loop
+        // would then be looked for on the first screen.
+        let back = app.navigationBars.buttons.matching(identifier: "Tools").firstMatch
+        if back.exists && back.isHittable { back.tap() }
+
+        // The LOWEST hittable `Tools` — the tab item. The Tools list itself carries a
+        // row with the same label once the drawer is in the tree.
+        let tabs = app.buttons.matching(identifier: "Tools")
+        XCTAssertTrue(tabs.firstMatch.waitForExistence(timeout: 8), "No Tools tab.")
+        tabs.allElementsBoundByIndex.filter { $0.isHittable }
+            .max { $0.frame.midY < $1.frame.midY }?.tap()
+
+        // Return the list to the top, or the row found on the previous iteration's
+        // scroll position decides what this one can reach.
+        if let list = (app.collectionViews.allElementsBoundByIndex
+                       + app.tables.allElementsBoundByIndex
+                       + app.scrollViews.allElementsBoundByIndex)
+            .first(where: { $0.isHittable && $0.frame.minX >= 0 }) {
+            for _ in 0..<8 { list.swipeDown(velocity: XCUIGestureVelocity(rawValue: 500)) }
+        }
+
+        // Do NOT wait for existence first: the list is lazy, so a row two swipes away
+        // reports "does not exist" while being perfectly reachable. Re-query in the
+        // loop and treat absent and present-but-off-screen as the same condition.
+        var row: XCUIElement?
+        for attempt in 0..<12 {
+            row = app.staticTexts.matching(identifier: name).allElementsBoundByIndex
+                .first { $0.isHittable }
+            if row != nil { break }
+            guard let list = (app.collectionViews.allElementsBoundByIndex
+                              + app.tables.allElementsBoundByIndex
+                              + app.scrollViews.allElementsBoundByIndex)
+                .first(where: { $0.isHittable && $0.frame.minX >= 0 }) else {
+                return XCTFail("Nothing scrollable after \(attempt) attempts looking for \(name).")
+            }
+            list.swipeUp()
+        }
+        guard let hit = row else {
+            return XCTFail("\(name) never became hittable after 12 scrolls.")
+        }
+        hit.tap()
+        XCTAssertTrue(app.navigationBars[name].waitForExistence(timeout: 8),
+                      "Tapped `\(name)` and did not land on it — no navigation bar titled "
+                      + "`\(name)`. Present instead: "
+                      + app.navigationBars.allElementsBoundByIndex
+                          .map(\.identifier).joined(separator: ", "))
+    }
+
     private func openTRTCalculator() {
         app.buttons["Tools"].tap()
 
@@ -246,6 +305,74 @@ final class CalculatorWiringUITests: XCTestCase {
         let weeklyTotal = unique("result_Weekly total")
         XCTAssertEqual(weeklyTotal.label, "400.0 mg",
                        "Result disagrees with the field after chip-following-type.")
+    }
+
+    /// PROVES: the calculator's `Add` is gated on `canSaveProtocol` — dead on the
+    /// calculators that cannot produce a protocol, live on the ones that can.
+    ///
+    /// THE DEFECT THIS IS AIMED AT is a WRITE, not a layout: on `BMI` the button
+    /// wrote a `saved_dosages` row from a height and a weight and advanced to a screen
+    /// reading "ADDED TO YOUR PROTOCOLS", asking the user to confirm the day the
+    /// protocol begins "so the calendar and dose reminders line up". Driven, and the
+    /// row deleted afterwards. `canSaveProtocol` already existed and `AddScreen`
+    /// already honoured it; the missing code was on this screen.
+    ///
+    /// SHOWN RED BEFORE IT WAS TRUSTED (§5.24): run against the commit before the
+    /// gate, this reports `BMI`, `Free T Index` — the two calculators whose CTA was
+    /// enabled — and passes on the third leg. The red half and the green half were
+    /// watched in the same run, which is the only version of this that is evidence.
+    ///
+    /// BOTH ENDS (§5.30), and the second end is the whole reason this is not a
+    /// one-liner. A gate on a CTA is exactly the change that quietly disables a button
+    /// somewhere it should still work, and a test that only asserts "dead on BMI"
+    /// passes just as happily with the CTA dead on all fifteen.
+    ///
+    /// FAILURES ARE COLLECTED, not thrown at the first screen. `continueAfterFailure`
+    /// is false in this suite, so asserting inline would stop at `BMI` and say nothing
+    /// about `Free T Index` — the same "a loop that fails on the third calculator stops
+    /// measuring the rest" problem that decided D12's shape. The point is to learn the
+    /// state of every screen in ONE run.
+    func testAddCTA_isGatedOnCanSaveProtocol() {
+        var wrong: [String] = []
+
+        // The three slugs with `canSaveProtocol == false` are bmi, freeTestIndex and
+        // cyclePlotter. `Cycle Plotter` is EXCLUDED WITH ITS REASON RATHER THAN
+        // SILENTLY: it is not a `CalculatorScreen` at all — it routes to
+        // `CyclePlotterScreen`, which renders no `cta_add` — and it is also absent from
+        // the Tools list entirely (BOARD §1), so this helper could not reach it anyway.
+        for name in ["BMI", "Free T Index"] {
+            openCalculator(named: name)
+            let cta = unique("cta_add")
+            guard cta.exists else {
+                wrong.append("\(name): no cta_add at all")
+                continue
+            }
+            if cta.isEnabled {
+                wrong.append("\(name): Add is ENABLED on a calculator that cannot save "
+                             + "a protocol — pressing it writes a saved_dosages row "
+                             + "(frame \(cta.frame))")
+            }
+        }
+
+        // THE OTHER END. TRT can save, so its CTA must be live — with a valid result
+        // under it, which is why the chip is tapped first: `isEnabled` is
+        // `canSaveProtocol && result.isValid && isOnline`, and asserting on a screen
+        // whose defaults might not produce a result would go red for a reason that has
+        // nothing to do with the gate.
+        openCalculator(named: "TRT Dose")
+        app.buttons["quick_mgWeek_300"].tap()
+        XCTAssertEqual(app.textFields["field_mgWeek"].value as? String, "300",
+                       "Precondition failed: the chip did not set the field, so what "
+                       + "follows would be measuring the wrong state (§5.35).")
+        let trtCTA = unique("cta_add")
+        if !trtCTA.isEnabled {
+            wrong.append("TRT Dose: Add is DISABLED on a calculator that CAN save. "
+                         + "The gate has been applied too widely.")
+        }
+
+        XCTAssertTrue(wrong.isEmpty,
+                      "The Add CTA does not honour `canSaveProtocol`:\n  "
+                      + wrong.joined(separator: "\n  "))
     }
 
     /// PROVES THE INVARIANT: the field never displays a number the engine did not
