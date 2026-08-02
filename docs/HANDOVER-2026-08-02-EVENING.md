@@ -5,7 +5,7 @@ across 12 call sites in a dosing app, and doing it at the end of a very long ses
 the rushed pass this session already argued against. Its shape is written out below so
 whoever picks it up starts cutting instead of re-deriving.
 
-Branch `feature/tabview-shell`, tip `6eec303`. Everything below is committed and pushed.
+Branch `feature/tabview-shell`, tip `c0f69f3`. Everything below is committed and pushed.
 `BOARD.md` is authoritative; `TASKLIST` on the cross-claude bus is the live queue.
 
 ---
@@ -76,9 +76,18 @@ must be asserted AFTER the swap, on a screen measured before it:**
    at resolution before any assertion runs.
 
 **Pass condition, and it existed before the fix, which is the right order:**
-`LeafOverlapUITests` is already red on `IB2245752` and `IB2245753`. It goes GREEN on
-those two when this lands. Delete the paid-off entries from `expectedOverlaps` — the
-suite fails if you leave them.
+`LeafOverlapUITests` carries the picker overflow as **named AX5 debts** — the pairs from
+`IB2245752` and `IB2245753`:
+
+    Steroid Dosage  Compound × Oxandrolone (Anavar)
+    Steroid Dosage  Oxandrolone (Anavar) × Vial strength
+    TRT Dose        Ester × Testosterone Enanthate
+
+None of the three is marked `isIntermittent`, so **each is asserted to still occur**.
+When the fix lands they stop occurring and the suite goes RED telling you to delete
+them — that is the pass condition firing. Delete those three entries; leave them and the
+suite stays red. The other five AX5 entries are the tab-bar and hero collisions and are
+NOT yours to remove.
 
 **NOT covered, and do not assume otherwise (C8):** `CyclePlotterScreen` renders two
 `.menu` pickers of its own **without** `fieldChrome`. Different chrome, separate call
