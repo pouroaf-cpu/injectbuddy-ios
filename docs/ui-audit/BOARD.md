@@ -124,34 +124,111 @@ Things a cold session will hit within minutes and not understand:
 
 ## 1. Open — assigned
 
-- [ ] **The result bar owns ~52% of the content area at DEFAULT size.** `IB2245740`:
-      it cuts the `Frequency` control mid-element, and `Ester` and `Syringe barrel`
-      are below the fold — a user setting up a TRT protocol sees **two of five
-      inputs** without scrolling, on a standard phone at standard text. Not the
-      safety defect the AX5 version was: every value, unit and result row is
-      complete and the dose being edited is visible. Deferred deliberately, with
-      the numbers, rather than fixed alongside the AX5 unpinning.
-      The direction when it is picked up: gate the pinning on a **measured share of
-      the content area**, not on a Dynamic Type category. A size gate is a guess at
-      where the problem starts; a measured gate is the problem defining it.
+- [x] **The result bar owns 52.40% of the content area at DEFAULT size — CLOSED,
+      measured.** Gated on a **measured share**, not a Dynamic Type category. The bar
+      now lays out four candidate states hidden, at their own ideal heights, and takes
+      the tallest that fits within 40% of the content area.
+      Measured at default (content area 638.67pt, cross-checked against a band profile
+      of the same frame at 638.34pt — header bottom pt 152.33, tab bar top pt 790.67):
 
-- [ ] **The pinned bar's plate should be a material, not grey.** Human's request:
-      transparent with a light blur, so it reads as floating over the form rather
-      than as furniture covering it. `.ultraThinMaterial` / `.thinMaterial`, not a
-      hand-rolled colour with opacity. **Contrast must be measured after the
-      change, against the worst composite and not a representative one** — a
-      translucent band means `Add`'s white-on-navy and the `#075E56` result values
-      composite against whatever scrolls behind them. This is the shimmer failure
-      approached from another direction, and the shimmer was rejected on exactly
-      this. Keep a boundary — a hairline at the top edge if the blur alone does not
-      say "the thing above scrolls".
+      | rung | height | share | |
+      |---|---|---|---|
+      | `full` | 334.67pt | **52.40%** | the finding |
+      | `lead` | 226.33pt | **35.44%** | ships at default |
+      | `compact` | 186.00pt | 29.12% | keypad-up form |
+      | `unpinned` | 120.00pt | 18.79% | the floor |
 
-- [ ] **The pinned result bar leaves one field visible at AX5.** `IB2245748`:
-      on the TRT calculator only `Vial strength` is above the bar, and the
-      `Weekly dose` label is clipped mid-glyph by its top edge. F11 and F12 both
-      addressed this family and both were closed against a layout with frozen type;
-      the bar now competes with fields that scale. §5.8 again — closing a finding
-      protects the code that existed when you closed it.
+      At AX5 (content area 617.67pt) `full` measures **642.33pt — 104% of the content
+      area**, `lead` 59.20%, `compact` 58.88% (which independently reproduces the ~58%
+      recorded when this was closed by size category), `unpinned` 22.56%. So the gate
+      stands the bar down at AX5 by measurement, and T24's outcome is preserved without
+      the size gate that produced it.
+      Each candidate was checked against the framebuffer: predicted 334.67 / 226.33 /
+      186.00 against band-profiled 334.34 / 226.00 / 185.67. Within 0.33pt every time.
+      **The cap is 0.40 and it is measured, not chosen.** There is an irreducible floor
+      — `Add` plus hero clearance plus padding is 18.79% at default and 22.56% at AX5,
+      and `D12` makes it mandatory — so the gate chooses inside `[18.79%, 52.40%]`, not
+      `[0, 1]`. A one-third cap leaves 14.54 points of real budget and `lead` needs
+      16.65: it misses by 2.11 points, and what pays is the dose, because the rung
+      below renders `0.250 mL` as a small ink secondary row instead of the 7.65:1 teal
+      display face. 0.40 is chosen for margin rather than fit — 0.36 would sit 0.6
+      points from a measured value and change rung on a font-metric revision.
+
+- [x] **A dose field is sheared at AX5 on `Steroid Dosage` — FOUND BY THE NEW
+      REACHABILITY SWEEP, on its first run at that size.** `field_mgWeek` spans
+      y 636.33…701.33 with the plate top at 651.67, so the weekly dose is cut through
+      its own glyphs. **The gate cannot fix this one**: at AX5 the bar is already at
+      its floor — the result card is stood down entirely and what is left is the
+      committing action, which `D12` requires. The fix is in that screen's layout, not
+      in the bar, so it is filed rather than folded in. Listed here as open, below.
+
+- [ ] **`Steroid Dosage` shears `field_mgWeek` at AX5.** See above. The bar is at its
+      floor and cannot move; this needs the form to stop leaving a control across the
+      plate edge, or the plate edge to stop being opaque to it. Open.
+
+- [ ] **T25 — nothing renders behind the pinned bar, so a translucent plate has
+      nothing to be translucent over.** Filed out of T21, and it is a **hypothesis, not
+      a finding**. Evidence: `.ultraThinMaterial` — the most transparent material —
+      sampled `#767676` at four different scroll positions, identical. A material over
+      a moving backdrop cannot return the same value four times; a number that cannot
+      vary is telling you the thing you think you are measuring is not in the picture,
+      which is the same shape of evidence as two byte-identical frames.
+      The read to start with: **a material getting darker as it gets thinner is the
+      signature of compositing over an undefined backdrop, not over form content.**
+      Thinner shows more of what is behind; the ladder says what is behind is dark; the
+      app is light-only on `#FAFAFB`, so there should be nothing dark anywhere near it.
+      **Ruled out, and worth as much as the finding:** the `.safeAreaInset` was moved
+      from the `GeometryReader` onto the `ScrollView` inside it — the composition that
+      should have let the form scroll under the bar. Byte-identical measurements, all
+      four positions. It bought nothing and is not banked as a fix.
+
+- [~] **The pinned bar's plate — TONE CHANGED, REQUEST NOT DELIVERED.** The human asked
+      for *transparent with a light blur, so the bar reads as floating over the form
+      rather than as furniture covering it*. What shipped is `.regularMaterial` plus a
+      1px hairline: it **fixes the complaint** — the flat grey slab is gone — and it
+      **does not deliver the request**, because there is nothing for translucency to be
+      translucent over (T25). This line says so in those words deliberately; "plate →
+      material, done" would be true about the code and false about the ask.
+      Measured ladder, same screen, same scroll position, one run:
+      `ultraThin #767676 · thin #D3D3D3 · bar #DBDBDB (shipped) · regular #FEFEFE ·
+      thick #FFFFFF`. `.thinMaterial` is 8 values from `.bar` — a change nobody can
+      see, which is why it was not taken.
+      The result card gained a hairline stroke in the same pass: card and plate both
+      measure `#FEFEFE`, and two surfaces within one value of each other are not a
+      boundary. A half-step tone was rejected by the same measurement that rejected
+      `.thinMaterial`.
+      **Contrast does not fail anywhere.** Worst composite across four scroll positions
+      and five materials: `#075E56` dose value **7.14–7.59:1**, navy eyebrow
+      **14.60–15.65:1**, `Add` white-on-navy **15.79:1 exactly at every position**,
+      because `Theme.navy` is opaque and the plate cannot reach it. Not covered: the
+      disabled CTA is `navy.opacity(0.4)` and *would* composite; WCAG exempts disabled
+      controls and it is not claimed here.
+
+- [x] **The pinning gate is a proxy, so the assertion is not the gate.**
+      `PinnedBarReachabilityUITests`. 40% of the content area is a fact about area, not
+      about whether you can see the dose you are committing — a screen with three tall
+      fields can sit under the cap and still shear an input. So the invariant asserted
+      is `D12` itself, in two passes, against the plate's **rendered** frame rather than
+      against the gate's own arithmetic:
+      1. the committing action is wholly on screen and hittable, at every size;
+      2. at rest no input control straddles the plate's top edge, and at every size
+         every input can be brought to **full** visibility.
+      **Shown to fail before being trusted (§5.24).** `BAR_SHARE_CAP=0.55` forces the
+      gate to approve the full-height bar and the sweep goes red on
+      `control_injPerWeek` — the `Frequency` picker, the exact control the finding
+      names. Green at 0.40.
+      Coverage, stated so a green run is not over-read: numeric fields and menu pickers
+      on three calculators. Segmented rows, toggles and day steppers are **not**
+      measured — they carry no per-field identifier and naming their container would
+      propagate it to every button inside, which is the ambiguity that cost a session.
+      The straddle half is not asserted at accessibility sizes, because there the bar is
+      already at its floor and the assertion would be unsatisfiable; the real AX5 case
+      it found is filed above rather than hidden by the scoping.
+
+- [x] **The pinned result bar leaves one field visible at AX5 — CLOSED.** `IB2245748`.
+      Closed first by a Dynamic Type gate (T24) and now by the measured gate, which
+      reaches the same outcome without guessing where the problem starts: at AX5 the
+      `lead` rung measures 59.20% of the content area and the cap stands it down.
 
 - [ ] **Dashboard at AX5 fails the reachability test.** Not the greeting
       percentage — the greeting is the diagnosis. The bug is that the Next dose
@@ -177,8 +254,17 @@ Things a cold session will hit within minutes and not understand:
       Then re-check the other nine screens at AX5 with the judgment pass, not the
       metric pass — the expectation is that this is not the only one.
 
-- [ ] **The in-scroll `ResultCard` renders unconditionally, so at default type
-      size the same rows exist twice.** `result_Weekly total` measured as two
+- [x] **The in-scroll `ResultCard` renders unconditionally, so at default type
+      size the same rows exist twice — LARGELY DISSOLVED by the measured gate.** At
+      default the pinned bar now shows ONE row (`lead`), so the duplication is a single
+      figure rather than a whole card, and at AX5 there is no pinned copy at all. The
+      addressing rule changed with it: `result_<label>` now follows the ROW to whichever
+      surface is displaying it, because the old rule ("`result_` names the pinned bar")
+      assumed a bar whose contents never varied. It stopped being true the moment the
+      gate could choose a rung, and two wiring assertions went red on
+      `result_Weekly total` resolving to zero elements. They were red about something
+      true. Historical detail below.
+      `result_Weekly total` measured as two
       elements, y=641 (pinned, hittable) and y=896 (in-scroll, not).
       `CalculatorScreen.swift`'s F12 comment says the breakdown renders in the
       scroll *instead* when the bar collapses; the code does not do that. Code and
@@ -604,4 +690,46 @@ Parity and chrome
    `continueAfterFailure = false`, assert the precondition, assert frames differ,
    count matches before resolving. Every guard added today came from a check that
    had been quietly passing.
+25. **A view measured under a compressing proposal reports a height it will never
+   render at.** SwiftUI proposes a `.background` the size of the view it decorates, so
+   a candidate laid out there is SQUEEZED to fit rather than reporting its own ideal
+   height. The pinning gate measures four candidate bars this way, and at AX5 the full
+   bar measures **642.33pt against a 617.67pt content area — 104%**. Without
+   `.fixedSize(horizontal: false, vertical: true)` that candidate would have come back
+   clamped to the container, the gate would have approved **exactly the bar it exists
+   to stand down**, and every number downstream would have been arithmetically perfect
+   and about a layout that does not exist. Anything measured to make a decision must be
+   measured free of the proposal, or the measurement is of the constraint and not of
+   the thing.
+26. **`TEST_RUNNER_` reaches the RUNNER, not the app under test.** `xcodebuild` forwards
+   prefixed host environment into the test process; the app is a separate process and
+   sees nothing unless the test copies it into `app.launchEnvironment`. A DEBUG override
+   that drives the pinning gate was set for a whole run, changed nothing, and the run
+   reported **success** — while photographing the default gate under a filename claiming
+   the override. That is the fifth check in two days that reported success while
+   observing nothing, and this one was observing the override that PROVES the gate
+   works. The app now publishes the value it actually resolved and the test asserts the
+   override arrived; forwarding without asserting arrival is the same bug one step
+   later.
+27. **Never select a material by its name.** The names describe THICKNESS, and thickness
+   is how much backdrop shows through — not how light the result is. Measured on the
+   calculator's pinned plate, one run, same screen and scroll position:
+   `ultraThin #767676 · thin #D3D3D3 · bar #DBDBDB · regular #FEFEFE · thick #FFFFFF`.
+   `.ultraThinMaterial`, the obvious reading of "transparent with a light blur", came
+   out **101 values darker** than the near-opaque `.bar` it was meant to lighten. That
+   is not an anomaly, it is the general case over a dark or absent backdrop. Measure the
+   ladder on the actual screen, every time.
+28. **A gesture that registers as the wrong gesture moves nothing and reports
+   success.** `coordinate.press(forDuration: 0.4, thenDragTo:)` was used to walk a form
+   in small steps; 0.4s registers as a PRESS and scrolled **zero pixels**, so six
+   capture positions would have been one frame under six names. Caught only because the
+   sweep asserts the FIRST gesture changed something before letting later no-ops end the
+   loop. `swipeUp(velocity:)` is a swipe at any velocity; a long press is not a drag.
+29. **A test process's Documents directory SURVIVES between runs.** When a frame is
+   skipped — a guard returning early, a run failing partway — the previous run's file is
+   still sitting under the name this run meant to write, and the host copies it out as
+   this run's evidence. It gets measured, serialised and cited while being a photograph
+   of different code. Nearly happened. Fixed rather than written down (D8): the
+   directory is emptied at run start, and a frame that is not on disk afterwards fails
+   the run instead of resolving to whatever is there.
 

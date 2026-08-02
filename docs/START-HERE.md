@@ -127,7 +127,7 @@ sweep in opposite directions.
 
 ## 3. The through-line: every check we removed was one that could not fail
 
-Four, in one day, from four unrelated directions. Every one reported success.
+Seven now, from seven unrelated directions. Every one reported success.
 
 | The check | Why it could not fail |
 |---|---|
@@ -135,6 +135,9 @@ Four, in one day, from four unrelated directions. Every one reported success.
 | A screenshot of the keyboard toolbar | A hardware keyboard suppressed the software keypad, so the frame *flattered* the fix it was taken to prove |
 | Two "different" captures | Byte-identical, because the gesture between them never landed |
 | "Assert the displayed string contains no ellipsis" | Reads the accessibility model, not the render — passes on the exact frame showing `1…` |
+| `TEST_RUNNER_BAR_SHARE_CAP` set for a whole run | `TEST_RUNNER_` reaches the **runner**, not the app under test. The override never arrived, the run reported success, and the frame was filed under a cap it was not taken at — while being the override that proves the pinning gate works |
+| A 0.4s `press(forDuration:thenDragTo:)` walking a form | Registers as a **press**, not a drag. Scrolled zero pixels, so six scroll positions would have been one frame under six names |
+| The runner's Documents directory between runs | It **survives**. A skipped frame leaves the previous run's file under the name this run meant to write, and it gets copied out, measured and serialised as evidence about this commit |
 
 None of them were *wrong* about something. They were **silent about everything**,
 and a green that is indistinguishable from an absence is not evidence.

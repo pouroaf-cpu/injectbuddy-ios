@@ -18,6 +18,18 @@ struct CalculatorScreen: View {
     @StateObject private var keyboard = KeyboardObserver()
     @Environment(\.dynamicTypeSize) private var typeSize
 
+    /// Measured layout, in points, keyed by `BarMetrics`. Everything the pinning
+    /// gate decides on comes from here — nothing is inferred from a type size.
+    @State private var metrics: [String: CGFloat] = [:]
+    /// The content area, held from the last measurement taken with the keypad DOWN.
+    ///
+    /// SwiftUI shrinks the safe area when the keyboard comes up, so the live
+    /// measurement drops to a fraction of the screen while a field is being edited.
+    /// Gating on that would unpin the result exactly when the user is typing a dose
+    /// into it — the opposite of what this is for. The content area is a property of
+    /// the screen, not of the keypad, so it is measured when the keypad is down.
+    @State private var contentAreaAtRest: CGFloat = 0
+
     /// Which field is being edited, keyed by `CalculatorInput.key`.
     ///
     /// Hoisted out of `NumberField` so the screen — which is what owns the keyboard
@@ -60,13 +72,14 @@ struct CalculatorScreen: View {
                 // collapses to the primary row + CTA and the full breakdown is
                 // rendered here instead, inside the scroll, so no row is lost.
                 if vm.result.isValid {
-                    // Above AX1 this is the ONLY result card, so it takes the bare
-                    // `result_` identifiers — they name the summary the user is
-                    // actually reading, and which view that is changes with type
-                    // size. See `resultBar`.
+                    // This card takes the bare `result_` identifiers for every row the
+                    // pinned bar is NOT showing — which, once the gate can choose
+                    // between four rungs, is most of them at most sizes. An identifier
+                    // names the surface the user is reading, and which view that is
+                    // now depends on a measurement. See `ResultCard.identifier(for:)`.
                     ResultCard(result: vm.result,
                                barrelMl: barrelMl,
-                               idOverride: isAccessibilitySize ? "result_" : nil)
+                               pinnedLabels: pinnedLabels)
                 }
 
                 Spacer(minLength: Theme.Spacing.md)
@@ -78,12 +91,154 @@ struct CalculatorScreen: View {
             .padding(Theme.Spacing.md)
             .frame(minHeight: geo.size.height, alignment: .top)
         }
+        // ON THE SCROLLVIEW, not on the GeometryReader outside it. This is the
+        // difference between the form scrolling UNDER the bar and the form being
+        // clipped above it, and until T21 it made no visible difference because the
+        // plate was near-opaque.
+        //
+        // Attached outside, the ScrollView is laid out in the reduced region, so the
+        // area behind the plate contains NOTHING — and a material with no backdrop
+        // does not blur, it resolves to a flat slab. Measured: `.ultraThinMaterial`
+        // there sampled #767676 at four different scroll positions, identical to the
+        // byte, which is what "there is nothing behind this" looks like in a number.
+        // It also came out DARKER than the `.bar` slab it replaced (#D9D9D9), because
+        // the thinner the material the more it shows of a backdrop that is not there.
+        .safeAreaInset(edge: .bottom) { resultBar }
         }
         .background(Theme.canvas)
-        .safeAreaInset(edge: .bottom) { resultBar }
+        // The candidate bars are measured HERE — inside the form, before the inset
+        // that pins the real one. See `barCandidates`.
+        .background(alignment: .bottom) { barCandidates }
+        // ...and the content area is measured OUT HERE, outside the inset, because
+        // this is the only position whose height is the region between the fixed
+        // header and the tab bar. Verified against the framebuffer rather than read
+        // off the modifier chain: this proxy reports 638.67pt while a band profile of
+        // the same frame puts the header bottom at 152.33pt and the tab bar's top
+        // hairline at 790.67pt — 638.34pt. Three safe-area insets are nested on this
+        // screen (the tab bar's, MainShell.heroOverhang, and this screen's own pinned
+        // bar) and a GeometryProxy one level in reports 296pt, which is the form's
+        // remaining room and not the denominator anyone means by "the content area".
+        .background { measure(BarMetrics.contentArea) }
+        .onPreferenceChange(BarMetricsKey.self) { metrics = $0 }
+        .overlay { gateProbe }
         .toolbar { ToolbarItemGroup(placement: .keyboard) { keyboardAccessory } }
         .onAppear { vm.scale = settings.syringeScale }
         .onChange(of: settings.syringeScale) { vm.scale = $0 }
+        .onChange(of: metrics) { latest in
+            guard !keyboard.isVisible, let area = latest[BarMetrics.contentArea], area > 0 else { return }
+            contentAreaAtRest = area
+        }
+    }
+
+    // MARK: - The pinning gate
+    //
+    // T20. The bar took 52.3% of the content area at DEFAULT type size — measured off
+    // IB2245749, not inferred: plate top pt 456.33, tab bar top pt 790.67, content
+    // area 638.34pt between the header and the bar. It sheared the `Frequency` picker
+    // through the middle of its control and left two of five inputs usable on a
+    // standard phone at standard text.
+    //
+    // The previous gate was `typeSize >= .accessibility1`. That is a GUESS at where
+    // the problem starts, and it guessed wrong in the direction that matters: the
+    // screen it declared healthy was the one in the finding. A Dynamic Type category
+    // is not the thing going wrong — the share of the screen the overlay owns is —
+    // and the same category means different things on the fourteen calculators,
+    // which carry between one and four result rows.
+    //
+    // So the bar measures what it would occupy and stands down when that is too much.
+    // Three states rather than two, because "pinned or not" throws away the live
+    // result on a screen where watching a dose change as you type it is the reason
+    // this is not the web's "Show result" flow:
+    //
+    //   full      primary values + the weekly-total cross-check
+    //   compact   the primary row alone — the form already used while the keypad is up
+    //   unpinned  CTA only; the full breakdown is in the scroll, where it already is
+    //
+    // MEASURED, NOT CURRENT. Each candidate is laid out hidden and measured at its own
+    // ideal height, so the decision does not depend on which state is showing. Gating
+    // on the height of the bar as currently rendered would oscillate: full is too tall
+    // -> drop to compact -> compact fits -> promote to full -> too tall, every frame.
+    static let maxPinnedShare: CGFloat = {
+        #if DEBUG
+        // DEBUG-ONLY override, same purpose as FORCE_INLINE_FIELD: it lets a test
+        // DRIVE the gate to each rung and assert what actually renders there, rather
+        // than trusting a gate that has only ever been observed choosing one of them.
+        // A gate whose other three branches have never been seen is three untested
+        // branches on the screen that writes a protocol (BOARD §5.24).
+        if let raw = ProcessInfo.processInfo.environment["BAR_SHARE_CAP"],
+           let v = Double(raw), v > 0, v <= 1 {
+            return CGFloat(v)
+        }
+        #endif
+        // 0.40, and the reasoning is worth keeping because the number looks arbitrary
+        // and the alternatives are worse.
+        //
+        // There is an IRREDUCIBLE FLOOR. `Add` plus the hero clearance plus padding
+        // measures 18.79% of the content area at default and 22.56% at AX5, and D12
+        // makes it mandatory, so no cap can reach below it. The gate is choosing
+        // inside [18.79%, 52.40%], not [0%, 100%].
+        //
+        // Measured rungs at default size (TRT): full 52.40%, lead 35.44%,
+        // compact 29.12%, unpinned 18.79%. A one-third cap leaves 14.54 points of
+        // real budget and the `lead` rung needs 16.65 — it misses by 2.11 points, and
+        // what pays is the dose: `compact` renders it as a small ink-coloured
+        // secondary row instead of the 7.65:1 teal display face.
+        //
+        // Any cap in (35.44%, 52.40%) selects `lead` here. 0.40 is chosen for MARGIN
+        // rather than fit — 0.36 would sit 0.6 points from a measured value and would
+        // change rung on a font-metric revision. At AX5 `lead` measures 59.20%, so
+        // 0.40 still stands the bar down there and T24's outcome is preserved by
+        // measurement rather than by the Dynamic Type category that produced it.
+        return 0.40
+    }()
+
+    /// The ladder, tallest first. The gate takes the tallest rung that fits.
+    ///
+    /// `lead` exists because the first cut of this gate went straight from `full` to
+    /// `compact` and the frame said no. `compact` renders the dose as a small ink-
+    /// coloured secondary row — which is right for the two seconds the keypad is up
+    /// and the user is typing, and wrong as the RESTING presentation of the number
+    /// they act on. It took `0.250 mL` from the 7.65:1 teal display face to the same
+    /// weight as its own label. A gate that fixes a layout finding by shrinking the
+    /// dose is trading one defect for a quieter one.
+    enum PinnedMode: String, CaseIterable {
+        /// Primary values plus the weekly-total cross-check.
+        case full
+        /// The lead figure alone, at full treatment — label above, display face, teal.
+        case lead
+        /// One small line. The keypad-up form.
+        case compact
+        /// CTA only.
+        case unpinned
+    }
+
+    /// What the measurement says, ignoring the keypad.
+    private var measuredMode: PinnedMode {
+        // Before the first measurement lands, show what shipped. A screen that
+        // flashes its result bar away on appear is worse than one frame of the old
+        // layout.
+        guard contentAreaAtRest > 0 else { return .full }
+        return PinnedMode.allCases.first { mode in
+            guard let h = metrics[mode.rawValue], h > 0 else { return false }
+            return h / contentAreaAtRest <= Self.maxPinnedShare
+        } ?? .unpinned
+    }
+
+    /// What actually renders. The keypad can only ever make the bar SMALLER —
+    /// it never promotes a bar the measurement stood down.
+    private var pinnedMode: PinnedMode {
+        guard keyboard.isVisible else { return measuredMode }
+        return measuredMode == .unpinned ? .unpinned : .compact
+    }
+
+    /// The labels the pinned bar is showing right now, derived from the SAME rule the
+    /// bar itself renders from rather than restated here.
+    private var pinnedLabels: Set<String> {
+        guard pinnedMode != .unpinned else { return [] }
+        return Set(ResultCard.rows(for: vm.result,
+                                   isPinned: true,
+                                   leadOnly: pinnedMode == .lead,
+                                   isCompact: pinnedMode == .compact).map(\.label))
     }
 
     // MARK: - Keyboard accessory
@@ -176,35 +331,113 @@ struct CalculatorScreen: View {
     }
 
     private var resultBar: some View {
+        barBody(mode: pinnedMode)
+            // Clears the raised hero, which otherwise rests ON this CTA.
+            //
+            // MainShell.heroOverhang cannot do this. An outer safeAreaInset reaches
+            // SCROLLED content — which is why all eight screens verified clean — but
+            // it cannot lift a sibling inset pinned further in, and this bar is pinned
+            // by the `.safeAreaInset(edge: .bottom)` on the ScrollView above. Proven,
+            // not assumed: raising heroOverhang 22 -> 38 moved this button by exactly
+            // zero pixels. So the clearance has to be added where the bar is placed.
+            //
+            // 16 = the measured 12.7pt overlap (button bottom pt 774.7 vs ring top
+            // pt 762.0) plus ~3pt of daylight, because touching is what we are
+            // removing. Padding, not a frame: it grows the background with the
+            // content, and it cannot affect how the rows inside lay out — F1's reflow
+            // is untouched. Inside `barBody` so the candidates measure it too.
+            //
+            // T21 — .bar was a near-opaque slab that read as furniture covering the
+            // form rather than as a surface floating over it. `.ultraThinMaterial`
+            // and NOT a hand-rolled colour with an opacity: a fixed colour at fixed
+            // alpha does not adapt, does not blur, and would put us back where the
+            // greeting shimmer died — a translucent overlay whose contrast depends on
+            // whatever happens to be behind it, with no system machinery keeping it
+            // legible.
+            .background(Self.plateMaterial)
+            // The plate's own frame, addressable. The reachability assertion needs the
+            // TOP EDGE of this thing to ask whether any control straddles it, and
+            // deriving it as "tab bar top minus whichever candidate height the gate
+            // chose" would be asserting against the gate's own arithmetic — the proxy
+            // checking itself. This is the rendered frame.
+            .overlay {
+                Color.clear
+                    .accessibilityElement()
+                    .accessibilityIdentifier("bar_plate")
+                    .accessibilityLabel("Result bar")
+            }
+            // The blur alone does not say "the thing above scrolls". At the lighter
+            // material the plate edge against #FAFAFB canvas is a ~2-value step and
+            // the boundary effectively disappears — measured, see below. A hairline
+            // restores it without reintroducing a slab.
+            .overlay(alignment: .top) { plateBoundary }
+    }
+
+    /// Which system material the plate uses.
+    ///
+    /// Overridable in DEBUG because the choice had to be MEASURED, not picked from
+    /// the documentation: `.ultraThinMaterial` — the obvious reading of "transparent
+    /// with a light blur" — resolved DARKER than the near-opaque `.bar` it replaced,
+    /// which is the opposite of what the names suggest. Sweeping them against the
+    /// framebuffer was the only way to find that out, and leaving the hook in means
+    /// the next person can re-run the sweep instead of re-deriving it.
+    static var plateMaterial: Material {
+        #if DEBUG
+        switch ProcessInfo.processInfo.environment["PLATE_MATERIAL"] {
+        case "ultraThin": return .ultraThinMaterial
+        case "thin": return .thinMaterial
+        case "regular": return .regularMaterial
+        case "thick": return .thickMaterial
+        case "bar": return .bar
+        default: break
+        }
+        #endif
+        // .regularMaterial. NOT chosen from the documentation — chosen off the
+        // measured ladder, which runs opposite to what the names promise:
+        //   ultraThin #767676 · thin #D3D3D3 · bar #DBDBDB · regular #FEFEFE · thick #FFFFFF
+        // `.ultraThinMaterial`, the obvious reading of "transparent with a light
+        // blur", is 101 values DARKER than the near-opaque `.bar` it was meant to
+        // lighten. Thickness describes how much backdrop shows through, not how light
+        // the result is, so over a dark or absent backdrop the thin end is the dark
+        // end. Never pick one of these by its name.
+        return .regularMaterial
+    }
+
+    /// One device pixel, whatever the scale, so it reads as a rule rather than a bar.
+    private var plateBoundary: some View {
+        Rectangle()
+            .fill(Theme.separator)
+            .frame(height: 1 / UIScreen.main.scale)
+            .accessibilityHidden(true)
+    }
+
+    /// The bar in a given state. One definition, used by the pinned instance and by
+    /// all three hidden candidates, so a candidate cannot measure a layout that
+    /// differs from the one it is predicting.
+    @ViewBuilder
+    private func barBody(mode: PinnedMode) -> some View {
         VStack(spacing: Theme.Spacing.sm) {
-            // ABOVE AX1 THE BAR STOPS BEING PINNED. Only the CTA stays.
-            //
-            // Measured on IB2245748: already collapsed to primary + CTA — the F11
-            // fix — the bar still took ~58% of the content area at AX5, leaving room
-            // for exactly ONE field. `Vial strength` was visible; `Weekly dose` was
-            // sheared through the middle of its glyphs by the bar's top edge. So the
-            // screen presented `Draw per injection · 0.250 mL` and an enabled `Add`
-            // for a weekly dose the user could neither see nor reach — and `Add`
-            // writes a protocol.
-            //
-            // F11 was measured against frozen type. The bar now scales with
-            // everything else, so trimming it again would be a smaller number
-            // against the same broken premise: an overlay owning the majority of the
-            // content area is not context for the screen, it IS the screen. The full
-            // breakdown is already rendered inline in the scroll, so nothing is lost
-            // by dropping the pinned copy — the user scrolls to the result instead of
-            // the result covering the inputs.
-            //
-            // Still pinned at default and the non-accessibility sizes, where it is
-            // doing its job and the measurement supports it.
-            if !isAccessibilitySize {
-                // Collapsed to a one-line summary while the keypad is up. At full
-                // height the bar plus the keyboard covered 65% of the screen and cut
-                // the field being edited in half (audit finding F11).
-                ResultCard(result: vm.result,
-                           isCompact: keyboard.isVisible,
-                           isPinned: true,
-                           barrelMl: barrelMl)
+            switch mode {
+            case .full:
+                // The primary values plus the weekly-total cross-check.
+                ResultCard(result: vm.result, isPinned: true, barrelMl: barrelMl)
+            case .lead:
+                // The lead figure, still at full treatment. What is given up is the
+                // weekly total — the cross-check that confirms the app understood the
+                // dose you typed — and the secondary values. Both are one scroll away
+                // in the in-scroll card, which renders every row unconditionally.
+                ResultCard(result: vm.result, isPinned: true, leadOnly: true, barrelMl: barrelMl)
+            case .compact:
+                // One line — label + value + unit, still unable to truncate. This is
+                // the form the bar already took while the keypad was up (finding F11,
+                // where bar + keyboard covered 65% of the screen and cut the field
+                // being edited in half); the gate can now also choose it at rest.
+                ResultCard(result: vm.result, isCompact: true, isPinned: true, barrelMl: barrelMl)
+            case .unpinned:
+                // Nothing. The full breakdown renders in the scroll, where it already
+                // renders today — the user scrolls to the result instead of the
+                // result covering the inputs.
+                EmptyView()
             }
 
             // Titled "Add" to match the web, where the bottom nav's Add slot owns
@@ -241,25 +474,97 @@ struct CalculatorScreen: View {
             }
         }
         .padding(Theme.Spacing.md)
-        // Clears the raised hero, which otherwise rests ON this CTA.
-        //
-        // MainShell.heroOverhang cannot do this. An outer safeAreaInset reaches
-        // SCROLLED content — which is why all eight screens verified clean — but it
-        // cannot lift a sibling inset pinned further in, and this bar is pinned by
-        // the `.safeAreaInset(edge: .bottom)` on the ScrollView above. Proven, not
-        // assumed: raising heroOverhang 22 -> 38 moved this button by exactly zero
-        // pixels. So the clearance has to be added where the bar is placed.
-        //
-        // 16 = the measured 12.7pt overlap (button bottom pt 774.7 vs ring top
-        // pt 762.0) plus ~3pt of daylight, because touching is what we are removing.
-        // Padding, not a frame: it grows the `.bar` background with the content, and
-        // it cannot affect how the rows inside lay out — F1's reflow is untouched.
         .padding(.bottom, Self.heroClearance)
-        .background(.bar)
+        .frame(maxWidth: .infinity)
     }
 
     /// Daylight between this pinned bar and MainShell's hero circle.
     private static let heroClearance: CGFloat = 16
+
+    // MARK: - Candidate measurement
+
+    /// All three bar states, laid out hidden at their own ideal heights and measured.
+    ///
+    /// `fixedSize(vertical:)` is load-bearing, not tidiness. A `.background` is
+    /// proposed the modified view's size, so without it a candidate taller than the
+    /// form — which is the AX5 case, and the case the gate exists for — would be
+    /// COMPRESSED to fit and measure smaller than it renders. The gate would then
+    /// approve exactly the bar it was built to stand down, and it would do so
+    /// silently.
+    ///
+    /// Hidden three ways on purpose. `.hidden()` alone leaves an element in the
+    /// ACCESSIBILITY TREE (BOARD §5.6 — fourteen calculator rows sat swipeable at
+    /// x = -290 on exactly that mistake), and these copies contain a second `Add`
+    /// button. A VoiceOver user finding four Add buttons on a dosing screen, three of
+    /// which write nothing, is the same class of defect as the one this task is
+    /// fixing.
+    private var barCandidates: some View {
+        VStack(spacing: 0) {
+            ForEach(PinnedMode.allCases, id: \.self) { mode in
+                barBody(mode: mode).background { measure(mode.rawValue) }
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .hidden()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func measure(_ key: String) -> some View {
+        GeometryReader { g in
+            Color.clear.preference(key: BarMetricsKey.self, value: [key: g.size.height])
+        }
+    }
+
+    /// DEBUG-ONLY. Publishes the numbers the gate decided on, so a test asserts what
+    /// the LAYOUT computed rather than a proxy the harness inferred.
+    ///
+    /// This is the shape BOARD §5.23 asks for. "Assert the bar looks about right" is
+    /// the same class of check as "assert the displayed string contains no ellipsis" —
+    /// it reads a layer that does not observe the thing being asserted. Here the test
+    /// can compare the gate's own denominator and candidate heights against a band
+    /// profile of the same frame, so the two disagree loudly if the proxy the gate
+    /// reads ever stops being the content area.
+    ///
+    /// Zero-sized and out of the accessibility tree's way; not compiled into Release.
+    @ViewBuilder
+    private var gateProbe: some View {
+        #if DEBUG
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityElement()
+            .accessibilityIdentifier("bar_gate")
+            .accessibilityLabel(
+                "mode=\(pinnedMode.rawValue) measured=\(measuredMode.rawValue) "
+                + "ax=\(isAccessibilitySize) "
+                // The cap is published because it can be overridden from the
+                // environment, and an override that silently fails to arrive is a run
+                // that reports success while testing the default. That happened on
+                // the first attempt at driving this gate.
+                + String(format: "cap=%.4f area=%.2f ", Self.maxPinnedShare, contentAreaAtRest)
+                + PinnedMode.allCases
+                    .map { String(format: "%@=%.2f", $0.rawValue, metrics[$0.rawValue] ?? -1) }
+                    .joined(separator: " "))
+        #endif
+    }
+}
+
+// MARK: - Measured layout plumbing
+
+enum BarMetrics {
+    /// Candidate heights are keyed by `PinnedMode.rawValue`, so a rung added to the
+    /// ladder cannot be forgotten here.
+    static let contentArea = "contentArea"
+}
+
+private struct BarMetricsKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] = [:]
+    /// `max` rather than last-write: several proxies report during a layout pass and
+    /// a transient zero from one that has not been positioned yet must not be able to
+    /// unpin the bar for a frame.
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue()) { max($0, $1) }
+    }
 }
 
 // MARK: - Result card
@@ -271,6 +576,10 @@ private struct ResultCard: View {
     /// The pinned instance shows the primary values plus the weekly-total
     /// cross-check; everything else lives in the scroll copy.
     var isPinned: Bool = false
+    /// Pinned, but reduced to the LEAD figure alone — still label-above-value in the
+    /// display face, so the number the user acts on keeps its size and its 7.65:1
+    /// teal. This is the rung between `full` and the one-line `isCompact` form.
+    var leadOnly: Bool = false
     var barrelMl: Double?
 
     /// You cannot draw 1.2 mL into a 1 mL barrel. Surfaced as an icon PLUS text —
@@ -278,7 +587,22 @@ private struct ResultCard: View {
     /// of all one that says the dose does not physically fit the syringe.
     /// Rows the pinned bar keeps: every emphasised value, plus the weekly total.
     private var visibleRows: [ResultRow] {
+        Self.rows(for: result, isPinned: isPinned, leadOnly: leadOnly, isCompact: isCompact)
+    }
+
+    /// Which rows a given instance shows. STATIC, and used by the screen as well as
+    /// by the view, because the screen has to know which labels the pinned bar is
+    /// currently displaying in order to hand out identifiers (see `identifier(for:)`)
+    /// — and two copies of this rule would drift the moment a rung was added.
+    static func rows(for result: CalculatorResult,
+                     isPinned: Bool, leadOnly: Bool, isCompact: Bool) -> [ResultRow] {
         guard isPinned else { return result.rows }
+        // The lead and compact rungs keep ONE row: the first emphasised figure. Not
+        // "the first row" — an unemphasised row leading the list would put a
+        // restatement of the inputs where the dose belongs.
+        if leadOnly || isCompact {
+            return result.rows.first(where: { $0.emphasis }).map { [$0] } ?? []
+        }
         return result.rows.filter {
             $0.emphasis || $0.label.lowercased().contains("weekly total")
         }
@@ -296,12 +620,28 @@ private struct ResultCard: View {
     /// sees, so a test written against it is a test written against what is on
     /// screen. Both cards render the same `CalculatorResult` value, so they cannot
     /// disagree — the ambiguity was in addressing them, never in the numbers.
-    /// Set by the screen when this instance is the only result card on screen —
-    /// above AX1 the pinned bar is gone, so the in-scroll copy is what the user
-    /// reads and it should answer to `result_`. An identifier names the surface the
-    /// user is looking at, and which view that is changes with type size.
-    var idOverride: String?
-    private var idPrefix: String { idOverride ?? (isPinned ? "result_" : "detail_result_") }
+    /// Labels the PINNED bar is currently showing. Set by the screen on the in-scroll
+    /// instance only.
+    ///
+    /// The rule used to be "`result_` names the pinned bar" and it was right while the
+    /// bar always showed the same three rows. The measured gate broke that premise:
+    /// the bar now shows all of them, one of them, or none, depending on a
+    /// measurement — so `result_Weekly total` addressed ZERO elements the moment the
+    /// gate picked the `lead` rung, and two wiring assertions went red on it. They
+    /// were red about something true.
+    ///
+    /// The rule that survives is the one D8 was actually reaching for: AN IDENTIFIER
+    /// NAMES THE SURFACE THE USER IS READING. So `result_<label>` follows the row.
+    /// If the pinned bar is showing that row, the pinned bar answers to it; if the
+    /// row only exists in the scroll, the scroll copy does. Still exactly one element
+    /// per label, which is the property that matters — an ambiguous XCUIElement fails
+    /// at resolution before any assertion runs.
+    var pinnedLabels: Set<String> = []
+
+    private func identifier(for label: String) -> String {
+        if isPinned { return "result_" + label }
+        return (pinnedLabels.contains(label) ? "detail_result_" : "result_") + label
+    }
 
     private var overCapacity: Bool {
         guard let barrelMl, let draw = result.drawMl, result.isValid else { return false }
@@ -338,7 +678,7 @@ private struct ResultCard: View {
                 // ViewThatFits stacks it rather than clipping the unit.
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                     SecondaryResultRow(label: primary.label, value: primary.value,
-                                       identifier: idPrefix + primary.label)
+                                       identifier: identifier(for: primary.label))
                     if let note = capacityNote { CapacityWarning(text: note) }
                 }
             } else if result.isValid {
@@ -357,10 +697,10 @@ private struct ResultCard: View {
                 ForEach(visibleRows) { row in
                     if row.emphasis {
                         PrimaryResultRow(label: row.label, value: row.value,
-                                         identifier: idPrefix + row.label)
+                                         identifier: identifier(for: row.label))
                     } else {
                         SecondaryResultRow(label: row.label, value: row.value,
-                                           identifier: idPrefix + row.label)
+                                           identifier: identifier(for: row.label))
                     }
                 }
                 // Was an orphaned grey string with no label — at AX sizes it read
@@ -371,7 +711,7 @@ private struct ResultCard: View {
                 // with icon and text — so its quiet "Ideal" earns no pinned space.
                 if let line = result.scheduleLine, !isPinned {
                     SecondaryResultRow(label: "Volume", value: line,
-                                       identifier: idPrefix + "Volume")
+                                       identifier: identifier(for: "Volume"))
                 }
                 if let note = capacityNote {
                     CapacityWarning(text: note)
@@ -578,6 +918,14 @@ private struct FieldRow: View {
             .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
             .padding(.horizontal, Theme.Spacing.md)
             .fieldChrome()
+            // Addressable so the reachability sweep can ask whether this control is
+            // sheared by the pinned bar — `Frequency` is the control the T20 finding
+            // names, and it is a menu picker, so a sweep covering only `field_*`
+            // would have been green on the exact defect it was written for.
+            // A menu picker collapses to ONE button, so the identifier does not
+            // propagate to a row of children the way it would on a segmented row —
+            // which is why those stay uncovered rather than being named unsafely.
+            .accessibilityIdentifier("control_\(field.key)")
 
         case let .segmented(options, _):
             SegmentedRow(options: options, selection: vm.numberBinding(field.key))
@@ -591,6 +939,7 @@ private struct FieldRow: View {
             .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
             .padding(.horizontal, Theme.Spacing.md)
             .fieldChrome()
+            .accessibilityIdentifier("control_\(field.key)")
 
         case .toggle:
             // The switch alone was the tap target: ~51x31pt, under the 44pt floor,

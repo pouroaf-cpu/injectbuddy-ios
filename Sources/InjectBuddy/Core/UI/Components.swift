@@ -227,6 +227,27 @@ struct CardBackground: ViewModifier {
             // closes most of that without a layout rewrite.
             .padding(Theme.Spacing.lg - Theme.Spacing.xs)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
+            // Hairline, because the card had stopped having an edge.
+            //
+            // T21 took the calculator's pinned plate to `.regularMaterial`, and this
+            // card is `.regularMaterial` too — measured at #FEFEFE against a plate
+            // measured at #FEFEFE. Two surfaces within one value of each other is not
+            // a boundary, and the dose figure ended up floating on an undifferentiated
+            // white field. A half-step tone difference was the other option and it is
+            // disqualified by the same measurement that killed `.thinMaterial` for
+            // this job: 8 values from `.bar` was rejected as a change nobody can see,
+            // and this would have been smaller than that.
+            //
+            // One place, not per-screen. `card()` is the single card surface in the
+            // app — the same reasoning as FieldChrome owning the input treatment — so
+            // the dashboard's cards get the edge as well. That is deliberate and it is
+            // app-wide: on #FAFAFB canvas those cards had the same weak boundary, it
+            // was simply never sitting next to a second white surface where anyone
+            // would notice.
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.card)
+                    .strokeBorder(Theme.separator, lineWidth: 1 / UIScreen.main.scale)
+            )
     }
 }
 

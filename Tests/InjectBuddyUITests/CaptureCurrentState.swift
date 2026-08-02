@@ -33,7 +33,30 @@ final class CaptureCurrentState: XCTestCase {
         // cannot fail loudly will keep producing frames that lie, and this project
         // has already shipped bad evidence that looked fine twice.
         continueAfterFailure = false
+
+        // The runner's Documents directory SURVIVES between runs. When a frame is
+        // skipped — the byte-identical guard returning early, or a run that fails
+        // partway — the file from the PREVIOUS run is still sitting there under the
+        // name this run was going to write, and the host copies it out as if it were
+        // this run's evidence. Nearly measured one. Same family as the "refreshed"
+        // set that came back byte-identical: the output directory holds exactly what
+        // this run produced, or it is not evidence about this run.
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let stale = (try? FileManager.default.contentsOfDirectory(at: dir,
+                                                                  includingPropertiesForKeys: nil)) ?? []
+        for url in stale where url.pathExtension == "png" {
+            try? FileManager.default.removeItem(at: url)
+        }
+
         app = XCUIApplication()
+        // `TEST_RUNNER_` reaches THIS process, not the app under test. Forwarding is
+        // explicit, and the forwarded value is asserted where it lands (see
+        // `testCaptureCalculatorAtRest`) — the first run with this override set
+        // reported success while photographing the default gate, which is precisely
+        // the "check that cannot fail" shape §5.24 is about.
+        if let cap = ProcessInfo.processInfo.environment["BAR_SHARE_CAP"] {
+            app.launchEnvironment["BAR_SHARE_CAP"] = cap
+        }
         app.launch()
         let accept = app.buttons["I understand"]
         if accept.waitForExistence(timeout: 6) { accept.tap() }
@@ -60,8 +83,35 @@ final class CaptureCurrentState: XCTestCase {
         }
         taken[name] = png
 
-        try? png.write(to: dir.appendingPathComponent(name))
+        // `try?` used to swallow a failed write, so a frame could be "taken" and never
+        // land — and with the directory surviving between runs, the host would then
+        // copy out the PREVIOUS run's file under this name and measure it as evidence
+        // about this commit. Both halves are closed: the directory is emptied in
+        // setUp, and a frame that does not exist on disk afterwards fails the run
+        // rather than resolving to whatever is sitting there.
+        let url = dir.appendingPathComponent(name)
+        do {
+            try png.write(to: url)
+        } catch {
+            return XCTFail("Could not write \(name): \(error)", file: file, line: line)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path),
+                      "\(name) reported written and is not on disk.", file: file, line: line)
         print("CAPTURE-HOME: \(dir.path)")
+    }
+
+    /// `shot`, but a repeat returns false instead of failing the run — for a SEARCH
+    /// that walks a scroll to its end, where "nothing moved" is the terminating
+    /// condition rather than a broken gesture. Every other capture keeps the strict
+    /// form; the caller here still has to prove drags work at all.
+    @discardableResult
+    private func shotAllowingScrollEnd(_ name: String) -> Bool {
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+        if taken.values.contains(png) { return false }
+        taken[name] = png
+        try? png.write(to: dir.appendingPathComponent(name))
+        return true
     }
 
     /// The lowest match on screen. "Tools" is both a tab and the nav back button
@@ -175,6 +225,131 @@ final class CaptureCurrentState: XCTestCase {
         XCTAssertLessThan(keypadTop, app.windows.firstMatch.frame.maxY,
                           "Keyboard is off-screen (\(keypadTop)) — hardware keyboard attached?")
         shot("11-calculator-keyboard-toolbar.png")
+    }
+
+    /// T20/T21 — the TRT calculator at rest, at whatever content size the DEVICE is
+    /// set to, plus the chrome geometry needed to turn a PNG into a percentage.
+    ///
+    /// The frame is the evidence; the printed numbers are only the denominators.
+    /// D11 says measure the LAYOUT off the framebuffer, not the view hierarchy —
+    /// so what this prints is the fixed chrome (header bottom, tab bar top, screen
+    /// height) which is what "the content area" MEANS, and the bar's extent is then
+    /// read off the pixels. Asking the hierarchy how tall the bar is would be
+    /// measuring what the layout claims rather than what the user sees.
+    ///
+    ///     xcrun simctl ui booted content_size large \
+    ///       && TEST_RUNNER_CAPTURE=1 xcodebuild test … \
+    ///          -only-testing:InjectBuddyUITests/CaptureCurrentState/testCaptureCalculatorAtRest
+    func testCaptureCalculatorAtRest() {
+        openTRT()
+
+        // Named by the size so two runs at two sizes cannot overwrite each other —
+        // and a run that failed to change the device size produces a filename that
+        // says so rather than a quietly-replaced frame.
+        let size = ProcessInfo.processInfo.environment["SIZE_LABEL"] ?? "unknown"
+        shot("20-calculator-trt-\(size).png")
+
+        let screen = app.windows.firstMatch.frame
+        // The tab bar and the header are the two fixed edges. Both are addressed by
+        // content, not by a container identifier, because the shell does not publish
+        // one — so this asserts what it found rather than trusting a first match.
+        let dashTab = app.buttons.matching(identifier: "Dashboard")
+            .allElementsBoundByIndex.filter { $0.isHittable }
+            .max { $0.frame.midY < $1.frame.midY }
+        XCTAssertNotNil(dashTab, "No hittable Dashboard tab — cannot locate the tab bar.")
+
+        // The nav bar has NO pixel signature on this screen — it is drawn on the same
+        // #FAFAFB canvas as the form, so a band profile cannot find its bottom edge.
+        // That is the one thing here the hierarchy has to supply; the bar's extent,
+        // which is what is actually being judged, is still read off the pixels.
+        let nav = app.navigationBars.firstMatch
+        // What the GATE computed, not what the frame looks like. The frame is checked
+        // separately, by band profile, and the two are meant to be cross-checkable.
+        let gate = app.descendants(matching: .any).matching(identifier: "bar_gate").firstMatch
+        XCTAssertTrue(gate.exists, "bar_gate probe absent — DEBUG build?")
+        print("GATE \(gate.label)")
+
+        // The override has to be OBSERVED to have arrived. Without this the run is
+        // green either way and the frame is filed under a cap it was not taken at.
+        if let want = ProcessInfo.processInfo.environment["BAR_SHARE_CAP"],
+           let wanted = Double(want) {
+            XCTAssertTrue(gate.label.contains(String(format: "cap=%.4f", wanted)),
+                          "BAR_SHARE_CAP=\(want) never reached the app — gate reports: \(gate.label)")
+        }
+        print("GEOM screen=\(screen.minY),\(screen.height) "
+              + "navBottom=\(nav.exists ? nav.frame.maxY : -1) "
+              + "tabTop=\(dashTab?.frame.minY ?? -1) "
+              + "size=\(size)")
+    }
+
+    /// T21 — the WORST composite under the translucent plate, not a representative one.
+    ///
+    /// A material's legibility is a property of what is behind it, so a frame shot
+    /// against the form's white cards proves nothing about the frame shot against the
+    /// navy barrel selection. This walks the form under the plate one swipe at a time
+    /// and keeps every position; the host then measures each and takes the darkest
+    /// background behind the `#075E56` values as the number that counts.
+    ///
+    /// Searched rather than guessed. "The busiest content" is a claim about a layout
+    /// nobody has looked at scrolled to an arbitrary offset, and this project has
+    /// already shipped one frame that flattered the fix it was taken to prove.
+    func testCaptureWorstComposite() {
+        openTRT()
+        let size = ProcessInfo.processInfo.environment["SIZE_LABEL"] ?? "unknown"
+
+        let gate = app.descendants(matching: .any).matching(identifier: "bar_gate").firstMatch
+        XCTAssertTrue(gate.exists, "bar_gate probe absent — DEBUG build?")
+        print("GATE \(gate.label)")
+
+        let form = app.scrollViews.allElementsBoundByIndex
+            .first { $0.isHittable && $0.frame.minX >= 0 }
+        XCTAssertNotNil(form, "No on-screen scroll view to scroll.")
+
+        // Position 0 is at rest; each subsequent frame is one swipe further in. The
+        // byte-identical guard in `shot` is what stops a swipe that never landed from
+        // being recorded as a distinct scroll position.
+        // NOT swipeUp(). A flick carries momentum and took this form from rest to its
+        // scroll end in one gesture, so the series held two positions and neither had
+        // any content behind the plate at all — the material was measured against an
+        // empty backdrop, which is the FLATTERING case, not the worst one. A slow drag
+        // has no momentum and lands where it is told.
+        shot("30-composite-\(size)-0.png")
+        var moved = 0
+        for step in 1...6 {
+            // Velocity, not duration. A 0.4s press-then-drag registered as a PRESS and
+            // moved the form zero pixels — caught by the assertion below rather than
+            // by six identically-named frames. A slow swipe is still a swipe.
+            form!.swipeUp(velocity: XCUIGestureVelocity(rawValue: 220))
+            // A repeat here means the scroll END, which is a legitimate stop — unlike a
+            // gesture that never landed. The two are told apart by asserting the FIRST
+            // drag moved something: if drags do not work at all, position 1 repeats and
+            // the run fails instead of quietly recording one frame six times.
+            if !shotAllowingScrollEnd("30-composite-\(size)-\(step).png") {
+                XCTAssertGreaterThan(moved, 0,
+                    "The first drag moved nothing — drags are not reaching this form, "
+                    + "so the series would be one frame under six names.")
+                break
+            }
+            moved += 1
+        }
+        print("COMPOSITE positions=\(moved + 1)")
+    }
+
+    /// One frame per candidate plate material, same screen, same scroll position.
+    ///
+    /// A sweep rather than five separate runs, because the thing being compared is a
+    /// COLOUR and five runs at five wall-clock times against a device whose status bar
+    /// clock is in the frame is five variables where one is wanted.
+    func testSweepPlateMaterials() {
+        for material in ["ultraThin", "thin", "regular", "thick", "bar"] {
+            app.terminate()
+            app.launchEnvironment["PLATE_MATERIAL"] = material
+            app.launch()
+            let accept = app.buttons["I understand"]
+            if accept.waitForExistence(timeout: 4) { accept.tap() }
+            openTRT()
+            shot("40-plate-\(material).png")
+        }
     }
 
     /// Set the size from the host first:
