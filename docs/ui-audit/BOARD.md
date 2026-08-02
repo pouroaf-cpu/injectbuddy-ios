@@ -190,6 +190,28 @@ Things a cold session will hit within minutes and not understand:
       (16 actions on an 874pt display), and offers all three non-saving calculators
       under a title promising a protocol. Frame: `IB2245775`.
 
+- [ ] **A PRIMARY CTA REPORTS ITSELF AS NOT HITTABLE, on screen and unobstructed.**
+      Measured on `BMI` while driving the `Add` write: the button reports
+      `enabled=true` and **`hittable=false`** at `(16, 687, 370, 72)` — wholly on
+      screen, above the tab bar (top y 792), below the hero (y 762 is inside its own
+      frame's span, so the hero's circle does overlap its lower edge) — and XCUITest
+      **cannot `AXScrollToVisible` it**: `kAXErrorCannotComplete performing AXAction
+      kAXScrollToVisibleAction`. The tap had to be driven by coordinate.
+      **We do not know which of two defects this is, and both are real:**
+      (a) the accessibility framework is wrong about the button, which matters directly
+      for anyone navigating by element rather than by touch — VoiceOver and Switch
+      Control reach that CTA through exactly the mechanism reporting it unreachable; or
+      (b) it genuinely is occluded, in which case a thumb has the same problem.
+      NOT RESOLVED — filed with the coordinates and the AXAction failure attached
+      rather than guessed at. **Nothing was concluded from the coordinate tap
+      returning**; the write was confirmed from the app tree and the database, because
+      a coordinate tap succeeding against an occluded element is the 08-01 defect
+      exactly.
+      **`PinnedBarReachabilityUITests.assertReachable` already asserts this** — "Add is
+      on screen but not hittable — something is over it" — and would go red on BMI
+      today. It does not, because that suite is aimed at three calculators and BMI is
+      not one of them. The same aim gap as `IB2245770`, found the same afternoon.
+
 - [ ] **SAFETY — `Add` is enabled over a dose the user cannot read.** `IB2245752`,
       `Steroid Dosage` at AX5. `field_mgWeek` spans y 636.33…701.33 against a plate top
       of pt 651.67, so `Weekly dose` is sheared through its own digits — and `Add` sits
