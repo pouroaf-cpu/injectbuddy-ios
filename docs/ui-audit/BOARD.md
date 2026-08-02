@@ -124,6 +124,53 @@ Things a cold session will hit within minutes and not understand:
 
 ## 1. Open — assigned
 
+- [ ] **SAFETY — FOUR INTERACTIVE CONTROLS SIT UNDER THE PINNED BAR AT DEFAULT SIZE, on
+      two calculators, and nothing could see them.** The barrel-size row —
+      `0.3 mL (30u)`, `0.5 mL (50u)`, `1 mL (100u)`, `3 mL (IM)` — on `TRT Dose` and
+      `Steroid Dosage`. Measured: each is enabled, 44pt tall, wholly inside the window at
+      **y 590.67…634.67**, and the result plate's top edge is at **564.67**. They are
+      underneath the plate. No user reaches them without scrolling, and **no VoiceOver or
+      Switch Control user reaches them from that position at all** — `isHittable` is
+      false for all four on both screens.
+      **WHY NOTHING CAUGHT IT, which is worth more than the defect.**
+      `PinnedBarReachabilityUITests` measures `field_*` and `control_*` only, and **says
+      so in its own coverage note** — segmented rows carry no per-control identifier, and
+      an identifier on their container would propagate to every button inside it. So
+      these buttons are addressed by LABEL because they have none, and the suite that
+      owns this invariant has never been able to see them. §5.33 a fourth time, except
+      this gap was **documented** and still cost a finding: a coverage note tells you
+      what is unmeasured, and unmeasured still reads as fine.
+      **FOUND BY THE PROBE AUDIT, WHICH WAS LOOKING FOR SOMETHING ELSE.**
+      `ProbeAttachmentUITests` asserts the property the probe attachments are supposed to
+      preserve — every enabled control wholly on screen is reachable through the
+      accessibility layer — rather than asserting that the three probes we know about are
+      attached correctly. That is why it caught a defect that has nothing to do with
+      probes. A check written against the known instances could not have.
+      Carried as `knownOccluded`, asserted from BOTH ends (§5.30), so the run goes red
+      the day it starts passing. The fix is a layout change and belongs with the other
+      default-size shears, not here.
+
+- [x] **PROBE ATTACHMENT AUDIT — all three probes measure clean, and this is the
+      measurement rather than a reading of the source.** §5.39 says an instrument that
+      alters what it measures is a class, not an incident, so the other probes were
+      checked after `bar_plate`. Frames as reported by the accessibility layer, on three
+      screens:
+      | probe | attachment | measured frame |
+      |---|---|---|
+      | `bar_plate` | `.background` (was `.overlay`) | `402.0 x 226.33` — spans the bar, by design, and no longer over it |
+      | `bar_gate` | `.overlay` | `0.0 x 0.0` on all three screens |
+      | `trunc_<id>` | `.overlayPreferenceValue` | `0.0 x 0.0` — 9 on TRT, 5 on Reconstitution, 10 on Steroid |
+      **Two of the three are still overlays and that is fine BECAUSE THEY MEASURE ZERO,
+      not because zero was declared in the source.** `.frame(width: 0, height: 0)` is a
+      declaration; these are observations of what the tree reports. The distinction is
+      the entire content of §5.39 — `bar_plate` was also "obviously fine" by inspection.
+      **AIMED AT** (§5.33): `TRT Dose`, `Reconstitution`, `Steroid Dosage` at default
+      size — 3 of 15. `trunc_` probes exist on every calculator; the other twelve are not
+      measured by this yet.
+      Cost noted for whoever widens it: ~226s for three screens, because enumerating
+      `descendants(matching: .any)` to find probes by prefix is expensive. Do not run it
+      per commit.
+
 - [ ] **SAFETY — AN INPUT IS SHEARED BY THE PINNED BAR AT DEFAULT SIZE, with `Add`
       enabled below it.** `IB2245770`, `BPC+TB500`. `TB-500 bac water` is cut through
       its own control by the plate's top edge; `Add` sits under it at full width,
