@@ -931,6 +931,20 @@ Parity and chrome
    `2026-08-01-current` is exempt because the serial rule starts on 2026-08-02 and says
    so in writing — and even that exemption is asserted from the other end, so a
    pre-serial folder that gains serials rejoins the rule instead of falling in a gap.
+33. **When a finding is closed by a check, record WHAT SURFACE THE CHECK WAS AIMED AT.**
+   The finding gets remembered as closed and the aim gets forgotten. F1 — unit truncation,
+   `Draw… 0.25…`, the worst finding of the original audit — was closed by a check pointed
+   at `field_<key>` / `unit_<key>` pairs. That logic was correct everywhere it looked, and
+   it never looked at the result card, **which is the surface F1 was found on**. Anyone
+   reading a green tick over that surface was reading a tick over something nothing was
+   watching, for two days, until T19's renderer probe measured three result rows
+   truncating.
+   The failure was not in the logic. It was in the AIM, and aim is invisible in a tick.
+   So every closed item owes an answer to: what does the check that closed it actually
+   observe, and what does it not? Cheap to ask, and the answer belongs next to the tick.
+   Do not run it as a sweep — sweeps done in a hurry are where regressions come from
+   (§D9). Add the line as each area is touched; T11 is the natural first pass, and it
+   should treat result cards as an UNSURVEYED SURFACE rather than a re-check.
 32. **An exemption is safe when the exempted set CANNOT GROW.** Two scoping decisions
    came up an hour apart and only one of them was legitimate, so the test that separates
    them is worth having. Switching the straddle assertion off at accessibility sizes was

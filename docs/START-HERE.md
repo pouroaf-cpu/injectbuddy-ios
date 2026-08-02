@@ -16,7 +16,12 @@ re-deriving anything.
 6. `HARNESS-AND-LOOSE-ENDS.md` — the workshop floor: how to run things, and the
    traps that cost real time
 
-Branch `feature/tabview-shell`, latest `466fac2`. Everything below is committed.
+Branch `feature/tabview-shell`, latest `6eec303`. Everything below is committed.
+
+**Stopping point 2026-08-02 evening: `HANDOVER-2026-08-02-EVENING.md`.** It names the
+next item (**F-E**, the picker overflow) with its shape, its two ruled-out approaches and
+its pass condition, so a cold session starts cutting rather than re-deriving. It also
+carries the three items that need the human.
 
 ---
 

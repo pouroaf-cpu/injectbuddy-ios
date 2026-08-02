@@ -1,0 +1,131 @@
+# Handover — 2026-08-02, evening
+
+Written at a deliberate stop, not a drift. The next item (**F-E**) is a control change
+across 12 call sites in a dosing app, and doing it at the end of a very long session is
+the rushed pass this session already argued against. Its shape is written out below so
+whoever picks it up starts cutting instead of re-deriving.
+
+Branch `feature/tabview-shell`, tip `6eec303`. Everything below is committed and pushed.
+`BOARD.md` is authoritative; `TASKLIST` on the cross-claude bus is the live queue.
+
+---
+
+## 1. What shipped
+
+| | |
+|---|---|
+| **T20** | The pinned result bar stands down on a **measured share** of the content area, not a Dynamic Type category. Five candidates laid out hidden at their own ideal heights; the tallest fitting 40% wins. Default: 52.40% → 35.40%. `369fbc5` |
+| **T21** | Plate → `.regularMaterial` + hairline; card gains a stroke. **Closed as NOT DELIVERED** — the tone changed, the blur did not, because nothing renders behind the bar. `369fbc5` |
+| **T19** | The renderer publishes whether a value truncated. Found that **result rows had no truncation check at all**. `98743bc` |
+| **Frames** | `IB2245749`–`IB2245753`, serialised and logged. `0d97f31`, `56dd1fe`, `23f102a` |
+
+Three new suites, **each shown red before being trusted**:
+
+- `PinnedBarReachabilityUITests` — D12 as geometry. Red at `BAR_SHARE_CAP=0.55` on
+  `control_injPerWeek`, the control the T20 finding names.
+- `AuditFolderConsistencyTests` — frame tables against folder contents, both directions.
+  Went red **eleven times** on its first run against real data.
+- `LeafOverlapUITests` — no two content leaves share pixels. Red on
+  `Compound` × `Oxandrolone (Anavar)`, 148.6 × 49.3pt.
+
+## 2. F-E — the next item, and its shape
+
+**The finding.** Every menu picker draws OUTSIDE its own control at large text once its
+selected string is long enough, landing on the label above and the field below. Evidence
+`IB2245752` (Steroid Dosage · Compound) and `IB2245753` (TRT · Ester).
+
+**It is a CONTROL change, not a screen change.** `FieldRow.content` is the only call
+site; `.picker` and `.stringPicker` both render
+`Picker(...).pickerStyle(.menu).fieldChrome()`. **12 picker fields across 8 calculators**:
+TRT Dose (Frequency, Ester) · TRT & EOD (Ester) · Peptide (Dose unit) · Semaglutide /
+Tirzepatide / Retatrutide (Concentration, Dose) · Free T Index (TT unit) · Steroid
+Dosage (Compound).
+
+**Ruled out, do not retry:** `.fixedSize(horizontal: false, vertical: true)` on the
+picker. Measured after the change — the same 193.0 × 183.3 text in the same
+371.3 × 78.3 button, **identical to the byte**. `.pickerStyle(.menu)` does not let its
+label's multiline height reach the control's frame. Recorded at the call site.
+
+**Ruled out, settled:** a character-length threshold. SF is proportional so a count is a
+bad proxy for rendered width, and a threshold builds two layout paths where the rare one
+is the untested one and correctness depends on a constant measured on one font, one
+device width and one type size.
+
+**The direction:** replace the style with a `Menu` whose label is laid out here, so the
+chrome grows to its content and every string in the catalog is correct by construction —
+the 34-character worst case (`Equipoise (Boldenone Undecylenate)`,
+`Primobolan (Methenolone Enanthate)`), the 20 that produced the frame, and the compound
+nobody has added yet.
+
+**Four things ride on that control. Each is a way to ship a regression quietly, and each
+must be asserted AFTER the swap, on a screen measured before it:**
+
+1. the 44pt tap target (`Theme.minTarget`),
+2. the accessibility label,
+3. the `control_<key>` identifier — the reachability and overlap suites both address it,
+4. the `unique(_:type:)` helper — an identifier that starts matching two elements fails
+   at resolution before any assertion runs.
+
+**Pass condition, and it existed before the fix, which is the right order:**
+`LeafOverlapUITests` is already red on `IB2245752` and `IB2245753`. It goes GREEN on
+those two when this lands. Delete the paid-off entries from `expectedOverlaps` — the
+suite fails if you leave them.
+
+**NOT covered, and do not assume otherwise (C8):** `CyclePlotterScreen` renders two
+`.menu` pickers of its own **without** `fieldChrome`. Different chrome, separate call
+sites. Say so in the commit rather than leaving it to the reader.
+
+**§5.33:** state what surface the fix is aimed at when closing it. This is the first
+finding where that column would have mattered from the start.
+
+## 3. Open, in queue order
+
+1. **F-E** — the picker overflow, above.
+2. **F-C** — `Frequency` sheared with the keypad up (`IB2245751`). Same class; the
+   keypad-up state is where F11 and T3 both lived.
+3. **T26** — result panel / barrel-fit strip. Spec on origin, branch
+   `docs/result-panel-spec` (`bd43542`). **Read the PNG first.** In-scroll card only.
+   Mac owes win two reads: whether the 14pt track reads as furniture at default and
+   survives AX5 (**measure, do not eyeball**), and the accessibility question below.
+   The duplicated headline figure (F-B) rides with this.
+4. **T27** — 3 mL barrel still shows `Units (U-100)`, a units figure for a barrel with no
+   units scale. Filed unbundled deliberately.
+5. **T25** — nothing renders behind the pinned bar.
+6. **T11**, **T8**, then T12/T13/T15/T16.
+
+**Blocking T26 §5:** `.accessibilityHidden(true)` **does not remove the hero glyph** —
+measured with the flag on the composed hero and again with it applied directly to the
+`Image`, byte-identical frame both times. The spec relies on that modifier to keep a
+decorative duplicate of the dose figures out of the tree. It must not ship on that
+assumption: assert the absence on the strip itself, red first with the modifier removed.
+**No working mechanism has been identified.**
+
+## 4. Needs the human — three items, none of them ours to decide
+
+1. **QA password rotation is outstanding.** It was relayed over the cross-claude bus on
+   2026-08-02 at the human's instruction and now sits in the bridge's message database on
+   **both** machines. Nothing else carries it — not a doc, not a commit, not a failure
+   message — but that is one copy too many and rotating it is a decision only they can
+   take.
+2. **Auto-login is not configured on the Mac.** The recurring "GUI session dropped, taps
+   are dead" failure is a shell in the `Background` launchd domain, not a login screen
+   (`/dev/console` is owned by the user; `launchctl managername` returns `Background`).
+   FileVault is **off**. The permanent fix is auto-login plus sleep/lock off plus
+   `caffeinate`, and `launchctl asuser` needs root. None of it is needed for the current
+   pipeline — CoreSimulator is a daemon and XCUITest drives inside the app runtime — so
+   this is a convenience decision, not a blocker.
+3. **Database CHECK constraints** on `profiles.preferred_*` and `logging_interests`, so
+   neither client can write a bad enum — the same shape as the dedup unique index. Schema
+   change (C4).
+
+## 5. Rig state
+
+iPhone 16 Pro / iOS 18.3, booted, signed in as `devtools`, **content size reset to
+`large`**. Not erased, so first-boot paths (`addUIInterruptionMonitor`,
+`dismissDisclaimerIfPresent`) still have **no coverage** — do not read a green suite as
+evidence that first run works.
+
+Full suite green at default: 30 unit tests, 4 wiring, 1 truncation sweep, 3 reachability,
+3 folder-consistency. `LeafOverlapUITests` is **green at AX5 with 8 named debts and red at
+default with pairs unnamed** — deliberately left there rather than chased, because the
+debts are real defects and naming them all was converging slowly.
