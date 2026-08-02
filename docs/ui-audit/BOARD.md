@@ -1165,3 +1165,20 @@ Parity and chrome
    — asserts the conditions a run happened under, something in the run must MEASURE
    those conditions. Otherwise the assertion is a label applied by intention, and
    intention is exactly what the rig does not preserve.
+
+37. **A FINDING STATES THE SCOPE OF THE SAMPLE IT WAS FOUND IN, NOT THE SCOPE OF THE
+   DEFECT — and it does it silently, because the sentence reads the same either way.**
+   "Sheared on BPC+TB500" and "sheared on BPC+TB500, of fourteen calculators measured"
+   are different claims, and only the second tells the next person whether to go
+   looking. So: **when you write a finding, write what you looked at next to it.**
+   **Four times in one day, all four caught by the person who wrote them** — which is
+   the argument for the rule, not against it. "The hero/disclaimer overlap happens in
+   exactly one place" came from walking three screens; the fourteen-screen enumeration
+   made it six. "`Cycle Plotter` may be unreachable from anywhere in the app" came from
+   one dialog that had never opened. **F-F** was filed as every calculator and is six.
+   **F-B** was filed as one screen and is five.
+   **This is §5.33's mirror, and the pair is most of what went wrong today.** Record
+   what surface a CHECK was aimed at; record what sample a FINDING was drawn from. Same
+   failure at opposite ends of the same sentence — F-D was the ratio sweep's aim, and
+   D12 aimed at 3 of 15 calculators is the same thing again. A scope nobody wrote down
+   is read as "all of it" by the next person, and by you in a week.
