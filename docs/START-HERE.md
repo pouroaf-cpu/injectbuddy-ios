@@ -1,5 +1,10 @@
 # START HERE — session log
 
+> **Opening the project cold? Read `WHERE-WE-ARE-2026-08-03.md` first.** It is the
+> current state in plain language — what we are doing, where we got to, what to do next,
+> and what is still broken — written for someone with no context. This file is the
+> longer session log behind it.
+
 Two paired sessions so far, Windows Claude directing and Mac Claude building.
 This file is the entry point; it is written so a cold session can pick up without
 re-deriving anything.
