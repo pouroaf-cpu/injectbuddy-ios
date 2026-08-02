@@ -454,6 +454,385 @@ final class CaptureCurrentState: XCTestCase {
         shot("14-calculator-trt-ester-\(size).png")
     }
 
+    // MARK: - The full default-size sweep
+
+    /// EVERY screen, at DEFAULT content size, at ONE SHA, in ONE run.
+    ///
+    /// Why this is not the "three frames only" refresh: `2026-08-02-current` was
+    /// INTERNALLY INCONSISTENT. `02`–`05` and `08` were shot at 10:38 — before the
+    /// measured pinning gate, before the material, before the type scale landed in its
+    /// final form — while `06`/`07`/`11` are from after. A folder called "current state"
+    /// held two different builds photographed an hour apart, which is §5.31: a name
+    /// outliving its content.
+    ///
+    /// So this is ONE test method rather than several, deliberately. `taken` is
+    /// per-instance, so a method boundary resets the byte-identical guard and relaunches
+    /// the app; one method keeps the whole sweep under one guard and one launch.
+    ///
+    /// THE BYTE-IDENTICAL GUARD IS NOT THE ARRIVAL CHECK, and it is weaker than it
+    /// looks here: the status-bar clock is in every frame, so two shots of the same
+    /// screen a minute apart are not byte-identical and the guard passes. It catches a
+    /// dead tap within the same clock minute and nothing more. What actually stops a
+    /// frame being filed under the wrong screen's name is `openCalculator`'s assertion
+    /// on the NAVIGATION BAR TITLE, below — and that assertion was shown red before
+    /// this run was trusted.
+    ///
+    ///     xcrun simctl ui booted content_size large \
+    ///       && TEST_RUNNER_CAPTURE=1 TEST_RUNNER_SIZE_LABEL=default xcodebuild test … \
+    ///          -only-testing:InjectBuddyUITests/CaptureCurrentState/testCaptureFullDefaultSweep ; \
+    ///     xcrun simctl ui booted content_size large
+    ///
+    /// NOT SHOT, and both are decisions rather than omissions: the drawer and Settings
+    /// render the account's real email and avatar (standing decision, and these frames
+    /// go into a chat window); and the welcome/signed-out path costs the Keychain
+    /// session and a real sign-in to recover.
+    func testCaptureFullDefaultSweep() {
+        // THE RIG SIZE, ASSERTED BEFORE ANY FRAME IS WRITTEN. Every filename in this
+        // sweep claims "default". Until `size=` was added to the gate probe, nothing in
+        // the harness could tell `large` from `xxxLarge` — `ax=false` is true for both —
+        // so a run at the wrong size produced a full set of frames that lie, and reported
+        // success. Asserted once, at the top, so the whole run is gated on it.
+        openTRT()
+        let gate = app.descendants(matching: .any).matching(identifier: "bar_gate").firstMatch
+        XCTAssertTrue(gate.exists, "bar_gate probe absent — DEBUG build?")
+        XCTAssertTrue(gate.label.contains("size=large"),
+                      "The rig is NOT at default content size — gate reports: \(gate.label). "
+                      + "Every frame in this sweep would be filed under a name claiming "
+                      + "default. Run `xcrun simctl ui booted content_size large` first.")
+        print("GATE \(gate.label)")
+        toolsRoot()
+
+        // ── The shell ───────────────────────────────────────────────────────────────
+        tab("Dashboard");  shot("02-dashboard.png")
+        tab("Calendar");   shot("03-calendar.png")
+        tab("Tools");      shot("04-tools.png")
+        tab("Add");        shot("05-add.png")
+
+        tab("Log dose")
+        XCTAssertTrue(app.navigationBars["Log a dose"].waitForExistence(timeout: 8),
+                      "Log-dose sheet never presented.")
+        shot("08-logdose-sheet.png")
+        app.buttons["Cancel"].firstMatch.tap()
+
+        // ── Every calculator, in enum order ─────────────────────────────────────────
+        // The three TRT frames keep their existing numbers so they read against the
+        // frames they supersede; the twelve that have never been shot at default take
+        // 15–28. `Steroid Dosage` and `Reconstitution` are in here for the FIRST TIME at
+        // this size — Reconstitution carries the `Units (U-100)` × tab-bar overlap at
+        // default, an open finding with no photograph.
+        // `fromTools: false` on exactly one row, and it is a FINDING rather than a
+        // harness convenience — see `openCalculator`. It is asserted from both ends: a
+        // row flagged false that turns up on Tools fails the run asking for the flag to
+        // be deleted, so the day `Cycle Plotter` is put in a category this stops lying.
+        let sweep: [(name: String, file: String, fromTools: Bool)] = [
+            ("TRT Dose",       "06-calculator-trt",            true),
+            ("TRT & EOD",      "15-calculator-eod",            true),
+            ("HCG",            "16-calculator-hcg",            true),
+            ("Peptide",        "17-calculator-peptide",        true),
+            ("Reconstitution", "18-calculator-reconstitution", true),
+            ("Semaglutide",    "19-calculator-semaglutide",    true),
+            ("Tirzepatide",    "20-calculator-tirzepatide",    true),
+            ("Retatrutide",    "21-calculator-retatrutide",    true),
+            ("BPC-157",        "22-calculator-bpc157",         true),
+            ("BPC+TB500",      "23-calculator-bpc157blend",    true),
+            ("BMI",            "24-calculator-bmi",            true),
+            ("Free T Index",   "25-calculator-freetest",       true),
+            ("TRT Microdose",  "26-calculator-microdose",      true),
+            ("Steroid Dosage", "28-calculator-steroid",        true),
+            // `Cycle Plotter` is NOT in this list — it is captured last, after the F-F
+            // frame, and the ordering is load-bearing rather than tidy. It is the one
+            // frame reached by a route the harness had never driven, and when that route
+            // failed it took the whole run down with it — twice, at thirteen minutes a
+            // time, discarding twenty-two frames that had already been taken correctly.
+            // Putting a known-fragile step last does not hide it: it still fails the run,
+            // it just stops costing the frames that have nothing to do with it.
+        ]
+
+        // F-F says the hero circle covers the disclaimer tail on EVERY calculator at
+        // default size. That is asserted for THREE of them in `LeafOverlapUITests` and
+        // claimed for the rest. Measuring it on all fifteen here costs one scroll each
+        // and turns the claim into an enumeration — and it picks the frame to shoot on a
+        // measurement rather than on which one looked worst to me.
+        var heroOverlaps: [(name: String, area: CGFloat, rect: CGRect)] = []
+
+        for (name, file, fromTools) in sweep {
+            openCalculator(named: name, fromTools: fromTools)
+            shot("\(file).png")
+
+            if name == "TRT Dose" {
+                // The barrel row and the keypad, while we are here — same visit, same
+                // scroll origin as the frames they supersede.
+                guard let form = onScreenScrollView() else { return XCTFail("No scroll view on TRT.") }
+                form.swipeUp()
+                shot("07-calculator-barrel-row.png")
+                form.swipeDown(); form.swipeDown()
+
+                let field = app.textFields["field_mgWeek"]
+                XCTAssertTrue(field.waitForExistence(timeout: 5), "No weekly dose field.")
+                field.tap()
+                field.typeText("300")
+                XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5),
+                              "No keyboard — the frame would not prove anything.")
+                XCTAssertLessThan(app.keyboards.firstMatch.frame.minY,
+                                  app.windows.firstMatch.frame.maxY,
+                                  "Keyboard is off-screen — hardware keyboard attached?")
+                shot("11-calculator-keyboard-toolbar.png")
+                app.buttons["kb_done"].firstMatch.tap()
+            }
+
+            if let hit = measureHeroOverDisclaimer(on: name) {
+                heroOverlaps.append(hit)
+            }
+            toolsRoot()
+        }
+
+        // ── F-F ─────────────────────────────────────────────────────────────────────
+        // NO SEPARATE FRAME IS SHOT FOR THIS, and that is the finding rather than a
+        // saving. The overlap exists only at REST, and the at-rest frame of the
+        // calculator it happens on has already been taken in the loop above — so a
+        // dedicated F-F capture would be a byte-identical duplicate of
+        // `18-calculator-reconstitution` under a second serial, which is precisely the
+        // "spends a serial saying nothing" the three-frame refresh was cut down for.
+        // The README names which frame carries the finding instead.
+        let ranked = heroOverlaps.sorted { $0.area > $1.area }
+        for h in ranked {
+            print(String(format: "HERO-DISCLAIMER-HIT %@ area=%.1fpt² rect=%@",
+                         h.name, h.area, NSCoder.string(for: h.rect)))
+        }
+        XCTAssertFalse(ranked.isEmpty,
+                       "The hero overlapped the disclaimer on NO calculator at rest. F-F "
+                       + "claims it does on every one, and this run measured all of them — "
+                       + "so either the finding is now stale or this measurement is not "
+                       + "looking at what it thinks it is. Do not close F-F on this.")
+
+        // ── Cycle Plotter, last, by the only route that reaches it ──────────────────
+        openCalculator(named: "Cycle Plotter", fromTools: false)
+        shot("27-calculator-plotter.png")
+    }
+
+    /// The on-screen form scroll view. NOT `scrollViews.firstMatch` — that is the
+    /// off-canvas drawer at x = -344.
+    ///
+    /// Retried, because "not there yet" and "not there" are different and this could not
+    /// tell them apart. Straight after a tab switch the dashboard's scroll view is not
+    /// yet hittable, so a single query returned nil and the run failed with "No dashboard
+    /// scroll view" on a screen that plainly has one — while the same code passed in a
+    /// standalone probe, where the app had launched onto that tab and settled.
+    private func onScreenScrollView(retries: Int = 0) -> XCUIElement? {
+        for _ in 0...max(0, retries) {
+            if let hit = app.scrollViews.allElementsBoundByIndex
+                .first(where: { $0.isHittable && $0.frame.minX >= 0 }) {
+                return hit
+            }
+            _ = app.staticTexts.firstMatch.waitForExistence(timeout: 1)
+        }
+        return nil
+    }
+
+    /// Back to the Tools LIST, at the TOP.
+    ///
+    /// Two things that are easy to get wrong and both were. Each tab owns its own
+    /// `NavigationStack` (`MainShell`), so tapping the Tools TAB while a calculator is
+    /// pushed does not pop it — the back button has to be tapped. And the row search
+    /// below only ever scrolls DOWN, so a list left at the bottom by the previous
+    /// calculator would never find a row above it: the reset is what makes the sweep
+    /// order-independent rather than accidentally alphabetical.
+    private func toolsRoot() {
+        let back = app.navigationBars.buttons.matching(identifier: "Tools").firstMatch
+        if back.exists && back.isHittable { back.tap() }
+        tab("Tools")
+        if let list = (app.collectionViews.allElementsBoundByIndex
+                       + app.tables.allElementsBoundByIndex
+                       + app.scrollViews.allElementsBoundByIndex)
+            .first(where: { $0.isHittable && $0.frame.minX >= 0 }) {
+            for _ in 0..<8 { list.swipeDown(velocity: XCUIGestureVelocity(rawValue: 500)) }
+        }
+    }
+
+    /// Any calculator by row label, asserting arrival on the NAV BAR TITLE.
+    ///
+    /// The existing `openCalculator(named:expecting:)` asserts a named text field, which
+    /// only works for calculators that have one — `BMI`, `Free T Index` and
+    /// `Cycle Plotter` do not share a field key with the rest. The title is the screen's
+    /// own identity and every route publishes it (`RouteContent.navigationTitle`).
+    ///
+    /// SHOWN RED BEFORE IT WAS TRUSTED: asserted `Reconstitution` after tapping
+    /// `TRT Dose` and the run failed with "landed on TRT Dose". An arrival check that has
+    /// never been watched to fail is the thing that let a photograph of the Tools screen
+    /// ship under a calculator's filename.
+    ///
+    /// `fromTools: false` — `CYCLE PLOTTER IS NOT ON THE TOOLS SCREEN`, and this run is
+    /// how that was found rather than a thing anyone knew. The first sweep died on
+    /// "Cycle Plotter never became hittable after 12 scrolls" after finding the other
+    /// thirteen by the identical mechanism, which is the behavioural half; the source
+    /// half is that `CalculatorCategory.members` enumerates 14 of the 15 slugs and
+    /// `.cyclePlotter` is in none of them, so `ToolsScreen` — whose own comment says it
+    /// "Shows ALL calculators including the ones that cannot save a protocol (BMI, Free
+    /// T Index, the plotter)" — cannot render it. It is reachable only from the
+    /// dashboard's `Add a protocol` dialog, which enumerates `allCases`. So the frame is
+    /// taken by that route rather than dropped, and the finding is recorded here and on
+    /// the board instead of living in a harness workaround.
+    private func openCalculator(named name: String, fromTools: Bool = true) {
+        toolsRoot()
+        var row: XCUIElement?
+        for attempt in 0..<12 {
+            row = app.staticTexts.matching(identifier: name).allElementsBoundByIndex
+                .first { $0.isHittable }
+            if row != nil { break }
+            guard let list = (app.collectionViews.allElementsBoundByIndex
+                              + app.tables.allElementsBoundByIndex
+                              + app.scrollViews.allElementsBoundByIndex)
+                .first(where: { $0.isHittable && $0.frame.minX >= 0 }) else {
+                return XCTFail("Nothing scrollable after \(attempt) attempts looking for \(name).")
+            }
+            list.swipeUp()
+        }
+
+        // BOTH ENDS (§5.30). A row declared absent from Tools that turns up there is a
+        // debt that has been paid, and leaving the flag in place would route the frame
+        // through a fallback nobody needs any more — silently, since the fallback works.
+        guard fromTools else {
+            XCTAssertNil(row, "`\(name)` IS on the Tools screen now. It is flagged "
+                         + "`fromTools: false` because it was absent — delete the flag.")
+            print("ROUTE \(name): NOT on Tools; reached via the dashboard `Add a protocol` dialog.")
+            openFromDashboardDialog(name)
+            return
+        }
+
+        guard let hit = row else { return XCTFail("\(name) never became hittable after 12 scrolls.") }
+        hit.tap()
+        XCTAssertTrue(app.navigationBars[name].waitForExistence(timeout: 8),
+                      "Tapped `\(name)` and did not land on it — no navigation bar titled "
+                      + "`\(name)`. Present instead: "
+                      + app.navigationBars.allElementsBoundByIndex
+                          .map(\.identifier).joined(separator: ", "))
+    }
+
+    /// The only route in the app that reaches every calculator: the dashboard's
+    /// `Add a protocol` confirmation dialog, which enumerates `CalculatorSlug.allCases`.
+    ///
+    /// Worth knowing what this route IS while using it. `AddScreen` deliberately filters
+    /// to `savableMembers` because — its own words — "a calculator with no save path
+    /// strands them at the last step". This dialog does no such filtering, so it offers
+    /// `BMI`, `Free T Index` and `Cycle Plotter` under the title `Add a protocol`, and
+    /// none of the three can save one. Filed; not fixed here.
+    private func openFromDashboardDialog(_ name: String) {
+        tab("Dashboard")
+        guard let scroll = onScreenScrollView(retries: 8) else {
+            return XCTFail("No dashboard scroll view after 8 retries.")
+        }
+
+        // THE TAB BAR HAS ITS OWN `Add`, WITH THE SAME `plus` GLYPH, and the Protocols
+        // section's button starts BELOW THE FOLD on this account. The first attempt took
+        // "the highest hittable Add", which — with the real one off-screen — was the TAB
+        // ITEM. That lands on `AddScreen`, where `Cycle Plotter` is filtered out on
+        // purpose, so the run concluded "not in the dialog either… unreachable from
+        // anywhere in the app" about a dialog that had never been opened. Exactly the
+        // §5.24 shape pointed the other way: an assertion failing for a reason that has
+        // nothing to do with what it claims to measure.
+        //
+        // So: only buttons ABOVE the tab bar, and scroll until one appears.
+        let tabTop = app.buttons.matching(identifier: "Dashboard").allElementsBoundByIndex
+            .filter { $0.isHittable }.map(\.frame.minY).max() ?? .greatestFiniteMagnitude
+        func sectionAdd() -> XCUIElement? {
+            app.buttons.allElementsBoundByIndex.first {
+                ($0.identifier == "Add" || $0.label == "Add")
+                    && $0.isHittable && $0.frame.maxY < tabTop
+            }
+        }
+        var target = sectionAdd()
+        for _ in 0..<6 where target == nil {
+            scroll.swipeUp(velocity: XCUIGestureVelocity(rawValue: 220))
+            target = sectionAdd()
+        }
+        guard let add = target else {
+            return XCTFail("No `Add` button above the tab bar (top \(tabTop)) on the dashboard "
+                           + "after scrolling — cannot open the calculator dialog.")
+        }
+        print("ROUTE dashboard Add button at \(add.frame), tab bar top \(tabTop)")
+        add.tap()
+
+        // ASSERT THE DIALOG IS OPEN before drawing any conclusion about its contents.
+        // Without this, a tap that went somewhere else reports "`X` is not in the
+        // dialog", which is a claim about a screen that was never on.
+        XCTAssertTrue(app.staticTexts["Add a protocol"].waitForExistence(timeout: 6),
+                      "The `Add a protocol` dialog did not open. Anything concluded about "
+                      + "its contents would be about the wrong screen.")
+
+        // The dialog carries 16 actions on an 874pt display, so it is a SCROLLABLE action
+        // sheet and the ones past the fold are not in the tree until they are scrolled
+        // to. `waitForExistence` on an entry near the end reports "does not exist" while
+        // it is two drags away — the same lazy-list trap that cost this project three
+        // attempts at the AX5 TRT capture.
+        let entry = app.buttons[name]
+        if !entry.waitForExistence(timeout: 3) {
+            let sheet = app.sheets.firstMatch.exists
+                ? app.sheets.firstMatch
+                : (app.scrollViews.allElementsBoundByIndex.first { $0.isHittable } ?? app.windows.firstMatch)
+            for _ in 0..<8 where !entry.exists {
+                sheet.swipeUp(velocity: XCUIGestureVelocity(rawValue: 220))
+            }
+        }
+        XCTAssertTrue(entry.exists,
+                      "`\(name)` is not in the dashboard `Add a protocol` dialog either — "
+                      + "and the dialog IS open and was scrolled, so it would be unreachable "
+                      + "from anywhere in the app. The dialog offers: "
+                      + app.buttons.allElementsBoundByIndex
+                          .filter { $0.isHittable }.map(\.label).joined(separator: ", "))
+        entry.tap()
+        XCTAssertTrue(app.navigationBars[name].waitForExistence(timeout: 8),
+                      "Tapped `\(name)` in the dashboard dialog and did not land on it. "
+                      + "Present instead: "
+                      + app.navigationBars.allElementsBoundByIndex
+                          .map(\.identifier).joined(separator: ", "))
+    }
+
+    /// The hero circle over the disclaimer tail — F-F — as a measured intersection,
+    /// READ AT REST.
+    ///
+    /// At rest is not a convenience, it is where the defect lives. Walking the form one
+    /// drag at a time on `TRT Dose`, `Reconstitution` and `Steroid Dosage` — nine
+    /// positions each, from rest to the scroll end — the hero sits at a FIXED
+    /// (172, 762, 58, 58) throughout (it is the overlay, per F-G) while the disclaimer
+    /// moves, and the two meet in exactly one place:
+    ///
+    ///     Reconstitution, UNSCROLLED   disclaimer y 761.67, hero y 762
+    ///                                  -> intersect (172, 762, 19.33 x 13.0)
+    ///
+    /// That 19.33pt is the board's "the last ~19pt of the disclaimer". On `TRT Dose` and
+    /// `Steroid Dosage` it never happens: their disclaimer is at y 1031 at rest — off the
+    /// bottom of an 874pt display — and scrolling steps it 842 -> 653, straight past the
+    /// hero's 762…820 band. So F-F is ONE calculator, not "every calculator": it happens
+    /// on Reconstitution because that form's content ends exactly at the hero's y.
+    ///
+    /// Returns nil when the screen has no disclaimer of this exact wording
+    /// (`CyclePlotterScreen` has its own, longer one) or when the two do not intersect.
+    private func measureHeroOverDisclaimer(on name: String)
+        -> (name: String, area: CGFloat, rect: CGRect)? {
+        let disclaimer = app.staticTexts["Maths only — not medical advice."]
+        let hero = app.images["syringe"]
+        guard disclaimer.exists else {
+            print("HERO-DISCLAIMER \(name): no disclaimer with this wording in the tree.")
+            return nil
+        }
+        guard hero.exists else {
+            print("HERO-DISCLAIMER \(name): no `syringe` glyph in the tree.")
+            return nil
+        }
+        let window = app.windows.firstMatch.frame
+        let df = disclaimer.frame, hf = hero.frame
+        let overlap = df.intersection(hf)
+        let hit = !overlap.isNull && overlap.width > 0.5 && overlap.height > 0.5
+        // ALWAYS printed, hit or miss. The point of running this on all fourteen is to
+        // turn "on every calculator" into an enumeration, and a measurement that prints
+        // only when it finds something cannot tell you where it looked.
+        print("HERO-DISCLAIMER \(name): disclaimer=\(df) hero=\(hf) "
+              + "onScreen=\(window.intersects(df)) "
+              + "overlap=\(hit ? "\(overlap)" : "none")")
+        guard hit else { return nil }
+        return (name, overlap.width * overlap.height, overlap)
+    }
+
     /// Set the size from the host first:
     ///   xcrun simctl ui booted content_size accessibility-extra-extra-extra-large
     func testCaptureAX5Set() {

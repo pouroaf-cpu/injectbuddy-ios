@@ -546,19 +546,36 @@ struct CalculatorScreen: View {
             .frame(width: 0, height: 0)
             .accessibilityElement()
             .accessibilityIdentifier("bar_gate")
-            .accessibilityLabel(
-                "mode=\(pinnedMode.rawValue) measured=\(measuredMode.rawValue) "
-                + "ax=\(isAccessibilitySize) "
-                // The cap is published because it can be overridden from the
-                // environment, and an override that silently fails to arrive is a run
-                // that reports success while testing the default. That happened on
-                // the first attempt at driving this gate.
-                + String(format: "cap=%.4f area=%.2f ", Self.maxPinnedShare, contentAreaAtRest)
-                + PinnedMode.allCases
-                    .map { String(format: "%@=%.2f", $0.rawValue, metrics[$0.rawValue] ?? -1) }
-                    .joined(separator: " "))
+            .accessibilityLabel(gateProbeLabel)
         #endif
     }
+
+    #if DEBUG
+    /// Built here rather than inline in the modifier: as one expression the type
+    /// checker gave up on it outright.
+    private var gateProbeLabel: String {
+        var parts: [String] = []
+        parts.append("mode=\(pinnedMode.rawValue)")
+        parts.append("measured=\(measuredMode.rawValue)")
+        parts.append("ax=\(isAccessibilitySize)")
+        // The CATEGORY, not just the accessibility flag. `ax=false` is true at `large`,
+        // `xLarge` and `xxxLarge` alike, so nothing in the harness could tell the default
+        // size from a merely-non-accessibility one — and every frame in the default
+        // capture sweep is filed under a name that CLAIMS default. A run whose filenames
+        // assert a rig setting it cannot observe is the §5.24 shape: it reports success
+        // either way.
+        parts.append("size=\(typeSize)")
+        // The cap is published because it can be overridden from the environment, and an
+        // override that silently fails to arrive is a run that reports success while
+        // testing the default. That happened on the first attempt at driving this gate.
+        parts.append(String(format: "cap=%.4f", Self.maxPinnedShare))
+        parts.append(String(format: "area=%.2f", contentAreaAtRest))
+        for mode in PinnedMode.allCases {
+            parts.append(String(format: "%@=%.2f", mode.rawValue, metrics[mode.rawValue] ?? -1))
+        }
+        return parts.joined(separator: " ")
+    }
+    #endif
 }
 
 // MARK: - Measured layout plumbing
