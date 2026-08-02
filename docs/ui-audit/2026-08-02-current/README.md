@@ -1,170 +1,184 @@
-# Current state — 2026-08-02, after the measured pinning gate
+# Current state — 2026-08-02
 
-iPhone 16 Pro, iOS 18.3, light, sRGB, unscaled. Numbering matches
-`2026-08-01-current` so the two read side by side. Every frame carries a serial
-and a row in `../SCREENSHOT-LOG.md`.
+iPhone 16 Pro, iOS 18.3, light, sRGB, unscaled. Every frame carries a serial and a
+row in `../SCREENSHOT-LOG.md`.
 
-Every file verified distinct by md5 — and the capture harness now fails a run when
-two frames come back byte-identical, rather than leaving that to a checksum
-someone remembers to take.
+## The default-size set is ONE RUN AT ONE SHA
 
-## What state the app is in
+**`IB2245754`–`IB2245775`, captured `9b4afcb`, 04:42–04:53 PDT, in a single
+`testCaptureFullDefaultSweep` run.** That property is the point of this pass, not a
+detail of it.
 
-These frames are the app after three changes made today: the two calculator
-defects (the field displaying a number the engine did not use, and the quick-value
-row occluded with the keypad up), and the type-scale re-baseline that made
-`Theme.Typeface` track Dynamic Type at all.
+**What it replaces was internally inconsistent.** `02`–`05` and `08` were shot at
+10:38 the previous day — *before* the measured pinning gate, before the material,
+before the type scale landed in its final form — while `06`/`07`/`11` came from
+after. A folder named "current state" was holding **two different builds
+photographed an hour apart**. That is §5.31, a name outliving its content, pointed
+at the folder the consistency check exists to protect.
 
-| Defect | Status in these frames |
-|---|---|
-| Field displays a number the engine did not use | fixed |
-| Quick-value row unreachable with the keypad up | fixed |
-| Type scale frozen against Dynamic Type | fixed — compare `IB2245746` against the superseded `IB2245730` |
-| `Tools` at AX5 reads as broken | **still live** — `IB2245747` |
-| Screen-header rule (`DESIGN-PARITY §9`) | **still live** |
-| Greeting takes ~40% of the dashboard at AX5 | **new, open** — correct scaling behaviour, open product question |
+**The rig size is now asserted, not assumed.** `bar_gate` published `ax=true/false`,
+which reads identically at `large`, `xLarge` and `xxxLarge` — so nothing in the
+harness could tell the default size from a merely-non-accessibility one, while every
+filename in a default sweep asserts "default" in its name. The probe now publishes
+`size=<category>` and the run fails before writing a single frame unless it reads
+`size=large`.
 
-The pre-fix evidence frames (`IB2245733`, `IB2245734`) and the whole pre-
-type-scale set are superseded; their rows in `../SCREENSHOT-LOG.md` name the
-commit each file can be retrieved from.
+**Each frame asserted its own destination before it was written**, on the navigation
+bar title — a check shown red first, by poisoning it to expect `Reconstitution` after
+tapping `TRT Dose`. All 27 files in this folder are distinct by md5.
 
-**Serials corrected 2026-08-02.** This table listed `IB2245743` and `IB2245744` for
-the two AX5 frames after those files had been superseded by `IB2245746` and
-`IB2245747`, and it never listed `IB2245748` at all. So the README named serials that
-were not in the folder — the same class of problem as a filename that outlives its
-content, and exactly what the log exists to make detectable. Caught by the directing
-side reading the table against a checkout.
+The five AX5 frames (`09`, `10`, `12`, `13`, `14`) are **not** superseded by this
+pass — they are a different type size and are the only large-text evidence there is.
 
 ## Frames
 
 | Serial | File | Screen |
 |---|---|---|
-| IB2245736 | `02-dashboard-IB2245736.png` | Dashboard |
-| IB2245737 | `03-calendar-IB2245737.png` | Calendar |
-| IB2245738 | `04-tools-IB2245738.png` | Tools |
-| IB2245739 | `05-add-IB2245739.png` | Add |
-| IB2245749 | `06-calculator-trt-IB2245749.png` | TRT Dose, at rest — **after the measured pinning gate** |
-| IB2245750 | `07-calculator-barrel-row-IB2245750.png` | TRT Dose scrolled to the end |
-| IB2245742 | `08-logdose-sheet-IB2245742.png` | Log-dose sheet |
+| IB2245754 | `02-dashboard-IB2245754.png` | Dashboard |
+| IB2245755 | `03-calendar-IB2245755.png` | Calendar |
+| IB2245756 | `04-tools-IB2245756.png` | Tools — and **`Cycle Plotter` is not in this list**, see below |
+| IB2245757 | `05-add-IB2245757.png` | Add |
+| IB2245758 | `08-logdose-sheet-IB2245758.png` | Log-dose sheet |
+| IB2245759 | `06-calculator-trt-IB2245759.png` | TRT Dose, at rest |
+| IB2245760 | `07-calculator-barrel-row-IB2245760.png` | TRT Dose scrolled to the barrel row |
+| IB2245761 | `11-calculator-keyboard-toolbar-IB2245761.png` | TRT Dose, weekly dose focused, keypad up |
+| IB2245762 | `15-calculator-eod-IB2245762.png` | **TRT & EOD — first capture ever** |
+| IB2245763 | `16-calculator-hcg-IB2245763.png` | **HCG — first capture ever.** Clean at this size |
+| IB2245764 | `17-calculator-peptide-IB2245764.png` | **Peptide — first capture ever** |
+| IB2245765 | `18-calculator-reconstitution-IB2245765.png` | **Reconstitution — first capture ever.** Carries F-F, and the disclaimer is not visible anywhere in the frame |
+| IB2245766 | `19-calculator-semaglutide-IB2245766.png` | **Semaglutide — first capture ever.** `Units (U-100)` sheared by the plate at DEFAULT size |
+| IB2245767 | `20-calculator-tirzepatide-IB2245767.png` | **Tirzepatide — first capture ever** |
+| IB2245768 | `21-calculator-retatrutide-IB2245768.png` | **Retatrutide — first capture ever** |
+| IB2245769 | `22-calculator-bpc157-IB2245769.png` | **BPC-157 — first capture ever.** Disclaimer at y 841.67, inside the tab bar's region |
+| IB2245770 | `23-calculator-bpc157blend-IB2245770.png` | **BPC+TB500 — first capture ever. AN INPUT IS SHEARED BY THE PLATE AT DEFAULT SIZE**, with `Add` enabled below it |
+| IB2245771 | `24-calculator-bmi-IB2245771.png` | **BMI — first capture ever.** Result card sheared through `Normal`; `Add` enabled on a calculator that cannot save a protocol |
+| IB2245772 | `25-calculator-freetest-IB2245772.png` | **Free T Index — first capture ever.** Same shear, same enabled `Add` |
+| IB2245773 | `26-calculator-microdose-IB2245773.png` | **TRT Microdose — first capture ever.** Clean at this size |
+| IB2245774 | `28-calculator-steroid-IB2245774.png` | **Steroid Dosage at DEFAULT — first capture ever.** Compare `IB2245752`, the same screen at AX5 |
+| IB2245775 | `27-calculator-plotter-IB2245775.png` | **Cycle Plotter — first capture ever**, and reachable only by the dashboard dialog. Carries C8's two chrome-less pickers |
 | IB2245746 | `09-dashboard-ax5-IB2245746.png` | Dashboard at AX5, greeting capped |
 | IB2245747 | `10-tools-ax5-IB2245747.png` | Tools at AX5 |
-| IB2245748 | `12-calculator-trt-ax5-IB2245748.png` | TRT Dose at AX5 — the first capture of this screen at large text ever taken |
-| IB2245752 | `13-calculator-steroid-ax5-IB2245752.png` | **Steroid Dosage at AX5 — first capture ever.** The BEFORE frame for the sheared dose field, and three defects nobody had seen |
-| IB2245753 | `14-calculator-trt-ester-ax5-IB2245753.png` | TRT's `Ester` picker at AX5 — the same overlap on a second screen, proving it is the shared control |
-| IB2245751 | `11-calculator-keyboard-toolbar-IB2245751.png` | TRT Dose, weekly dose focused, keypad up |
+| IB2245748 | `12-calculator-trt-ax5-IB2245748.png` | TRT Dose at AX5 |
+| IB2245752 | `13-calculator-steroid-ax5-IB2245752.png` | Steroid Dosage at AX5 — the sheared dose field and the picker overflow |
+| IB2245753 | `14-calculator-trt-ester-ax5-IB2245753.png` | TRT's `Ester` picker at AX5 — the picker overflow on a second screen |
 
-## What changed on 2026-08-02, second pass — taken at `369fbc5`
+## What this pass found
 
-Three frames only, at DEFAULT type size. Dashboard, calendar, tools, add and the log
-sheet are untouched by this work and were not reshot: a reshoot with no change spends
-a serial saying nothing.
+Fourteen of these screens had never been photographed at any size. Everything below
+is at **default** — the size everyone has been looking at for three days.
 
-**`IB2245749` against the superseded `IB2245740` — the frame that matters.** Same
-screen, same size, same values, so it is comparable by eye and by band profile.
+### 1. An input sheared by the pinned bar, at default size — `IB2245770`
 
-| | IB2245740 | IB2245749 |
+`BPC+TB500`. `TB-500 bac water` is cut through its own control by the plate's top
+edge, and `Add` sits below it, full width and enabled. That is **F-A's exact shape
+and D12 word for word** — an action you can reach for a value you can't — except
+F-A was filed as an AX5 finding on one screen and this is default size on a
+different one.
+
+**`PinnedBarReachabilityUITests` covers three calculators: TRT Dose,
+Reconstitution, Steroid Dosage.** BPC+TB500 is not one of them. So D12's assertion,
+built precisely to stop this, is aimed at 3 of 15 screens and the defect is live at
+default size on one it has never looked at. **This is F-D a third time** — the check
+is sound and its AIM is short (§5.33).
+
+### 2. Result cards sheared at default size — `IB2245771`, `IB2245772`, `IB2245766`
+
+`BMI` and `Free T Index` are both cut through the word `Normal`; `Semaglutide` is cut
+through `Units (U-100)`. The in-scroll result card runs under the plate on every
+calculator whose card is tall enough, and nothing watches result rows against the
+plate — the reachability sweep reads `field_*` and `control_*` only.
+
+### 3. `Add` is enabled on calculators that cannot save a protocol — `IB2245771`, `IB2245772`
+
+`canSaveProtocol` is **false** for `bmi`, `freeTestIndex` and `cyclePlotter`, and its
+own comment says the flag exists because "a calculator with no save path walks the
+user into a wall at the last step". `AddScreen` honours it. **`CalculatorScreen` does
+not reference it at all** — the CTA is gated on `vm.result.isValid && network.isOnline`
+— so BMI and Free T Index render a full-width, fully enabled `Add`.
+
+**NOT YET DRIVEN, and the severity depends entirely on which way it goes:** if the
+tap fails, it is the wall the flag exists to prevent, reached from Tools instead of
+from Add. If it succeeds, a "BMI" protocol lands in the user's protocol list — a
+saved dosing protocol from a calculator that computes an index and no dose. Filed
+unresolved rather than guessed.
+
+### 4. `Cycle Plotter` is absent from the screen whose job is listing calculators
+
+`CalculatorCategory.members` enumerates **14 of the 15 slugs** and `.cyclePlotter` is
+in none of them, so `ToolsScreen` cannot render it — while that screen's own comment
+says it "Shows ALL calculators including the ones that cannot save a protocol (BMI,
+Free T Index, **the plotter**)". A shipped calculator, missing from the browse
+surface, with a comment asserting the opposite.
+
+Found by the sweep dying on it: thirteen calculators were located on that list by the
+identical mechanism and this one never appeared after twelve scrolls. Its only route
+is the dashboard's `Add a protocol` dialog, which enumerates `allCases` — and that
+dialog needs **eight drags** to reach the entry, because it carries 16 actions on an
+874pt display. The same dialog offers all three calculators that cannot save a
+protocol, under a title promising one.
+
+### 5. F-F is measured, and it is not what the board says
+
+**The board says the hero covers the disclaimer tail "on every calculator". Measured
+on all fourteen at rest, it is six**, and on those six the overlap is *identical*:
+
+    Reconstitution · Semaglutide · Tirzepatide · Retatrutide · BMI · Free T Index
+    disclaimer y 761.67, hero (172, 762, 58, 58) -> (172, 762, 19.33 x 13.0), 251.3pt²
+
+The hero never moves — fixed at `(172, 762, 58, 58)` on every screen and at every
+scroll offset, which is F-G's finding from another angle. What varies is where the
+form's content ends. The other eight put the disclaimer somewhere else entirely:
+
+| | disclaimer y at rest | |
 |---|---|---|
-| plate top | pt 456.33 | pt 564.67 |
-| plate height | 334.34pt | 226.00pt |
-| **share of content area** (638.34pt) | **52.40%** | **35.40%** |
-| share of full frame (874pt) | 38.25% | 25.85% |
-| inputs complete without scrolling | 2 of 5 | 4 of 5 |
-| `Frequency` | sheared through its control | whole |
-| plate | `.bar`, #DBDBDB | `.regularMaterial`, #FEFEFE + 1px hairline |
+| Peptide, BPC+TB500 | 1119.0, 1120.67 | below an 874pt display |
+| TRT Dose, Steroid Dosage | 1031.33 | below the display |
+| TRT & EOD, TRT Microdose | 961.0, 943.67 | below the display |
+| HCG | 909.67 | below the display |
+| BPC-157 | 841.67 | on screen — and **inside the tab bar's region**, which starts at y 792 |
 
-The bar is no longer gated on a Dynamic Type category. It measures four candidate
-states and takes the tallest that fits within 40% of the content area — so the same
-mechanism produces `lead` here and stands the bar down entirely at AX5, where the
-full bar would be 104% of the content area.
+**And on the six that "overlap", the disclaimer is not visible at all.** `IB2245765`
+is the proof: the tree reports `Maths only — not medical advice.` at y 761.67, on
+screen; the pixels at y 720–820 are the navy `Add` plate, the hero circle and the tab
+bar, and the string appears **nowhere in the frame**. The plate is opaque
+(`.regularMaterial`, measured #FEFEFE) and T25 established nothing renders behind it.
 
-### The request the human made was NOT delivered
+So the finding as filed — "the hero covers the last ~19pt" — is describing an
+**accessibility-tree intersection between two elements, one of which is not drawn**.
+`LeafOverlapUITests` reads a tree with no z-order and no clipping, so it cannot tell
+"these share pixels" from "one of these is underneath an opaque plate". The real
+state is worse and simpler: **at rest, on every calculator measured, the disclaimer is
+unreadable** — below the display, behind the tab bar, or under the pinned bar.
 
-He asked for **transparent with a light blur, so the bar reads as floating over the
-form rather than as furniture covering it.** What shipped is a **tone change**. The
-grey slab is gone, which fixes the complaint; the blur is not there, because nothing
-of the form renders behind the pinned bar for a material to be translucent over.
+**It is also deterministic, not intermittent.** The same 19.33 × 13.0 came back
+byte-identical from a standalone walk probe and from this run. The three
+`isIntermittent` entries for this pair were flagged because the observation depended
+on scroll offset; read at rest it does not vary. Two of those three (`TRT Dose`,
+`Steroid Dosage`) name a pair that **cannot occur at rest at all** and should be
+deleted rather than flagged — and because `isIntermittent` switches off the both-ends
+assertion, the check that would have caught that was the one the flag disabled.
 
-Measured: `.ultraThinMaterial` — the most transparent material — sampled **#767676 at
-four different scroll positions, identical**. A material over a moving backdrop cannot
-return the same value four times. The full ladder runs opposite to the names:
-`ultraThin #767676 · thin #D3D3D3 · bar #DBDBDB · regular #FEFEFE · thick #FFFFFF`.
+### 6. The duplicated headline figure is not one screen
 
-Contrast never failed and is not why: worst composite `#075E56` **7.14–7.59:1**, navy
-eyebrow 14.60–15.65:1, `Add` white-on-navy **15.79:1 exactly** at every position,
-because the navy fill is opaque. Filed as **T25** with the evidence.
+F-B was filed against `IB2245750` on TRT. It is on `Reconstitution`
+(`Add bac water 5.00 mL`), `BMI` (`24.69`), `Free T Index` (`40.0`) and `Semaglutide`
+(`0.100 mL`) too — the same figure at full display treatment twice, once in the
+scroll and once in the pinned bar.
 
-### What these frames show that is still wrong
+## Not captured, and why — decisions, not omissions
 
-- **`IB2245750`** — `Draw per injection · 0.250 mL` appears **twice** at full display
-  treatment, once in the scroll and once in the pinned bar, about 500px apart. The
-  duplication predates this work but the `lead` rung makes it conspicuous: both copies
-  are now the same single headline figure rather than two differently-sized lists.
-  Open finding.
-- **`IB2245751`** — with the keypad up, `Frequency` is sheared by the plate edge. The
-  reachability sweep asserts at rest, where the content area is the whole screen; with
-  the keypad up it is a fraction of it. Recorded rather than cropped out.
+- **Drawer and Settings.** They render the account's real email and avatar. Standing
+  decision; two 08-01 frames already carry it and are a blocker on this repo ever
+  being public, and these frames go into a chat window on a phone.
+- **The welcome / signed-out path.** Shooting it means signing out, which discards
+  the Keychain session and costs a real Supabase sign-in to recover.
+- **No frame was dropped for any other reason.** All 22 intended default-size frames
+  were taken.
 
-## IB2245752 — Steroid Dosage at AX5, and it is worse than the finding that prompted it
+### A frame deliberately NOT shot: F-F
 
-Shot because the highest-severity open item on the board existed only as coordinates —
-`field_mgWeek` spanning y 636.33…701.33 against a plate top of pt 651.67 — and nobody
-can look at a pair of numbers. The capture **asserts the shear is present before it
-writes the file**, so this frame cannot be a photograph of a screen where the defect is
-absent.
-
-§5.15 held again. This screen had never been captured at large text, and it carries
-three defects beyond the one it was shot for:
-
-1. **The `Compound` picker draws OUTSIDE its own control.** `Oxandrolone (Anavar)` wraps
-   to three lines that overflow the field chrome and render on top of the `Compound`
-   label above it and the `Vial strength` label below. Two strings occupy the same
-   pixels and neither is legible. This is not truncation — nothing is hidden, it is
-   **overlap**, and it is the worst thing in the frame.
-2. **The screen title truncates — `Steroid Dos…`.** §5.7 bans exactly this: never accept
-   silent clipping on a title, a value or a unit.
-3. **`Oxan-drolone`, hyphenated mid-word.** Same family as `Semaglu-tide` on the Tools
-   screen (`IB2245747`), so it is a shared cause rather than two screen-specific bugs.
-4. **The sheared dose field** — the finding this was taken for. `Weekly dose` is cut
-   through its digits by the plate's top edge, and it is the only other input on screen.
-
-One complete input is usable on this screen at AX5, and it is not the dose.
-
-## Read these first
-
-**`IB2245746` vs the superseded `IB2245730` — the type scale.** Same screen, same
-accessibility size. In `IB2245730` the greeting is rendered at exactly its
-default-size dimensions, because every token in `Theme.Typeface` was a frozen
-point size; in `IB2245746` it scales. The second frame is also the open question:
-the greeting now takes roughly 40% of the dashboard at AX5. That is Dynamic Type
-working, and it is still worth a decision.
-
-**`IB2245751` — the keyboard toolbar with the keypad actually up.** The focused
-field's quick values and Done sit above the keypad and clear of the pinned result
-bar, and the inline quick row is hidden while that field is being edited. The
-earlier version of this frame was taken with a hardware keyboard attached, so iOS
-suppressed the keypad and the accessory bar was photographed on the tab bar — a
-position it never occupies in front of a user. The capture now types a character
-and asserts the keyboard is on screen before shooting.
-
-**`IB2245747` — Tools at AX5, unchanged and still the open finding.**
-`Semaglu-tide` hyphenated mid-word, `Tirzepatide` wrapping to an orphaned `e`,
-`Retatru-tide`, the title clipped against the header, icons that stayed small
-while the text went huge. Worth knowing *why* it looks like this and the dashboard
-did not: `ToolsScreen` uses system text styles, so it has always scaled correctly
-and the layout cannot take it. The dashboard looked fine because it was not
-scaling at all. Opposite problems.
-
-## Not captured, and why
-
-- **`01-welcome-launch`** — the welcome screen is the signed-out path. Shooting it
-  means signing out, which discards the Keychain session and costs a real Supabase
-  sign-in to get back. Nothing on that screen changed today.
-- **`12-calculator-trt-ax5`** — attempted twice, then captured on the third attempt as
-  `IB2245748`; the note below is the record of the two failures. At AX5 the
-  Tools list needs more scrolling than the harness does to bring the TRT row into
-  view. The first attempt produced a genuine photograph of the **Tools** screen
-  under a filename claiming the calculator, because `continueAfterFailure` was
-  true; the second attempt **failed the run**, which is the fix working. No serial
-  was issued either time. The AX5 calculator is the gap in this survey.
-- **Drawer and Settings** — standing decision. Those carry the account's real email
-  and avatar.
+F-F's overlap exists only at rest, and the at-rest frame of every calculator it
+happens on is already in this set. A dedicated capture would have been a
+byte-identical duplicate of `IB2245765` under a second serial. **`IB2245765` is the
+frame that carries F-F** — naming it here is the substitute for issuing a serial that
+would say nothing (T17's reasoning).
