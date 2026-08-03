@@ -105,6 +105,46 @@ extension CalculatorSlug {
     }
 }
 
+// MARK: - Listing
+
+extension CalculatorSlug {
+    /// Is this calculator offered on any surface a user can browse?
+    ///
+    /// H6, and the owner's words are the whole specification: *"leave them alone, and
+    /// don't let the links to it go anywhere, we will work on later."* So the screen,
+    /// the spec and the engine are untouched; what is withdrawn is every ROUTE IN.
+    /// Re-enabling is deleting a case from this switch.
+    ///
+    /// REMOVED, NOT DISABLED, and that was decided rather than assumed. A row that
+    /// renders and does nothing is the chevron defect already on the board — it
+    /// promises navigation and delivers none.
+    ///
+    /// ENUMERATED, NOT PREDICATED (§5.32). The withdrawn set is two literal cases and
+    /// cannot grow by accident: a calculator added tomorrow is listed unless somebody
+    /// writes it in here. A predicate — `!canSaveProtocol`, say — would have swept in
+    /// `cyclePlotter`, which is deliberately still reachable and is about to be built
+    /// on.
+    ///
+    /// Separate from `canSaveProtocol` on purpose. That flag answers "can this finish
+    /// the Add funnel"; this one answers "may a user get here at all". They overlap on
+    /// two slugs today and that is a coincidence, not a relationship.
+    var isListed: Bool {
+        switch self {
+        case .bmi, .freeTestIndex: return false
+        default: return true
+        }
+    }
+
+    /// Every calculator a user is allowed to reach — the only list a browse surface may
+    /// enumerate. `allCases` still contains the withdrawn ones, because the screens,
+    /// the specs and the saved-protocol decoding all still need them.
+    static var listedCases: [CalculatorSlug] { allCases.filter(\.isListed) }
+
+    /// The withdrawn set, named so a check can assert it is not empty. An exemption
+    /// that exempts nothing is hiding that it exempts nothing (§5.32).
+    static var unlistedCases: [CalculatorSlug] { allCases.filter { !$0.isListed } }
+}
+
 // MARK: - Categories
 
 /// The Add funnel's first question, "what are you adding?".
@@ -153,8 +193,16 @@ enum CalculatorCategory: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// Every calculator in this category, savable or not.
-    var members: [CalculatorSlug] {
+    /// Every calculator in this category a user may reach, savable or not.
+    ///
+    /// Filtered on `isListed` AT THE SOURCE (H6) rather than at each call site, so a
+    /// browse surface written next week inherits the withdrawal instead of having to
+    /// remember it. `allMembers` below is the unfiltered list, for code that needs to
+    /// know which category a slug belongs to rather than to offer it to somebody.
+    var members: [CalculatorSlug] { allMembers.filter(\.isListed) }
+
+    /// Category membership, withdrawn calculators included. Not a browse surface.
+    var allMembers: [CalculatorSlug] {
         switch self {
         case .glp1:    return [.semaglutide, .tirzepatide, .retatrutide, .bmi]
         case .hormone: return [.trt, .eod, .microdose, .hcg, .freeTestIndex]
@@ -269,8 +317,14 @@ enum NavItems {
     /// Primary destinations shown above the calculators.
     static let primary: [AppRoute] = [.dashboard, .calendar]
 
-    /// All 14 calculators, in canonical order.
-    static let calculators: [AppRoute] = CalculatorSlug.allCases.map { .calculator($0) }
+    /// Every calculator the drawer may route to, in canonical order.
+    ///
+    /// `listedCases`, not `allCases` — the drawer is a link surface like any other, and
+    /// H6 withdraws BMI and Free T Index from all of them. It was the third one, and it
+    /// was not in the spec: the drawer is live on iPhone and listed all fifteen.
+    /// The count is deliberately not written in this comment; it was "All 14" while the
+    /// expression returned fifteen, which is §5.31 on a one-line doc string.
+    static let calculators: [AppRoute] = CalculatorSlug.listedCases.map { .calculator($0) }
 
     /// Sections rendered, in order, by the drawer + iPad sidebar.
     static let sections: [NavSection] = [

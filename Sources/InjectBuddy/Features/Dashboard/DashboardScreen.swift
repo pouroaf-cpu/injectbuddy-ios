@@ -22,7 +22,11 @@ struct DashboardScreen: View {
             .task { await reload() }
             .refreshable { await reload() }
             .confirmationDialog("Add a protocol", isPresented: $showCalculatorPicker, titleVisibility: .visible) {
-                ForEach(CalculatorSlug.allCases) { slug in
+                // `listedCases`, not `allCases` — H6 withdraws BMI and Free T Index from
+                // every route in, and this dialog is one. It still offers Cycle Plotter,
+                // which cannot save either: that is deliberate, it is the plotter's only
+                // route into the app today and it stays reachable.
+                ForEach(CalculatorSlug.listedCases) { slug in
                     Button(slug.title) { navigator.push(.calculator(slug)) }
                 }
                 Button("Cancel", role: .cancel) {}
