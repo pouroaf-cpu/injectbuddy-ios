@@ -379,3 +379,72 @@ enum LoadState<Value: Equatable>: Equatable {
     case empty
     case failed(String)
 }
+
+/// What a LOAD path does with a thrown error. Lives here, next to `LoadState`, because
+/// this is the file anyone writing the next screen's load channel already has open.
+///
+/// **A CANCELLED LOAD IS NOT A FAILED LOAD.** It is the app superseding its own request
+/// — a second pull-to-refresh arriving while the first is in flight, or a `.task` torn
+/// down when its screen goes away. Rendering it as a failure costs the user the screen
+/// they were reading for a race they did not know they caused. Measured on the
+/// dashboard, twice, after a pull-to-refresh: a full-screen *"The operation couldn't be
+/// completed. (Swift.CancellationError error 1.)"* **with the next-dose card gone**, on
+/// an injection-dosing app's home screen.
+///
+/// Every load path routes its `catch` through here so the classification exists once,
+/// and so the fourth view model that forgets it is visible as a difference in shape:
+///
+///     } catch {
+///         if let message = LoadFailure.message(error) { state = .failed(message) }
+///     }
+///
+/// **WRITE paths deliberately do NOT use this.** D9 requires a failed write to be
+/// surfaced, and a cancelled write is not known to have not landed — suppressing it
+/// would put a dose in exactly the "said nothing" state the optimistic-write family was
+/// removed for. If a write ever needs cancellation handling it needs a different answer,
+/// not this one.
+enum LoadFailure {
+
+    /// The message to render, or `nil` when the load was superseded and there is nothing
+    /// to tell the user.
+    static func message(_ error: Error) -> String? {
+        message(error, taskWasCancelled: Task.isCancelled)
+    }
+
+    static func message(_ error: Error, taskWasCancelled: Bool) -> String? {
+        guard !isCancellation(error, taskWasCancelled: taskWasCancelled) else { return nil }
+        return (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+    }
+
+    static func isCancellation(_ error: Error) -> Bool {
+        isCancellation(error, taskWasCancelled: Task.isCancelled)
+    }
+
+    /// Cancellation arrives in more than one shape, and handling only one is how this
+    /// comes back:
+    ///
+    ///   • `CancellationError` — a `Task` cancelled between suspension points. This is
+    ///     the one that was measured on the dashboard.
+    ///   • `URLError.cancelled` / `NSURLErrorCancelled` (-999) — URLSession's own word
+    ///     for it, thrown instead when the request was already on the wire. Both the
+    ///     bridged `URLError` and a raw `NSError` in `NSURLErrorDomain` are checked,
+    ///     because a client library can hand back either.
+    ///   • `taskWasCancelled` — the task was cancelled at all while something else
+    ///     threw. A cancelled request can surface wrapped by a client library
+    ///     (PostgREST/Supabase decode and transport wrappers) with neither type
+    ///     surviving the wrap. On a LOAD path, suppressing that is right: either a
+    ///     superseding load is already running or the screen is gone.
+    ///
+    /// The explicit-flag overload exists so this is testable without a live task, and so
+    /// the first three checks can be exercised on their own — a classifier that only
+    /// ever returns `taskWasCancelled` would look identical in a running app.
+    static func isCancellation(_ error: Error, taskWasCancelled: Bool) -> Bool {
+        if error is CancellationError { return true }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return true }
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain, ns.code == NSURLErrorCancelled { return true }
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? Error,
+           isCancellation(underlying, taskWasCancelled: false) { return true }
+        return taskWasCancelled
+    }
+}

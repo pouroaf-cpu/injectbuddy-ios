@@ -49,8 +49,12 @@ final class CalendarViewModel: ObservableObject {
     private var loaded: CalendarData?
     private let windowDays = 30
 
+    /// **`.loading` is only for a FIRST load** — identical to `DashboardViewModel.load`,
+    /// and for the identical reason: blanking the month grid before the database has been
+    /// asked anything leaves a cancelled load with no previous state to return to. See
+    /// the note there; the two are meant to read the same.
     func load(backend: BackendClient, now: Date = Date()) async {
-        state = .loading
+        if loaded == nil { state = .loading }
         selectedDay = startOfDay(now)
         do {
             async let dosagesT = backend.savedDosages()
@@ -76,7 +80,8 @@ final class CalendarViewModel: ObservableObject {
             loaded = data
             state = .loaded(data)
         } catch {
-            state = .failed((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            // A cancelled load surfaces NOTHING and touches NO state — see LoadFailure.
+            if let message = LoadFailure.message(error) { state = .failed(message) }
         }
     }
 

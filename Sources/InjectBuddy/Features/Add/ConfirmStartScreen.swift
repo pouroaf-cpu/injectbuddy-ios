@@ -146,7 +146,12 @@ final class ConfirmStartViewModel: ObservableObject {
             // NOT .missing — a transport failure tells us nothing about whether the
             // row exists, and the user saved it seconds ago. Claiming it's gone is a
             // false statement about their data that invites them to re-create it.
-            state = .failed((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            //
+            // And a CANCELLED load is not even a transport failure: this `.task` is torn
+            // down when the confirm step is navigated away from, so the error state would
+            // be written into a screen on its way out and be waiting on the way back in.
+            // Same three lines as the other load paths — see LoadFailure.
+            if let message = LoadFailure.message(error) { state = .failed(message) }
         }
     }
 

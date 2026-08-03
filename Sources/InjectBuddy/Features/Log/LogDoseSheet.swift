@@ -188,7 +188,10 @@ struct LogDoseSheet: View {
             protocols = rows.filter(\.isActive)
             selectedId = protocols.first?.id
         } catch {
-            errorMessage = "Could not load your protocols."
+            // Same load-cancellation rule as the view models — see LoadFailure. This one
+            // reads `isCancellation` rather than `message` only because the string it
+            // shows is fixed rather than the error's own; the decision is the same one.
+            if !LoadFailure.isCancellation(error) { errorMessage = "Could not load your protocols." }
         }
         isLoading = false
     }

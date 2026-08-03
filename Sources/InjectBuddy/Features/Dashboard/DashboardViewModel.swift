@@ -71,8 +71,20 @@ final class DashboardViewModel: ObservableObject {
     private var loaded: DashboardData?
 
     /// Fetch + derive. `now` is injectable for stable previews/tests.
+    ///
+    /// **`.loading` is only for a FIRST load.** This used to blank the screen on every
+    /// call, including the pull-to-refresh of an already-loaded dashboard — so a refresh
+    /// took the next-dose card away before it had asked the database anything, and a
+    /// load that was then cancelled left nothing to return to. "A cancelled load leaves
+    /// the previous state alone" is not satisfiable while the preamble has already
+    /// thrown that state away. Refreshing over loaded content now keeps the content on
+    /// screen; the pull control is the feedback.
+    ///
+    /// **Consequence for anything observing this screen:** `LoadingView`'s "Loading…" no
+    /// longer appears after a pull on a loaded dashboard. A run that reads its absence as
+    /// "the refresh did not fire" would be reading the instrument, not the app.
     func load(backend: BackendClient, userId: String?, now: Date = Date()) async {
-        state = .loading
+        if loaded == nil { state = .loading }
         do {
             async let dosagesT = backend.savedDosages()
             async let cyclesT = backend.cyclesWithItems()
@@ -93,7 +105,10 @@ final class DashboardViewModel: ObservableObject {
             loaded = data
             state = .loaded(data)
         } catch {
-            state = .failed(Self.message(error))
+            // A cancelled load surfaces NOTHING and touches NO state — see LoadFailure.
+            // Same three lines at every load path in the app; a fourth that does not look
+            // like this is the one to look at.
+            if let message = LoadFailure.message(error) { state = .failed(message) }
         }
     }
 
