@@ -952,9 +952,23 @@ in an app whose dose history is the record of what someone actually injected.
 **A confirmation dialog was explicitly ruled out.** It is not the fix; a dialog would make a
 destructive one-way action feel authorised. The fix is `user_id` in the delete predicate (in flight).
 
-> **RIG HAZARD — active until the fix lands.** **Nobody taps a dose row on Calendar, or the dose card
-> on the dashboard, on the QA account.** The tap is the destructive path. Create and read back;
-> **never toggle.** There are 14 live `dose_log` rows and no iOS code path can rebuild one.
+> **RIG HAZARD — active until the fix lands. NARROWED 2026-08-03 by measurement.**
+>
+> **On the QA account, do not tap a dose row on the Calendar tab.** That is the destructive path and
+> it is the only one. There are 14 live `dose_log` rows and no iOS code path can rebuild one.
+>
+> **The dashboard "Mark taken" card is SAFE and is not restricted.** Measured, with the reason,
+> because a hazard stated wider than it is gets ignored wholesale — and the dashboard log path is
+> the one a verification run actually needs:
+> - `NextDoseCard` (`DashboardComponents.swift`) renders `Mark taken` **only** in the
+>   `!model.alreadyTaken` branch; a dose already taken renders static `Logged for <day>` text with
+>   no button, so there is no control to untake it.
+> - `DashboardViewModel.markTaken` is **insert-only** — it calls `backend.logDose` and nothing else.
+>   It has no untake path and cannot reach `unlogDose`.
+> - `unlogDose` has exactly one caller in the app: `CalendarViewModel.toggleTaken`
+>   (`CalendarViewModel.swift:104`), in its `wasTaken` branch.
+>
+> So: log doses from the dashboard freely, and read them back. **Never toggle on Calendar.**
 
 ---
 
@@ -969,11 +983,41 @@ shows the write succeeding, then quietly shows it not having happened, and at no
 `CalendarScreen.swift:23` has `.task` and **no `.refreshable`** — so once it has failed there is no
 gesture that retries. `DashboardScreen.swift:22-23` has both and is the model.
 
+**Two measured specifics from the worst site, both worse than a silent rollback.** Both are read off
+`DashboardViewModel.markTaken` and `NextDoseCard` **as they stand at `9df44ca`** — see the
+freshness note below before acting on either:
+
+1. **The rollback is CONDITIONAL, so the failure can be permanent.** `markTaken` flips
+   `nextDose.alreadyTaken = true` optimistically *before* the await, then rolls it back inside
+   `if var data = loaded, data.nextDose?.occurrence == occurrence`. **If the dashboard reloaded
+   between the tap and the failure, that guard does not match and the rollback is skipped
+   entirely.** The tick stays on screen with nothing written and no error shown — the `catch` block
+   sets no error state at all. That is not a half-second flicker; it is a **persistent false
+   "taken"** on a dose the user has not taken, which in a dosing app is the wrong direction for the
+   error to point. It also survives until the next successful reload, so the user's own refresh is
+   what silently undoes it.
+2. **The same site gives no feedback across the await.** `NextDoseCard` builds its
+   `PrimaryButton` with a title and an action and **no loading state**, so the control looks
+   byte-identical from tap to completion. A control that looks unchanged for half a second reads as
+   not having registered the press, and gets pressed again — on a *dose* button that is not a
+   cosmetic complaint, and it is the second write that `X-05` makes destructive. (This is the
+   400ms-visible-feedback decision, `DECISIONS-2026-08-02.md:76`; cited in prose rather than by
+   number because that series may not survive the rules rewrite.)
+
+> **Freshness — read before acting.** Both specifics above are true of **`9df44ca`**, the last
+> commit. They are **already addressed in the uncommitted working tree** by the agent that owns
+> `Sources/` — `markTaken` now awaits the write *before* committing state and sets `actionError` on
+> failure, and the button now takes `isLoading: isMarking`. Recorded at the sha rather than as live
+> defects so that a session reading a later tree finds the evidence and the fix, not a finding that
+> looks false. **Do not re-file them from this entry without re-reading the two files.**
+
 **The framing matters more than the list, and it is the reason this is its own item: fixing the
 writes does not fix this.** `X-03`, `X-04` and `X-05` are three specific writes that fail. This is
 the property that made all three *invisible* for the entire life of the feature — and it will make
 the next failed write invisible too, on a build where those three are green. A silent rollback is a
 green indistinguishable from an absence (`RULES.md` §5.24) rendered in UI instead of in a test.
+**Both specifics above being fixed in one file is exactly why this stays open as a class:** the
+house pattern has to reach all six sites, not the one that got measured.
 
 Close it against the house pattern, not against the three bugs: every write path awaits, surfaces a
 real error, and every screen that can fail a load can retry it.
