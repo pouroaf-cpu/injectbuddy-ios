@@ -14,6 +14,23 @@ backlog would have lost them.
 
 ---
 
+## The one sentence the owner should read first
+
+> **A protocol saved from iOS is invisible, and a dose logged against it is discarded — so the Add
+> flow, the app's primary write path, has never produced a usable row on any build.**
+
+Three P0s in `§5` compose into that sentence and none of them is visible from the screen: `X-03`
+(`dose_log` writes omit `user_id`, so no iOS-written dose has ever landed), `X-04` (saved protocols
+land `draft`/inactive and nothing can activate them, so every consumer filters them out), and `X-05`
+(the *un*log half of the same toggle succeeds, so iOS can permanently delete a web-logged dose it
+cannot re-create). `X-06` is why none of it ever surfaced as an error, and `X-07` is why no
+automated check was in a position to notice.
+
+**A separate launch blocker, unrelated to the above:** `X-02` — the app offers account creation and
+has no working in-app account deletion. That is a rejection at App Review, not a defect backlog item.
+
+---
+
 ## 0. The count, both ways
 
 Read out of `BOARD.md`, written into this file:
@@ -38,8 +55,10 @@ and are not:
 3. **Deferred items are still entries.** `B1-09`, `B1-11`, `B1-15` and the tail clause of `B1-26` are
    marked deferred with the owner's name. Deferred is a scheduling state; it does not change the
    evidence status and it does not remove an entry.
-4. **`X-01` is not from the board.** It arrived from the directing side during this pass and is
-   recorded in `§5`, outside the 74, so the count check does not read it as an unexplained delta.
+4. **The `X-` entries are not from the board.** `X-01` arrived from the directing side during this
+   pass; `X-02`…`X-09` arrived from it on 2026-08-03. All are recorded in `§5`, outside the 74, so
+   the count check does not read them as an unexplained delta. Four of them are P0 — see the
+   one-sentence summary above.
 5. **`DUP-01`…`DUP-15` are not from the board either.** They came out of the 2026-08-03 duplication
    sweep (task S2) and are recorded in `§8`, outside the 74, for the same reason. They are findings
    *about the documents*, not about the app — no `DUP-` entry adds or removes an app defect.
@@ -763,9 +782,20 @@ public.**
 
 ## 5. From the directing side — not from the BOARD inventory
 
-**Recorded outside the 74 deliberately.** This entry did not come out of `BOARD.md §1–§4`; it arrived
-from the directing side during this transcription. It is listed here so the two-way count in `§0`
-stays exact and nobody reads it as an unexplained delta.
+**Recorded outside the 74 deliberately.** These entries did not come out of `BOARD.md §1–§4`; they
+arrived from the directing side. They are listed here so the two-way count in `§0` stays exact and
+nobody reads them as an unexplained delta.
+
+`X-01` arrived during the D2 transcription. **`X-02`…`X-09` arrived on 2026-08-03**, after it, and
+four of them are **P0 data-integrity defects on the app's primary write path** — they are the most
+urgent work in this file and they are here rather than in `§1` only because the board has not seen
+them yet. **A human reconciles them onto `BOARD.md`;** until then this section is where they live and
+`§1`'s numbering is untouched.
+
+**Verification note.** `X-03`, `X-04` and `X-09` were checked against the **live database**, not
+against the source — column nullability, defaults, triggers, RLS policies, index definitions and row
+distributions were queried directly. That is `RULES.md` §5.1, and in `X-09`'s case it withdrew a P0
+that reading the code had appeared to confirm.
 
 ### `X-01` — a stored `saved_dosages` row still routes into a withdrawn calculator screen
 **OPEN — NOT closed. Owner: mac. Unstarted. DO NOT SCHEDULE WORK ON IT.**
@@ -784,6 +814,260 @@ and the row that changes it is one insert away.*
 **Why no work is scheduled:** the owner's standing decision is that both withdrawn screens stay behind
 the flag with **no layout or styling work on either**, and a stored-row route with zero rows is
 exactly the shape that decision already covers.
+
+---
+
+### `X-02` — LAUNCH BLOCKER: the app offers account creation and has no working account deletion
+**OPEN. P0. Owner: HUMAN.** Files against **`§6` TASK 12** (submission content / App Review
+readiness), which is where the other review-gating work already lives.
+
+`Features/Settings/SettingsScreen.swift:49` tells the user, in a destructive confirmation dialog:
+*"This permanently removes your account and saved protocols. This can't be undone."*
+The implementation at `:183-189` is:
+
+```swift
+private func deleteAccount() async {
+    // TODO: call a backend account-deletion endpoint once it exists
+    // (BackendClient has no delete-account method yet — SCREENS §4). For now we
+    // sign the user out so the session is cleared client-side.
+    await auth.signOut()
+}
+```
+
+It signs the user out. The account and every saved protocol remain. The TODO at `:184-186` states
+this plainly, so it was never concealed — it was filed as a stub and the stub shipped behind a
+dialog that promises the opposite.
+
+**Why this is a launch blocker and not a defect.** Apple requires an in-app account-deletion path
+for any app that offers account creation. This app does (`AuthFlowView` signup, `B1-28`). It is a
+**rejection at review**, not a nice-to-have, and no amount of screenshot evidence elsewhere moves it.
+
+**The item is the MISSING CAPABILITY, not the wording.** The misleading copy is being corrected
+today by a separate agent. **Do not read that correction as closing this.** Honest copy on a button
+that does not delete the account is still an app that cannot pass review — it removes the lie and
+leaves the blocker. Closing this needs a real deletion path: a backend endpoint that deletes the
+auth user and the owned rows, and `BackendClient` gaining the method it currently lacks.
+
+**Owner is the human** because it needs a Supabase-side decision (edge function vs admin endpoint)
+and a data-retention answer, neither of which is the building side's to make.
+
+---
+
+### `X-03` — P0 / DATA: `dose_log` writes omit `user_id`, so no iOS-written dose has ever landed
+**OPEN. P0. Fix in flight.** Measured against production, not inferred.
+
+`NewDoseLogPin` (`Core/Models/Models.swift:164-176`) carries exactly four fields — `protocol_id`,
+`dosed_on`, `draw_ml`, `site`. There is no `user_id`. Queried live:
+
+| fact | value |
+|---|---|
+| `dose_log.user_id` | `uuid`, **NOT NULL**, **no default** |
+| triggers on `dose_log` | **0** |
+| RLS | `dose_log_owner_all`, ALL, `WITH CHECK auth.uid() = user_id` |
+
+So the column cannot be filled by a default, cannot be filled by a trigger, and the policy rejects
+the row without it. **The write cannot succeed and never has.**
+
+**The confirming measurement, and it is the one that settles it:** all **14** live `dose_log` rows
+carry `scheduled_on`, `protocol_label` and a non-null `draw_ml`. iOS writes **none** of those three.
+Every row in that table came from the web. **No iOS-written row has ever landed on any build.**
+
+This is `B3-13` arriving a second time on a different table — the read path omits `user_id` because
+RLS scopes SELECTs, and the assumption was carried into the write path where the `WITH CHECK` makes
+it fatal. `saveDosage` was fixed for exactly this (`SupabaseBackendClient.swift:132-140` carries the
+comment); `logDose` was not. **One breach is a patch, two is an invariant** — the same words `B3-11`
+used. Whatever fixes this should make it structurally impossible to write this table without an
+owner, not add a third careful call site.
+
+Also tracked as `docs/TEST-QUEUE.md` Q1 (`f5e915a`). Same finding, that is the runner's queue entry.
+
+---
+
+### `X-04` — P0 / DATA: iOS-saved protocols land `draft` and inactive, and nothing in the app can activate them
+**OPEN. P0. Fix in flight.** Measured against production.
+
+`NewSavedDosage` (`Core/Models/Models.swift:77-89`) sends `calculator_type`, `label`, `config`,
+`start_date` — **neither `status` nor `is_active`**. Production defaults are `status = 'draft'`,
+`is_active = false`. Trigger `trg_sync_saved_dosage_status` exists on the table (confirmed live), but
+its INSERT branch leaves both alone when neither is supplied, so it does not rescue the row.
+`updateStartDate` (`SupabaseBackendClient.swift:103-112`) writes `start_date` **alone**, so the
+trigger's UPDATE branch is a no-op too — the confirm-start-day screen cannot activate it either.
+
+**Every consumer filters on `isActive`**, so the row is invisible everywhere at once:
+
+| site | code |
+|---|---|
+| `Core/Calendar/DoseProjection.swift:143` | `for proto in protocols where proto.isActive` |
+| `Features/Dashboard/DashboardViewModel.swift:74` | `dosages.filter { $0.isActive }` |
+| `Features/Calendar/CalendarViewModel.swift:49` | `dosages.filter { $0.isActive }` |
+| `Features/Log/LogDoseSheet.swift:183` | `rows.filter(\.isActive)` |
+
+A saved protocol therefore never appears, never generates a projected dose, and never becomes
+loggable. It is the write half of `B1-05`, whose display half is the mirror image: `B1-05` is about
+draft rows being **shown as running protocols**, this is about iOS-created rows being **shown
+nowhere**. Both are true and they are different findings — do not fold them.
+
+**Live distribution, queried today. Record these; they are the reason this is not a free fix:**
+
+| | rows | with a `start_date` |
+|---|---|---|
+| `draft` / inactive | **71** | 4 |
+| active | **31** | 17 |
+| **total** | **102** | |
+
+(102 matches `B1-05`'s "71 of 102 production rows are `draft`" exactly, from an independent query.)
+
+**The 71 rows are live user data and a LEGITIMATE state. They must NOT be repaired without the
+owner's decision.** `draft` is a real status the web uses deliberately; a bulk activate would put 71
+protocols onto 39 users' calendars and start generating dose reminders for schedules those people
+never confirmed. In a dosing app that is worse than the bug. **Fixing the write path forward is not
+the same decision as backfilling history, and only the second one needs the owner.**
+
+**Fix direction (in flight):** send `status`, defaulting to `'active'`, accepting `draft` and
+`archived`. **Do NOT write the `is_active` mirror** — the trigger owns it, and writing both is how
+the two columns get to disagree.
+
+---
+
+### `X-05` — P0 / SAFETY: `unlogDose` succeeds where `logDose` fails, so iOS can delete a dose it cannot re-create
+**OPEN. P0. Fix in flight. Carries a LIVE RIG HAZARD — read the last paragraph before touching the
+QA account.**
+
+`SupabaseBackendClient.swift:200-207` deletes on `(protocol_id, dosed_on)` with **no payload**. RLS
+evaluates `USING` on a DELETE and there is no `WITH CHECK` to fail, so the delete passes — while the
+matching INSERT is refused for the missing `user_id` (`X-03`).
+
+**The sentence for the board: the two halves of one toggle have opposite outcomes.** That is also
+the explanation for why this survived five separate reads of this file. Both halves look correct,
+both are internally consistent, and the asymmetry is not in either function — it is in the
+difference between how RLS treats an INSERT and a DELETE. Nothing in the Swift shows it. `RULES.md`
+§5.1 with a new mechanism: internally consistent code, wrong against the running system, and this
+time the inconsistency is *between* two functions rather than inside one.
+
+The user-visible consequence is the dangerous part. Untick a dose that the **web** logged: the
+delete succeeds, the pin is gone permanently, and re-ticking it fails silently (`X-06` is why it
+fails silently). **iOS can permanently destroy dose-history data it has no ability to restore** —
+in an app whose dose history is the record of what someone actually injected.
+
+**A confirmation dialog was explicitly ruled out.** It is not the fix; a dialog would make a
+destructive one-way action feel authorised. The fix is `user_id` in the delete predicate (in flight).
+
+> **RIG HAZARD — active until the fix lands.** **Nobody taps a dose row on Calendar, or the dose card
+> on the dashboard, on the QA account.** The tap is the destructive path. Create and read back;
+> **never toggle.** There are 14 live `dose_log` rows and no iOS code path can rebuild one.
+
+---
+
+### `X-06` — the app cannot tell a user when a write did not happen
+**OPEN. Defect CLASS, and larger than any single P0 above. Fix in flight.** Six sites in the family.
+
+`LogDoseSheet` is the **correct house pattern** — it awaits the write, and only then moves the
+published state. **Two of the three log call sites diverge from it**: they flip an `@Published`
+optimistically *before* the await and roll back on failure with **no error surface**, so the UI
+shows the write succeeding, then quietly shows it not having happened, and at no point says why.
+
+`CalendarScreen.swift:23` has `.task` and **no `.refreshable`** — so once it has failed there is no
+gesture that retries. `DashboardScreen.swift:22-23` has both and is the model.
+
+**The framing matters more than the list, and it is the reason this is its own item: fixing the
+writes does not fix this.** `X-03`, `X-04` and `X-05` are three specific writes that fail. This is
+the property that made all three *invisible* for the entire life of the feature — and it will make
+the next failed write invisible too, on a build where those three are green. A silent rollback is a
+green indistinguishable from an absence (`RULES.md` §5.24) rendered in UI instead of in a test.
+
+Close it against the house pattern, not against the three bugs: every write path awaits, surfaces a
+real error, and every screen that can fail a load can retry it.
+
+---
+
+### `X-07` — CI has never run the unit suite
+**OPEN. Filed as an INSTANCE of `RULES.md` §5.24, NOT as a new rule.** Repoint fix in flight.
+
+10 of the 10 most recent CI runs failed in **15–22 seconds**, on `working-directory: app` — a
+directory that does not exist in this repo (the layout moved; `.github/workflows/ci.yml` did not).
+Repo secrets are empty. A 15-second failure is a job that never reached a compiler.
+
+**So the 27 green unit tests have never run anywhere but a developer's machine** — and `X-03` sat
+next to them, in the same repository, for the entire life of the log-dose feature. **That is the
+argument for CI existing at all**, stated as a measurement rather than as a principle, and it is the
+most useful thing in this entry.
+
+**One rule number per shape, not per incident** — the standing instruction from the directing side.
+This is §5.24 again (a signal nobody can read, reporting nothing while appearing to be a check) with
+CI as the layer instead of an assertion. It gets no new number and it should not be written up as a
+new rule; cite §5.24.
+
+**The secrets are deliberately NOT being set.** CI is being decoupled from them instead, so the
+build does not depend on a value only one machine has — which is the same failure mode one level up.
+
+---
+
+### `X-08` — SPEC DRIFT: three times in one day a spec lost to a measurement or to source
+**OPEN. Filed as ONE pattern with three instances, not as three corrections.** The corrections are
+cheap and are being made; the pattern is what is worth a queue entry.
+
+| # | instance | what won |
+|---|---|---|
+| 1 | H5's nav-bar wording vs the on-device `.principal` measurement | **the measurement** |
+| 2 | `RESULT-PANEL-SPEC` §4/§5 cancelled but still pointed at from five places | **the superseding spec** — this is `DUP-01`, do not re-file it |
+| 3 | `docs/PWA-SPEC-PROTOCOL-DETAIL.md:71` records a `PATCH {start_date, is_active: true, status: 'active'}` shape that the web's `ConfirmStart` **does not send** | **the web source** |
+
+Instance 3 in full, because it produced a retraction: that PATCH shape belongs to a **different web
+surface entirely**, and the doc collapsed two surfaces into one row of a table. `:71` even draws the
+wrong conclusion out loud — *"Setting a date activates the protocol… iOS must reproduce it or
+diverge deliberately."*
+
+> **The directing side's `updateStartDate` divergence finding is WITHDRAWN. The doc was wrong and
+> the iOS code was right.** `SupabaseBackendClient.swift:103-112` writing `start_date` alone is
+> correct behaviour against the real web surface, not a divergence. Recorded rather than deleted so
+> the next reader of `:71` finds the retraction instead of re-deriving it.
+
+Note the direction of instance 3 against `X-04`: `updateStartDate` writing `start_date` alone is
+**correct**, and it is *also* why the confirm-start screen cannot activate a draft row. Correct code
+and a real defect, at the same line. The fix belongs in the insert (`X-04`), not here.
+
+**The pattern: a spec written before the thing exists is a hypothesis.** All three lost to a
+measurement or to source, and in all three the spec was internally coherent and confidently worded —
+`RULES.md` §5.1 applied to documents rather than to code. **Nothing is built from a spec that has
+not been checked against the running system or the real source since it was written**, and a spec
+that loses gets a banner the same day (`DUP-01` is what happens when it does not).
+
+---
+
+### `X-09` — WITHDRAWN: "the web de-duplicates before inserting and iOS does not"
+**NOT A DEFECT. Recorded so nobody schedules work on it.** No work in this entry.
+
+The claim from the directing side was that saving the same TRT protocol twice yields one row on the
+web and **two on iOS**, therefore two schedules and two sets of reminders for one injection. If true
+it would be a correctness defect in a dosing app. **It is not true, and it was checked against
+production rather than against the source.**
+
+| query | result |
+|---|---|
+| unique indexes on `saved_dosages` | **`saved_dosages_user_calc_config_key` UNIQUE ON (user_id, calculator_type, config)` — present** |
+| duplicate `(user_id, calculator_type, config)` groups across all 102 rows | **0** |
+| `'1'::jsonb = '1.0'::jsonb` | **true** — so numeric formatting cannot split a group |
+
+iOS de-duplicates by a **different mechanism** from the web, which is what makes the source read as
+though it does not. The web computes a key-sorted stringify fingerprint in `route.ts:100-120`; iOS
+inserts and **recovers on the unique violation** — `saveDosage` at `SupabaseBackendClient.swift:132`
+catches SQLSTATE `23505` and returns the existing id via `existingDosageId(for:)`. Same outcome, one
+row, and it is enforced in the database where both platforms are subject to it. This is already
+closed as **`B3-14`** by measurement ("99 rows, two identical saves, 100 rows, 0 duplicate groups"),
+and `B3-15` records why insert-then-recover was chosen over `.upsert` — upsert would have overwritten
+`start_date` and shifted every calendar occurrence.
+
+**The stacking claim falls with it.** "Both duplicates are drafts, so the user sees neither and can
+save it a third time" describes a second row that is never created.
+
+**Interaction with `X-04`, checked, because it is the one thing that could break this:** the index
+covers `(user_id, calculator_type, config)`. `status` is not in it. So adding `status` to the INSERT
+payload — the `X-04` fix — **does not weaken dedup**, and the two fixes do not need sequencing.
+
+**The lesson, and it is the same one as `DUP-15`:** this was derived by reading two sources side by
+side, which is exactly the method `RULES.md` §5.1 exists to distrust. One query against the running
+system answered it in seconds. **A divergence between two codebases is a claim about behaviour;
+close it by observing the behaviour, not by comparing the code.**
 
 ---
 
@@ -1130,7 +1414,7 @@ still point at it as live work:
 | `HANDOVER-2026-08-02-EVENING.md:114-119` | "**Blocking T26 §5**" — `accessibilityHidden` does not remove the hero glyph | **delete as a blocker** — see below |
 | `ui-audit/BOARD.md:412-417` | inside the `accessibilityHidden` finding: "**invalidates an assumption in `RESULT-PANEL-SPEC §5`**" | **RE-AIM, do not delete** — see below |
 | `Sources/InjectBuddy/Features/Shell/MainShell.swift:261` | source comment: "the barrel-fit strip in RESULT-PANEL-SPEC §5 is specced on exactly it" | **repoint** — DECIDED by the directing side, **not done here**, see the ownership note |
-| `docs/TASKS.md:234` (this file, `B1-13`) | transcribes the BOARD sentence verbatim | follows whatever BOARD is re-aimed to; do not repoint it independently or the two drift |
+| `B1-13` (this file) | transcribes the BOARD sentence verbatim | follows whatever BOARD is re-aimed to; do not repoint it independently or the two drift |
 
 **Why the a11y blocker is moot for the syringe but the BOARD entry is not deletable.**
 `SPEC-RESULT-SHEET-AND-SYRINGE.md:265-266` makes the syringe **one VISIBLE accessibility element**
@@ -1389,7 +1673,7 @@ carried as a **running total** in places that have no way to know when it change
 | **running total** | `MAC-SIDE-README.md:54-55` | "**Eight** checks have now been caught" |
 | **running total** | `WIN-SIDE-README.md:66-67` | "**Eight** checks have now been caught" |
 | incident ordinal | `RULES.md:355` · `ui-audit/BOARD.md:1301` | "the **seventh** check" |
-| incident ordinal | `RULES.md:390` · `ui-audit/BOARD.md:264` · `TASKS.md:137` (`B1-07`) | "the **eighth** check" |
+| incident ordinal | `RULES.md:390` · `ui-audit/BOARD.md:264` · `B1-07` (this file) | "the **eighth** check" |
 
 **The distinction is the fix.** The six **incident ordinals** are correct and must not be touched —
 they date a specific incident inside the finding that recorded it, the way a case number does. The
@@ -1414,9 +1698,9 @@ because attention follows complaints rather than risk."*
 | site | text | verdict |
 |---|---|---|
 | `ui-audit/BOARD.md:689` | "This is §5.7 — **attention follows complaints rather than risk** — with a number" | **WRONG → §5.9** |
-| `docs/TASKS.md:447` (`B1-32`) | "So the log sheet was never an outlier; it was the first one anyone looked at. This is `§5.7` with a number attached, and the number is **10**." | **WRONG → §5.9** |
+| `B1-32` (this file) | "So the log sheet was never an outlier; it was the first one anyone looked at. This is `§5.7` with a number attached, and the number is **10**." | **WRONG → §5.9** |
 | `ui-audit/BOARD.md:419` | "§5.7 bans this outright — never accept **silent clipping** on a title" | **CORRECT — do not touch** |
-| `docs/TASKS.md:240` (`B1-14`) | "`§5.7` bans this outright — never accept silent clipping" | **CORRECT — do not touch** |
+| `B1-14` (this file) | "`§5.7` bans this outright — never accept silent clipping" | **CORRECT — do not touch** |
 
 **These two were left on disk deliberately by the agent that fixed the other three** (`6e160aa`,
 "§5.22 was citing itself wrong — §5.7 repointed to §5.9, all three sites"), precisely because
@@ -1495,8 +1779,7 @@ on 2026-08-02 — do not follow"*. All three carry their own in-file `RETIRED` b
 (`archive/INSTRUCTIONS.md:1`, `archive/AGENT-WORKFLOW.md:1`, `archive/ACTIVE.md:1`) — including
 `INSTRUCTIONS.md`, which the sweep reported as the one lacking a banner. `docs/archive/README.md`
 records all three. The related claim that `docs/TASKS.md:3-4` still tells agents to claim a row in
-`ACTIVE.md` is also false as of `6de193a` — `§0` replaced that text, and `§6`'s surviving mention
-`:795-796` explicitly marks the workflow retired.
+`ACTIVE.md` is also false as of `6de193a` — `§0` replaced that text, and `§6`'s surviving mention of it explicitly marks the workflow retired.
 
 **Both of these are the same failure and it is the sweep's, not the documents'.** A sweep is a
 **snapshot**, and a snapshot of a repo under active edit decays within hours. Every finding from one
