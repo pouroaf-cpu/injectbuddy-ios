@@ -111,28 +111,13 @@ iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
 - **Never put credentials in an assertion, a failure message, an `.xcresult`, a screenshot or a
   commit.**
 
-> **TEMPORARY HAZARD — 2026-08-03. Strike this block when `unlogDose` carries `user_id`.**
-> **Do not tap a dose cell on the Calendar tab on the QA account.** The two halves of the log toggle
-> have opposite outcomes: `logDose` fails on `dose_log.user_id` being `NOT NULL` with no default,
-> while `unlogDose` deletes on `(protocol_id, dosed_on)` with no payload and **succeeds**, because
-> RLS `USING` scopes it. Tapping a ticked dose permanently deletes a real row the app cannot
-> re-create.
-> **The dashboard card is safe** — `NextDoseCard` renders "Mark taken" only in the `!alreadyTaken`
-> branch, and `markTaken` is insert-only and cannot reach `unlogDose`. Log from the dashboard
-> freely and read the row back. Never toggle on Calendar.
-> A hazard that outlives its cause is the `content_size` trap again — delete this block, do not
-> leave it as history.
-
-The full test invocation:
-
-```
-set -a; . ./.env.local; set +a
-TEST_RUNNER_QA_EMAIL="$DEVTOOLS_TEST_EMAIL" \
-TEST_RUNNER_QA_PASSWORD="$DEVTOOLS_TEST_PASSWORD" \
-xcodebuild test -project InjectBuddy.xcodeproj -scheme InjectBuddy \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
-  -only-testing:InjectBuddyUITests
-```
+**RETIRED 2026-08-03 — the Calendar dose-tap hazard is struck, on evidence.**
+It is recorded here only so nobody reinstates it from an older doc. Both conditions the
+hazard named were met in one run: a build carrying `user_id` on the `dose_log` insert and in
+the `unlogDose` predicate was installed, **and** a dose was written and read back —
+`dose_log` 14 → 15, `user_id=c8926abc…`, `created_at=2026-08-03 06:20:47.108362+00`,
+confirmed by a second reader querying production directly. `logDose` and `unlogDose` no longer
+have opposite outcomes. **Struck because it was measured, not because the commit landed.**
 
 ## 5. Facts that are not obvious from the code
 

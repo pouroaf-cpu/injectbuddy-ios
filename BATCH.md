@@ -74,6 +74,20 @@ Verification requirement for item 4: the row read back must show `status='active
 `is_active=true`. Asserting only what was sent would still pass on a trigger that had been dropped —
 the `is_active` half is what proves the trigger's non-draft branch fired.
 
+### ~~Rig hazard~~ — STRUCK 2026-08-03, on evidence
+
+**Both conditions this section named were met in one run.** A build carrying `user_id` on the
+`dose_log` insert and in the `unlogDose` predicate is installed, **and** a dose has been written and
+read back: `dose_log` 14 → 15, `user_id=c8926abc-52b0-41f3-8968-bc44f56e1dd1`,
+`created_at=2026-08-03 06:20:47.108362+00`, confirmed by a second reader querying production
+directly. `logDose` and `unlogDose` no longer have opposite outcomes.
+
+**Struck because it was measured, not because a commit landed** — which is the distinction this
+section was rewritten twice to preserve. The superseded text is below, kept only so the retirement
+is legible rather than a silent deletion.
+
+<details><summary>The hazard as it stood</summary>
+
 ### Rig hazard — live on the build that is INSTALLED, fixed only in source
 
 **Do not tap a dose cell on the Calendar tab on the QA account.** `logDose` fails on the NOT NULL;
@@ -108,6 +122,8 @@ Strike this section when the sweep has logged a dose and read the row back on an
 carrying the fix — not when the commit lands. A rig hazard that outlives its cause is the
 `content_size` trap again; a rig hazard struck on a source read is `§5.1`, and this one destroys
 real rows when it is struck early.
+
+</details>
 
 ---
 

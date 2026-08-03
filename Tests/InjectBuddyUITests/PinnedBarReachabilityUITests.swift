@@ -75,6 +75,128 @@ final class PinnedBarReachabilityUITests: XCTestCase {
         assertReachable(screen: "Steroid Dosage")
     }
 
+    // MARK: - BATCH.md item 2 — the measurement, and NOTHING else
+
+    /// **PURE OBSERVATION. It asserts only that it observed something.**
+    ///
+    /// `BATCH.md` item 2 is a question, not a fix: two existing measurements do not
+    /// reconcile. The capture harness walked `trt` to its scroll end and the last
+    /// element stopped at **y 653 against a plate top of 671** — content clearing the
+    /// plate — while `control_syringeMl_0.5 mL (50u)` measures **642.7–686.7**, which
+    /// crosses it. Both cannot be true at the same scroll position, so one of them is a
+    /// measurement of a different scroll position than it claims.
+    ///
+    /// THE QUESTION, and the only thing this prints an answer to: **at FULL SCROLL, are
+    /// `1 mL (100u)` and `3 mL (IM)` fully clear of the plate and tappable?**
+    ///   • YES → the user reaches every barrel by scrolling. D5 violation, real defect,
+    ///     NOT criterion 1.
+    ///   • NO  → a barrel cannot be selected at all on the two most-used calculators.
+    ///     Criterion 1, and it blocks.
+    ///
+    /// **THE TAP IS GUARDED, and the guard is not politeness.** `cta_add` lives ON the
+    /// plate. Tapping a barrel whose frame is under the plate does not tap the barrel —
+    /// it taps whatever the plate is drawing at those coordinates, which on every
+    /// calculator is the save control, and this run would then write a protocol it never
+    /// meant to and report it as a barrel measurement. So a control that is not already
+    /// wholly clear of the plate is recorded as NOT REACHED and is never tapped: in that
+    /// case the answer is already NO and the tap would add nothing but a side effect.
+    ///
+    /// Tappability is asserted as its CONSEQUENCE (P3) — the `.isSelected` trait
+    /// `SegmentedRow` adds to the on option — never as "the tap call returned".
+    func testItem2_barrelRowsAtFullScroll_TRT() throws {
+        try openCalculator("TRT Dose")
+        measureBarrels(screen: "TRT Dose")
+    }
+
+    func testItem2_barrelRowsAtFullScroll_Steroid() throws {
+        try openCalculator("Steroid Dosage")
+        measureBarrels(screen: "Steroid Dosage")
+    }
+
+    private func measureBarrels(screen: String) {
+        let plate = app.descendants(matching: .any).matching(identifier: "bar_plate").firstMatch
+        XCTAssertTrue(plate.waitForExistence(timeout: 8), "No bar_plate on \(screen).")
+        let plateTop = plate.frame.minY
+        let navBottom = app.navigationBars.firstMatch.frame.maxY
+        let window = app.windows.firstMatch.frame
+
+        func barrels() -> [XCUIElement] {
+            app.buttons.allElementsBoundByIndex
+                .filter { $0.identifier.hasPrefix("control_syringeMl_") && $0.frame.minX >= 0 }
+        }
+
+        func snapshot(_ tag: String) {
+            let rows = barrels()
+            print("ITEM2 \(screen) [\(tag)] window=\(window) navBottom=\(navBottom) "
+                  + "plateTop=\(plateTop) plateFrame=\(plate.frame) barrels=\(rows.count)")
+            for b in rows {
+                let f = b.frame
+                let clear = f.maxY <= plateTop && f.minY >= navBottom
+                print("ITEM2 \(screen) [\(tag)] id=\(b.identifier) "
+                      + "y=\(f.minY)…\(f.maxY) x=\(f.minX)…\(f.maxX) h=\(f.height) "
+                      + "hittable=\(b.isHittable) selected=\(b.isSelected) "
+                      + "clearOfPlate=\(clear) straddles=\(f.minY < plateTop && f.maxY > plateTop)")
+            }
+        }
+
+        snapshot("at-rest")
+
+        // WALK TO THE SCROLL END, and stop when it stops moving rather than after a
+        // fixed count — a fixed count is how "full scroll" ends up meaning "eight
+        // swipes", which is the discrepancy this test exists to resolve.
+        var swipes = 0
+        if let form = app.scrollViews.allElementsBoundByIndex
+            .first(where: { $0.isHittable && $0.frame.minX >= 0 }) {
+            var previous = ""
+            for i in 0..<20 {
+                form.swipeUp(velocity: XCUIGestureVelocity(rawValue: 260))
+                swipes = i + 1
+                let signature = barrels()
+                    .map { "\($0.identifier)@\($0.frame.minY)" }
+                    .joined(separator: ",")
+                if !signature.isEmpty && signature == previous {
+                    print("ITEM2 \(screen): scroll end reached after \(swipes) swipes.")
+                    break
+                }
+                previous = signature
+            }
+        } else {
+            print("ITEM2 \(screen): NO SCROLL CONTAINER — nothing to walk.")
+        }
+
+        snapshot("full-scroll")
+
+        // THE ANSWER, per row, with the tap guarded as described above.
+        for label in ["1 mL (100u)", "3 mL (IM)"] {
+            let id = "control_syringeMl_\(label)"
+            let matches = app.buttons.matching(identifier: id).allElementsBoundByIndex
+                .filter { $0.frame.minX >= 0 }
+            guard matches.count == 1, let row = matches.first else {
+                print("ITEM2 \(screen) VERDICT \(label): UNRESOLVED — \(matches.count) elements.")
+                continue
+            }
+            let f = row.frame
+            let clear = f.maxY <= plateTop && f.minY >= navBottom
+            guard clear && row.isHittable else {
+                print("ITEM2 \(screen) VERDICT \(label): **NO** — at full scroll it is "
+                      + "y \(f.minY)…\(f.maxY) against plateTop \(plateTop) / navBottom "
+                      + "\(navBottom); clearOfPlate=\(clear) hittable=\(row.isHittable). "
+                      + "NOT TAPPED — `cta_add` is at those coordinates.")
+                continue
+            }
+            row.tap()
+            let took = row.isSelected
+            print("ITEM2 \(screen) VERDICT \(label): **YES** — y \(f.minY)…\(f.maxY) "
+                  + "clear of plateTop \(plateTop); tapped, selected=\(took).")
+        }
+
+        // The only assertion: this run looked at something. A measurement that
+        // resolved zero barrels must not read as a clean sheet.
+        XCTAssertFalse(barrels().isEmpty,
+                       "\(screen): no `control_syringeMl_*` resolved at all — this "
+                       + "measurement observed nothing and must not be read as an answer.")
+    }
+
     // MARK: - The invariant
 
     private func assertReachable(screen: String,
