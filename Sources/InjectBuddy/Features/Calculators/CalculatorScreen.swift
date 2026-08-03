@@ -1401,18 +1401,30 @@ private struct SegmentedRow: View {
 //
 // WHAT THIS FIXES IT WITH. Not a threshold — a threshold nudged until the branch
 // flips is tuning a collision, and it un-flips silently the next time a label
-// changes. The row candidate is made to report, as its ideal, the width it would
-// ACTUALLY render at: each label's MINIMUM width, which is the width of its
-// longest unbreakable run once wrapping is allowed. `ViewThatFits` then compares
-// like with like — the sum of the four minimum widths (plus padding and spacing)
-// against the space on offer — and that comparison is exactly the condition under
-// which an `HStack` of flexible children renders without overflowing, because a
-// flexible child is never given less than its minimum.
+// changes. The row candidate reports, as its ideal, the narrowest width at which
+// the label still renders the way a row is supposed to render it: WRAPPED AT
+// SPACES. That width is the width of the label's widest WORD, and it is measured
+// rather than assumed — `WidestWordProbe` lays the words on top of one another in
+// a `ZStack` at the real font, and a `ZStack`'s ideal width is the widest of its
+// children. `ViewThatFits` then compares like with like.
 //
-// So the branch flips for a REASON that survives a label change: it takes the row
-// while four wrapped labels genuinely fit side by side, and stacks the moment one
-// of them cannot. At default that is the row; at accessibility sizes, where
-// `(100u)` alone is wider than a quarter of the screen, it is still the column.
+// AND THE FIRST VERSION OF THIS GOT IT WRONG, which is why the paragraph is here
+// rather than a tidier one. It reported `sizeThatFits(ProposedViewSize(width: 0))`
+// — the content's absolute minimum width — on the reasoning that a `Text` proposed
+// nothing gives back its longest unbreakable run. IT DOES NOT. SwiftUI will break
+// a word rather than refuse a width, so that "minimum" is far below any width the
+// label reads correctly at, and the row branch was then chosen at EVERY size. At
+// AX5 the four pills rendered 89.67pt wide and 232.67pt tall with `(100u)` split
+// across two lines as `(10` / `0u)` — every glyph present, nothing clipped, and a
+// barrel labelled `1 mL (10 0u)` on a dosing screen. It was caught by photographing
+// the row rather than by reading the frames, which said only that four pills sat
+// side by side. **A fallback branch that never renders at any size is not a
+// fallback**, and the fit test was again measuring something the row does not do.
+//
+// So the branch now flips for a REASON that survives a label change: the row while
+// four space-wrapped labels genuinely fit side by side, the column the moment one
+// word alone is wider than its quarter of the screen. Measured both ways, which is
+// the only reason to believe it — see the sweep in `BATCH.md` batch 3 item 2.
 //
 // `lineLimit` STAYS OUT, and this is why it can. The reason the column exists at
 // all is that a value+unit pair must never lose its unit — `0.3 mL (…` and
@@ -1423,55 +1435,85 @@ private struct SegmentedRow: View {
 //
 // `minimumScaleFactor(0.8)` is likewise NOT touched — see `SegmentedRow`'s type
 // comment. It is a real defect of the same family, it is H1's, and H1 is deferred
-// by the owner. It stays, deliberately, and it is an input to the measurement
-// below rather than something the measurement works around.
+// by the owner. It stays, deliberately. The probe does NOT carry it, and that is
+// on purpose: the question the fit test asks is whether the label fits AT ITS OWN
+// SIZE, not whether it could be shrunk until it did.
 
-private extension View {
-    /// Makes this view report its MINIMUM width as its IDEAL width, so an enclosing
-    /// `ViewThatFits` decides on the width the row would really render at.
-    func rowFitOnRenderedWidth() -> some View {
-        MinimumWidthAsIdeal { self }
+/// Hidden, and its only output is a WIDTH: the width of the widest word in
+/// `text`, at `font`, as the renderer measures it.
+///
+/// A `ZStack` because a `ZStack`'s ideal size is the maximum of its children's —
+/// which is exactly "the widest word" and needs no arithmetic, no font metrics and
+/// no guess about which word is longest. (`"(100u)"` is wider than `"0.3"` and
+/// narrower than `"Reconstitution"`; character counts do not settle it and glyph
+/// widths are not ours to hard-code.)
+///
+/// `accessibilityHidden` as well as `hidden()`, and that is not belt-and-braces:
+/// `.hidden()` leaves the element in the accessibility tree (D3), and this copy
+/// carries the same barrel strings as the real label, so VoiceOver would meet every
+/// option twice — a defect introduced by the thing measuring for defects.
+private struct WidestWordProbe: View {
+    let text: String
+    let font: Font
+
+    var body: some View {
+        ZStack {
+            ForEach(Array(text.split(separator: " ").enumerated()), id: \.offset) { _, word in
+                Text(String(word)).font(font).fixedSize()
+            }
+        }
+        .hidden()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
 /// A pass-through `Layout` with exactly one job: change what "ideal width" means
 /// for its content, and change NOTHING else.
 ///
-/// A `Layout` rather than a modifier because a modifier cannot ask this question.
-/// `sizeThatFits(ProposedViewSize(width: 0, …))` is how you ask a `Text` for the
-/// narrowest width at which it still lays out — its longest unbreakable run — and
-/// only a `Layout` gets to put a proposal to its subview and read the answer. Every
-/// other proposal is forwarded untouched, so the view sizes and draws precisely as
-/// it did before in both branches; the single value that changes is the number
-/// `ViewThatFits` reads when it is choosing.
-private struct MinimumWidthAsIdeal: Layout {
+/// Two subviews, in order — the label as it really renders, and the probe. A
+/// `Layout` rather than a modifier because only a `Layout` can size itself from one
+/// child while laying out another; a `.background` or `.overlay` cannot contribute
+/// to its parent's size, which is the entire quantity in question here.
+///
+/// Every proposal that carries a width is forwarded untouched, so the control sizes
+/// and draws in both branches precisely as it did before. The single value that
+/// changes is the number `ViewThatFits` reads while it is choosing.
+private struct FitOnWrappedWidth: Layout {
 
     func sizeThatFits(proposal: ProposedViewSize,
                       subviews: Subviews,
                       cache: inout ()) -> CGSize {
-        guard let sub = subviews.first else { return .zero }
-        // A width WAS proposed: this is real layout, not the fit test. Answer as the
-        // content would have answered. Nothing about rendering is being changed here.
-        guard proposal.width == nil else { return sub.sizeThatFits(proposal) }
+        guard let content = subviews.first else { return .zero }
+        // A width WAS proposed: real layout, not the fit test. Answer as the content
+        // would have answered. Nothing about rendering is changed here.
+        guard proposal.width == nil else { return content.sizeThatFits(proposal) }
 
-        // No width proposed — the ideal, which is what `ViewThatFits` compares. Report
-        // the minimum instead: proposing 0 makes the content give back the width below
-        // which it cannot lay out, and the height it takes AT that width.
-        let minimum = sub.sizeThatFits(
-            ProposedViewSize(width: 0, height: proposal.height)).width
-        let height = sub.sizeThatFits(
-            ProposedViewSize(width: minimum, height: proposal.height)).height
-        return CGSize(width: minimum, height: height)
+        // No width proposed — this is the ideal, and the ideal is what `ViewThatFits`
+        // compares. Report the width below which the label would start breaking words,
+        // and the height the label really takes at that width.
+        let probe = subviews.count > 1 ? subviews[1] : content
+        let width = probe.sizeThatFits(.unspecified).width
+        let height = content.sizeThatFits(
+            ProposedViewSize(width: width, height: proposal.height)).height
+        return CGSize(width: width, height: height)
     }
 
     func placeSubviews(in bounds: CGRect,
                        proposal: ProposedViewSize,
                        subviews: Subviews,
                        cache: inout ()) {
-        guard let sub = subviews.first else { return }
-        sub.place(at: CGPoint(x: bounds.midX, y: bounds.midY),
-                  anchor: .center,
-                  proposal: ProposedViewSize(bounds.size))
+        guard let content = subviews.first else { return }
+        content.place(at: CGPoint(x: bounds.midX, y: bounds.midY),
+                      anchor: .center,
+                      proposal: ProposedViewSize(bounds.size))
+        // The probe is never drawn and must never claim space. Placed rather than
+        // skipped because an unplaced subview is a runtime complaint, not a no-op.
+        if subviews.count > 1 {
+            subviews[1].place(at: CGPoint(x: bounds.midX, y: bounds.midY),
+                              anchor: .center,
+                              proposal: ProposedViewSize(width: 0, height: 0))
+        }
     }
 }
 
