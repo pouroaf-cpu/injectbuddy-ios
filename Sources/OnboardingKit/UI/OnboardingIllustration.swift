@@ -53,22 +53,38 @@ enum OnboardingIllustration: String, CaseIterable, Hashable {
         }
     }
 
-    /// **UNKNOWN — SPEC §5 says the placeholder must "reserve the real aspect
-    /// ratio" and does not say what any of them are.** The source wireframes
-    /// live only on the Windows machine. 4:3 is a holding value for every asset
-    /// so the layout reserves *something*; it is not evidence of the real ratio
-    /// and every screen carrying one must be re-judged when the art lands.
-    var aspectRatio: CGFloat { 4.0 / 3.0 }
+    /// **PROVISIONAL — confirmed against the wireframe 2026-08-03 by the Windows
+    /// side, which is the only machine that can read it.** The placeholder is
+    /// **full content width with a 90pt minimum height, and it may grow** —
+    /// a wide banner, roughly 4:1 at the wireframe's own dimensions.
+    ///
+    /// This replaces a 4:3 holding value that had no evidence behind it. A
+    /// guessed shape makes every screen re-judge *worse* rather than better,
+    /// because it looks like a decision. Full-width × 90pt minimum is the one
+    /// dimension the source actually gives.
+    ///
+    /// Still provisional until the art is commissioned — but provisional-with-a-
+    /// source is not the same as UNKNOWN, and only the latter needs re-deriving.
+    static let minHeight: CGFloat = 90
 
     // MARK: - Which screen carries which
     //
-    // **INFERRED, NOT STATED.** SPEC §5 gives a flat list of fifteen and does
-    // not map them to screens. The mapping below is the list's own order laid
-    // against the screens in §4's order — the twelve benefit illustrations fall
-    // exactly onto the four segments' three benefits each, and the remaining
-    // three onto firstDose, welcome and the paywall's founder note. It fits
-    // exactly, which is suggestive and is not proof. Confirm against the
-    // wireframes before the art is commissioned.
+    // **CONFIRMED against the wireframe, 2026-08-03, read by the Windows side**
+    // — the only machine that can open the source files. The wireframe carries a
+    // literal placeholder on each screen and they land exactly here.
+    //
+    // This was previously reconstructed by inference — the list's own order laid
+    // against §4's screen order, which fit exactly. Fitting exactly is
+    // suggestive and is not proof, so it was marked as a guess until someone
+    // read the source. **It is now stated, and an art brief can be built on it.**
+    //
+    // Twelve benefits plus three: firstDose, welcome, and the paywall's founder
+    // note. Fifteen, and that is the whole list.
+    //
+    // **The `dashboard` end state's three placeholders are NOT part of the
+    // fifteen and must never reach the art list** — active levels chart, next
+    // dose card and cycle plotter pre-loaded are MOCKS OF REAL UI, not
+    // illustrations to commission.
 
     static func forBenefit(segment: OnboardingSegment, index: Int) -> OnboardingIllustration? {
         let set: [OnboardingIllustration]
@@ -128,7 +144,7 @@ struct OnboardingIllustrationPlaceholder: View {
             .foregroundStyle(Theme.warning)
             .padding(Theme.Spacing.sm)
         }
-        .aspectRatio(illustration.aspectRatio, contentMode: .fit)
+        .frame(maxWidth: .infinity, minHeight: OnboardingIllustration.minHeight, alignment: .center)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(Self.warningLabel): \(illustration.specName)")
     }

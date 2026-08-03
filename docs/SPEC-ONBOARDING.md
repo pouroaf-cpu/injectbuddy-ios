@@ -83,7 +83,8 @@ units, compound, dose, frequency, extraCompounds[]
 reminderTime, vialCount, vialSize
 ```
 
-`segment` selects the benefit copy and the paywall headline. `exp` changes the route and two
+`segment` selects the benefit copy and the paywall headline. `exp` changes the route, the
+benefit CTA and its Skip, and three
 individual lines. Nothing else branches.
 
 ---
@@ -249,11 +250,32 @@ CTA: `See plans again`
 
 ## 5. Images
 
-Every benefit screen and several others carry an illustration. **None of them exist.** Ship this pass
-with a labelled placeholder that reserves the real aspect ratio, and record the list as its own task:
-flat levels chart · chart + share icon · levels-over-time chart · reconstitution calc · $ + trend
-line · streak calendar · multi-compound curve · cycle plotter · lock · multi-protocol view ·
-half-life curve · body map · big log button / syringe · logo-celebration · photo of Pou.
+Every benefit screen and several others carry an illustration. **None of them exist.**
+
+**Shape — confirmed against the wireframe 2026-08-03, read by the Windows side.** The placeholder is
+**full content width with a 90pt minimum height, and it may grow** — a wide banner, roughly 4:1 at
+the wireframe's own dimensions. **Provisional until the art is commissioned**, but it is the one
+dimension the source actually gives, and it beats a guess.
+
+**Which illustration goes on which screen — confirmed against the wireframe 2026-08-03, read by the
+Windows side. This was previously reconstructed by inference; it is now stated, and an art brief can
+be built on it.**
+
+| Screen | Illustration |
+|---|---|
+| `welcome` | logo / small celebration |
+| **TRT** benefits | flat levels chart · chart + share icon · levels-over-time chart |
+| **GLP-1** benefits | reconstitution calc · $ + trend line · streak calendar |
+| **AAS** benefits | multi-compound curve · cycle plotter · lock |
+| **Other** benefits | multi-protocol view · half-life curve · body map |
+| `firstDose` | big log button / syringe icon |
+| `paywall` | photo of Pou |
+
+Twelve benefits plus three. **Fifteen, and that is the whole list.**
+
+> **The `dashboard` end state's three placeholders are NOT part of the fifteen and must never reach
+> the art list.** *Active levels chart*, *next dose card* and *cycle plotter pre-loaded* are **mocks
+> of real UI**, not illustrations to commission.
 
 **Do not let placeholder art block the flow landing.** Do not let a placeholder ship to the store.
 
