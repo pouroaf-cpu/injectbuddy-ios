@@ -197,6 +197,152 @@ final class PinnedBarReachabilityUITests: XCTestCase {
                        + "measurement observed nothing and must not be read as an answer.")
     }
 
+    // MARK: - BATCH.md batch 3 item 2 — the shear measurement, and NOTHING else
+
+    /// **PURE OBSERVATION.** `BATCH.md` batch 3 item 2 says MEASURE FIRST, and this is
+    /// that measurement: at rest, at default text size, `bar_plate`'s top edge against
+    /// the frame of `result_Draw` — the emphasised dose VOLUME on the GLP-1 card.
+    ///
+    /// THE SAMPLE IS THREE CALCULATORS, NOT ONE (P5). `semaglutide`, `tirzepatide` and
+    /// `retatrutide` share one field set (conc picker / dose picker / syringe barrel) and
+    /// one result shape (`Draw`, `Units (U-100)`, `Volume`), so they land at the same
+    /// offset and a finding read off only the one it was first noticed on would be a
+    /// finding about a screen rather than about the control underneath all three.
+    ///
+    /// It asserts only that it RESOLVED the two elements. Whether they intersect is
+    /// printed, not asserted — turning it into an assertion here would make the run red
+    /// before anyone had decided what the number means, which is the wrong order.
+    ///
+    /// The barrel rows are printed alongside, because the hypothesis under test is that
+    /// `SegmentedRow` is in its COLUMN branch at default size: four rows one below the
+    /// next at `Theme.minTarget` + `Spacing.xs` apart. Four distinct `minY` values is the
+    /// column; one shared `minY` is the row. That is the difference between a screen
+    /// that is 116pt too tall and one that is not, read off the renderer.
+    func testItem2_shearAtRest_Retatrutide() throws {
+        try openCalculator("Retatrutide")
+        measureShear(screen: "Retatrutide")
+    }
+
+    func testItem2_shearAtRest_Semaglutide() throws {
+        try openCalculator("Semaglutide")
+        measureShear(screen: "Semaglutide")
+    }
+
+    func testItem2_shearAtRest_Tirzepatide() throws {
+        try openCalculator("Tirzepatide")
+        measureShear(screen: "Tirzepatide")
+    }
+
+    private func measureShear(screen: String) {
+        // The rig, from the app's own probe. A frame filed under "default text size"
+        // by a harness that cannot observe the text size is the §5.24 shape.
+        let gate = app.descendants(matching: .any).matching(identifier: "bar_gate").firstMatch
+        XCTAssertTrue(gate.waitForExistence(timeout: 8), "No bar_gate on \(screen).")
+        print("SHEAR \(screen) RIG \(gate.label)")
+
+        let plates = app.descendants(matching: .any)
+            .matching(identifier: "bar_plate").allElementsBoundByIndex
+        guard plates.count == 1, let plate = plates.first else {
+            return XCTFail("\(screen): `bar_plate` resolved \(plates.count) elements.")
+        }
+        let plateFrame = plate.frame
+        let plateTop = plateFrame.minY
+        let window = app.windows.firstMatch.frame
+        let navBottom = app.navigationBars.firstMatch.frame.maxY
+        print("SHEAR \(screen) window=\(window) navBottom=\(navBottom) "
+              + "plateFrame=\(plateFrame) plateTop=\(plateTop)")
+
+        // Every result row, so the reader can see WHERE the card sits, not just whether
+        // one string of it is under the plate. `Draw` is the one the finding is about.
+        for label in ["Draw", "Units (U-100)", "Volume"] {
+            let id = "result_\(label)"
+            let matches = app.descendants(matching: .any).matching(identifier: id)
+                .allElementsBoundByIndex.filter { $0.frame.minX >= 0 }
+            guard matches.count == 1, let row = matches.first else {
+                print("SHEAR \(screen) \(id): UNRESOLVED — \(matches.count) elements.")
+                continue
+            }
+            let f = row.frame
+            let straddles = f.minY < plateTop && f.maxY > plateTop
+            let whollyUnder = f.minY >= plateTop
+            let onScreen = window.contains(f)
+            print("SHEAR \(screen) \(id) y=\(f.minY)…\(f.maxY) h=\(f.height) "
+                  + "value=\"\(row.label)\" intersectsPlate=\(f.intersects(plateFrame)) "
+                  + "straddlesPlateTop=\(straddles) whollyUnderPlate=\(whollyUnder) "
+                  + "overlap=\(max(0, f.maxY - plateTop)) inWindow=\(onScreen)")
+        }
+
+        // The 116pt hypothesis: is `SegmentedRow` in its column branch?
+        let barrels = app.buttons.allElementsBoundByIndex
+            .filter { $0.identifier.hasPrefix("control_syringeMl_") && $0.frame.minX >= 0 }
+        let tops = Set(barrels.map { $0.frame.minY })
+        print("SHEAR \(screen) BARREL branch=\(tops.count == 1 ? "ROW" : "COLUMN") "
+              + "count=\(barrels.count) distinctTops=\(tops.count)")
+        for b in barrels {
+            let f = b.frame
+            print("SHEAR \(screen) BARREL id=\(b.identifier) y=\(f.minY)…\(f.maxY) "
+                  + "x=\(f.minX)…\(f.maxX) w=\(f.width) h=\(f.height) "
+                  + "hittable=\(b.isHittable) selected=\(b.isSelected)")
+        }
+        if let lo = barrels.map({ $0.frame.minY }).min(),
+           let hi = barrels.map({ $0.frame.maxY }).max() {
+            print("SHEAR \(screen) BARREL blockHeight=\(hi - lo)")
+        }
+
+        // D5, the other half, re-read on these three screens: at rest, which barrels are
+        // clear of the plate and hittable? Printed so step 3 has a before to compare to.
+        for b in barrels {
+            let f = b.frame
+            print("SHEAR \(screen) D5 id=\(b.identifier) "
+                  + "clearOfPlate=\(f.maxY <= plateTop && f.minY >= navBottom) "
+                  + "hittable=\(b.isHittable)")
+        }
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "\(screen)-at-rest"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        // AND THE ROW ITSELF, because the frames above say where the pills are and not
+        // whether the labels inside them survived. `blockHeight` alone cannot tell a row
+        // of four wrapped-but-whole pairs from a row of four clipped ones, and the whole
+        // point of this control is that `0.3 mL (…` must never happen. Taken LAST, after
+        // every at-rest number is recorded, so the scroll cannot redefine "at rest".
+        if let last = barrels.last, !last.frame.isEmpty {
+            // Enough of it to READ, not necessarily all of it: at AX5 a pill is 232pt
+            // tall and the band between the header and the plate is 390pt, so insisting
+            // on wholly-visible is a condition this loop can fail for reasons that have
+            // nothing to do with the labels it is here to photograph.
+            // A COORDINATE DRAG, not `scrollViews.first { isHittable }`. At AX5 that
+            // query answered with something that did not move: three runs produced
+            // byte-identical frames before and after fourteen swipes, which is a scroll
+            // that reports success and does nothing. Dragging inside the band between
+            // the header and the plate cannot address the wrong element.
+            let midBand = (navBottom + plateTop) / 2 / window.height
+            for _ in 0..<14 {
+                let f = last.frame
+                if f.minY >= navBottom && f.minY < plateTop - 40 { break }
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: midBand))
+                    .press(forDuration: 0.05,
+                           thenDragTo: app.coordinate(
+                            withNormalizedOffset: CGVector(dx: 0.5, dy: navBottom / window.height + 0.02)))
+            }
+            let rowShot = XCTAttachment(screenshot: app.screenshot())
+            rowShot.name = "\(screen)-barrel-row"
+            rowShot.lifetime = .keepAlways
+            add(rowShot)
+            let after = app.buttons.allElementsBoundByIndex
+                .filter { $0.identifier.hasPrefix("control_syringeMl_") && $0.frame.minX >= 0 }
+            for b in after {
+                print("SHEAR \(screen) BARREL-SCROLLED id=\(b.identifier) frame=\(b.frame)")
+            }
+        }
+
+        XCTAssertFalse(barrels.isEmpty,
+                       "\(screen): no `control_syringeMl_*` resolved — this measurement "
+                       + "observed nothing and must not be read as an answer.")
+    }
+
     // MARK: - The invariant
 
     private func assertReachable(screen: String,

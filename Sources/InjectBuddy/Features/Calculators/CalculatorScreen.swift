@@ -294,12 +294,15 @@ struct CalculatorScreen: View {
     /// that edge is. Shrinking the plate by 28pt moves the straddle from the second of
     /// the four column rows to the third; it does not remove it.
     /// The thing that removes it is the row branch being chosen at default size again —
-    /// four 44pt rows becoming one — and `ViewThatFits` refuses it because it compares
+    /// four 44pt rows becoming one — and `ViewThatFits` refused it because it compared
     /// the labels' UNWRAPPED single-line ideal width while the row would render them
-    /// wrapped and tightened. That is a fit-test finding on `SegmentedRow`, filed, not
-    /// fixed here: fixing it by re-adding `lineLimit` reintroduces the truncation D4
-    /// forbids on a value+unit pair, and fixing it by tuning the ideal width until the
-    /// branch flips is tuning a collision.
+    /// wrapped and tightened. **That fit-test finding is now FIXED, at `SegmentedRow`,
+    /// and this paragraph is left standing because it is the diagnosis the fix came
+    /// from.** See `MinimumWidthAsIdeal` below: the row candidate reports the width it
+    /// would really render at, so the comparison is like for like. `lineLimit` was not
+    /// re-added — that reintroduces the truncation D4 forbids on a value+unit pair —
+    /// and no ideal width was nudged until the branch flipped, which is tuning a
+    /// collision.
     private var plateReservation: CGFloat { metrics[BarMetrics.bar] ?? 0 }
 
     private var resultBar: some View {
@@ -1298,6 +1301,13 @@ private struct QuickValueRow: View {
 /// CHILD's ideal width when proposed `nil`, so the fit test compares four real strings
 /// while the pills still expand to equal widths.
 ///
+/// AND THE FIT TEST WAS ASKING THE WRONG QUESTION — the correction, measured, is in
+/// `MinimumWidthAsIdeal` below this type. "Four real strings" was true and still not
+/// enough: it compared them UNWRAPPED, so the control took the column branch at
+/// default size on all eleven calculators and put ~116pt of stacked pills above the
+/// result card. Read that comment before changing anything here; it carries the
+/// numbers.
+///
 /// WHAT IS DELIBERATELY LEFT: `.minimumScaleFactor(0.8)`, which caps Dynamic Type growth
 /// at 80% on this control. It is a real defect of the same family and it is **H1's
 /// territory, and H1 is deferred by the owner** — so it stays, and it stays annotated,
@@ -1334,17 +1344,25 @@ private struct SegmentedRow: View {
 
     private func button(_ opt: CalculatorInput.PickerOption) -> some View {
         let isOn = abs(selection - opt.value) < 0.0001
+        let font = isOn ? Theme.Typeface.cardMeta.weight(.bold) : Theme.Typeface.cardMeta
         return Button { selection = opt.value } label: {
-            Text(opt.label)
-                .font(isOn ? Theme.Typeface.cardMeta.weight(.bold)
-                           : Theme.Typeface.cardMeta)
-                .foregroundStyle(isOn ? .white : Theme.tealTextStrong)
-                // NO `lineLimit`. The pair wraps rather than losing its unit, and the
-                // column branch above is what it wraps INTO when a row cannot hold it.
-                .multilineTextAlignment(.center)
-                // H1 territory, deferred. See the type comment.
-                .minimumScaleFactor(0.8)
-                .fixedSize(horizontal: false, vertical: true)
+            // THE FIT TEST'S INPUT — the whole of the fix, and see the note below the
+            // type. The first child is the label as it really renders; the second is
+            // the hidden probe whose width the enclosing `ViewThatFits` decides on.
+            FitOnWrappedWidth {
+                Text(opt.label)
+                    .font(font)
+                    .foregroundStyle(isOn ? .white : Theme.tealTextStrong)
+                    // NO `lineLimit`. The pair wraps rather than losing its unit, and
+                    // the column branch above is what it wraps INTO when a row cannot
+                    // hold it.
+                    .multilineTextAlignment(.center)
+                    // H1 territory, deferred. See the type comment.
+                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                WidestWordProbe(text: opt.label, font: font)
+            }
                 .padding(.horizontal, Theme.Spacing.xs)
                 .frame(maxWidth: .infinity, minHeight: Theme.minTarget)
                 .background(
@@ -1357,6 +1375,103 @@ private struct SegmentedRow: View {
         .accessibilityIdentifier("control_\(key)_\(opt.label)")
         .accessibilityLabel(opt.label)
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+// ─── The fit test, made to ask the right question ────────────────────────────
+//
+// WHAT WAS WRONG, measured rather than reasoned. At default text size, on
+// Retatrutide / Semaglutide / Tirzepatide, `SegmentedRow` rendered FOUR stacked
+// 44pt rows 4pt apart — `blockHeight=188.0`, `distinctTops=4`, exactly
+// `4 × Theme.minTarget + 3 × Spacing.xs` — against ~72pt for the single row of
+// pills the same control drew before `69a674a`. ~116pt of form, on the eleven
+// calculators listed above, immediately above the result card, and the visible
+// consequence was `result_Draw` — the dose VOLUME, the number the user acts on —
+// sitting at y 651.67…692.33 against a plate top of 671.0. Sheared through its
+// own glyphs, no ellipsis, at default size, in a dosing app.
+//
+// WHY IT CHOSE THE COLUMN. `ViewThatFits(in: .horizontal)` picks the first
+// candidate whose IDEAL width fits the proposal. A `Text`'s ideal width is its
+// UNWRAPPED, single-line width — `0.3 mL (30u)` all on one line — so the row
+// candidate's ideal was the sum of four full-length strings and never fit. But
+// the row branch does not render them unwrapped: each pill is a quarter of the
+// width and the pair wraps onto two lines inside it, which is how the control
+// looked before the `lineLimit` came out. **The fit test was measuring a layout
+// that the row branch never produces.**
+//
+// WHAT THIS FIXES IT WITH. Not a threshold — a threshold nudged until the branch
+// flips is tuning a collision, and it un-flips silently the next time a label
+// changes. The row candidate is made to report, as its ideal, the width it would
+// ACTUALLY render at: each label's MINIMUM width, which is the width of its
+// longest unbreakable run once wrapping is allowed. `ViewThatFits` then compares
+// like with like — the sum of the four minimum widths (plus padding and spacing)
+// against the space on offer — and that comparison is exactly the condition under
+// which an `HStack` of flexible children renders without overflowing, because a
+// flexible child is never given less than its minimum.
+//
+// So the branch flips for a REASON that survives a label change: it takes the row
+// while four wrapped labels genuinely fit side by side, and stacks the moment one
+// of them cannot. At default that is the row; at accessibility sizes, where
+// `(100u)` alone is wider than a quarter of the screen, it is still the column.
+//
+// `lineLimit` STAYS OUT, and this is why it can. The reason the column exists at
+// all is that a value+unit pair must never lose its unit — `0.3 mL (…` and
+// `0.5 mL (…` are the same string to somebody choosing a barrel. Capping the
+// lines would make the row fit by shearing the labels, which is the D4 defect
+// this control was fixed to remove, traded for the D4 defect it currently causes
+// one card lower down. Neither is acceptable, and neither is needed.
+//
+// `minimumScaleFactor(0.8)` is likewise NOT touched — see `SegmentedRow`'s type
+// comment. It is a real defect of the same family, it is H1's, and H1 is deferred
+// by the owner. It stays, deliberately, and it is an input to the measurement
+// below rather than something the measurement works around.
+
+private extension View {
+    /// Makes this view report its MINIMUM width as its IDEAL width, so an enclosing
+    /// `ViewThatFits` decides on the width the row would really render at.
+    func rowFitOnRenderedWidth() -> some View {
+        MinimumWidthAsIdeal { self }
+    }
+}
+
+/// A pass-through `Layout` with exactly one job: change what "ideal width" means
+/// for its content, and change NOTHING else.
+///
+/// A `Layout` rather than a modifier because a modifier cannot ask this question.
+/// `sizeThatFits(ProposedViewSize(width: 0, …))` is how you ask a `Text` for the
+/// narrowest width at which it still lays out — its longest unbreakable run — and
+/// only a `Layout` gets to put a proposal to its subview and read the answer. Every
+/// other proposal is forwarded untouched, so the view sizes and draws precisely as
+/// it did before in both branches; the single value that changes is the number
+/// `ViewThatFits` reads when it is choosing.
+private struct MinimumWidthAsIdeal: Layout {
+
+    func sizeThatFits(proposal: ProposedViewSize,
+                      subviews: Subviews,
+                      cache: inout ()) -> CGSize {
+        guard let sub = subviews.first else { return .zero }
+        // A width WAS proposed: this is real layout, not the fit test. Answer as the
+        // content would have answered. Nothing about rendering is being changed here.
+        guard proposal.width == nil else { return sub.sizeThatFits(proposal) }
+
+        // No width proposed — the ideal, which is what `ViewThatFits` compares. Report
+        // the minimum instead: proposing 0 makes the content give back the width below
+        // which it cannot lay out, and the height it takes AT that width.
+        let minimum = sub.sizeThatFits(
+            ProposedViewSize(width: 0, height: proposal.height)).width
+        let height = sub.sizeThatFits(
+            ProposedViewSize(width: minimum, height: proposal.height)).height
+        return CGSize(width: minimum, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect,
+                       proposal: ProposedViewSize,
+                       subviews: Subviews,
+                       cache: inout ()) {
+        guard let sub = subviews.first else { return }
+        sub.place(at: CGPoint(x: bounds.midX, y: bounds.midY),
+                  anchor: .center,
+                  proposal: ProposedViewSize(bounds.size))
     }
 }
 
