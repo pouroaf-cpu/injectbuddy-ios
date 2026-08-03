@@ -89,6 +89,17 @@ iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
   The pattern that works is already in the tree: have the **app publish its resolved value** and
   assert on that, the way the pinning gate publishes `GATE ax=… size=… cap=…`. A lever the run
   never saw and a lever the run saw and satisfied are indistinguishable from the exit code alone.
+- **NEVER READ A RUN LOG OR AN `.xcresult` END TO END TO FIND ONE THING IN IT. Extract first, hand
+  over the extract.** `grep -A/-B` around the marker takes seconds; `xcresulttool` the specific
+  object rather than opening the bundle. This applies to agents as much as to you.
+- **AN AGENT'S PROGRESS LABEL IS NOT ITS PROGRESS.** Recorded 2026-08-03: a label read
+  *"Reading ADD-FLOW OBSERVATION block in p1.log"* for forty minutes and was watched from outside as
+  a stall. It was not one. `p1.log` was **31K** — a second's read — last written **an hour earlier**,
+  and the agent had produced a fresh 35K measurement log **one minute** before the check. **The
+  label was stale; the work was not.** Diagnose from artefacts — file mtimes, sizes, `pgrep` for
+  `xcodebuild`/`simctl`, and whether anything was committed — **never from the label**, and never
+  restart on the strength of one. The label is the only signal a watcher outside the session has,
+  which is exactly why it must not be trusted as evidence.
 - **`simctl ui content_size` is device state, not run state.** Set it and reset it *in the same
   command*. A left-over accessibility size has already read as "the app broke" once when nothing was
   wrong.
