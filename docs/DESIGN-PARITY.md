@@ -106,6 +106,8 @@ These are what make the PWA dashboard recognisable. Ranked by visual payoff.
 
 ## 5. Geometry
 
+Spacing scale, screen margin, control height and the 44pt tap target are in §11.
+
 Radii in `Theme.Radius` (card 16 / control 10) are close to the PWA's
 `--radius: 0.5rem` = 8px and the tabs' `10px 10px 0 0`. **Verify before
 changing** — do not churn these on assumption.
@@ -296,3 +298,25 @@ Two things this rule does not license:
 2. **A cap is not a fix for a layout that cannot take large text.** `NumberField`
    at AX5 truncated a dose to `1…` because the unit beside it was `.fixedSize()`
    and took the row. The fix was to reflow the row, not to stop the text growing.
+
+## 11. Spacing and control geometry
+
+The tokens live in `Sources/InjectBuddy/Core/Theme/Theme.swift`. Values below are as
+verified in code on 2026-08-02.
+
+**Every spacing value comes from `Theme.Spacing`.** The scale is
+`xs 4 · sm 8 · md 16 · lg 24 · xl 32` — a 4pt grid. No raw numbers in `.padding`. If the
+value you want is not on the scale, that is a design decision: add a token, don't inline
+a number.
+
+**One screen margin, one control height.** Horizontal screen margin is
+`Theme.Spacing.md` everywhere; content never touches the edge. Any two controls that
+stack in the same flow are the same height, and that height is set once at the shared
+control.
+
+**The minimum hit target is `Theme.minTarget` = 44pt** — the HIG floor, and the same 44
+the audit's touch-target check in §7 measures against.
+
+> Setting `minHeight: Theme.minTarget` does not mean the control renders at 44 — padding
+> is additive. That is a measurement trap, not a design token; it is written up in
+> `docs/MAC-SIDE-README.md` as a rig fact. Read it before you assert a height.
