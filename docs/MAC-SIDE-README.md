@@ -80,6 +80,15 @@ iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
   regression clauses recorded as a bare `Executed N tests, with 0 failures` — which is the lesson:
   **record the invocation and per-test output, not the summary line.** A summary line differs from
   a skip by one word in a transcription nobody can re-check.
+- **ANY RUN GATED ON AN ENVIRONMENT LEVER CAN REPORT SUCCESS BY NEVER RUNNING. Assert that the
+  lever ARRIVED — never that the run returned zero.** Two known levers, and two instances make it a
+  class rather than a pair of quirks:
+  - `TEST_RUNNER_QA_EMAIL` / `_PASSWORD` (above) — without them: 1 test skipped, **RC=0**, 42s.
+  - **`TEST_RUNNER_CAPTURE=1`** — without it the capture suite **skips and exits 0 in 0.25 s**.
+    Found 2026-08-03; a 0.25 s green is the tell, and nothing else about the output distinguishes it.
+  The pattern that works is already in the tree: have the **app publish its resolved value** and
+  assert on that, the way the pinning gate publishes `GATE ax=… size=… cap=…`. A lever the run
+  never saw and a lever the run saw and satisfied are indistinguishable from the exit code alone.
 - **`simctl ui content_size` is device state, not run state.** Set it and reset it *in the same
   command*. A left-over accessibility size has already read as "the app broke" once when nothing was
   wrong.

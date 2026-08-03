@@ -166,6 +166,45 @@ Fix that citation to name the string next time this file is touched for another 
 
 ---
 
+## Batch 3
+
+**Batch 2's sweep passed. The Add flow executed end to end for the first time** — `dose_log` 14→15,
+`saved_dosages` 102→103, `status='active'` **and** `is_active=true`, tick stayed, row confirmed by a
+second reader querying production. **Both P0s are closed on evidence.** The rig hazard is struck.
+
+| # | Change | What the sweep must look at |
+|---|---|---|
+| 1 | **`draw_ml` on the dashboard log path.** The dashboard-logged row wrote `draw_ml = NULL` and it is the **only** NULL in the table — all 14 pre-existing rows carry a volume. The web writes it (`DashboardContext.tsx:353`, `draw_ml: ev.vol ?? null`) and **consumes it**: `app/api/inventory/route.ts:8` computes remaining supply as `(vial_count × vial_ml) − Σ(dose_log.draw_ml since stocked_on)`. **So a NULL is a dose that consumes nothing from inventory** — log every dose from the iOS dashboard and the app reports your stock untouched. That is the "never run dry mid-protocol" promise wrong in the direction of running dry. The value is already in hand (`mlDrawn: 0.5` in the config, and in the projection). **`LogDoseSheet` writes it and the dashboard does not — enumerate every log path and state the count**; this is the same one-of-three-call-sites shape as the optimistic-write family. | A dashboard-logged row carries a volume; inventory decrements |
+| 2 | **Retatrutide shears `Draw 0.300 mL` mid-glyph at default size.** A value+unit pair clipping silently — the one thing CLAUDE.md says never to accept — at default size, on a real screen. Note it is **exactly the screen the sweep had never reached** until batch 2 item 4 bought it back. | No shear at default; units intact |
+| 3 | **The auth bypass. DEBUG ONLY.** Boot past `AuthFlow`: restore the Keychain session, and sign in from QA credentials if there is none. **Release is untouched and the gate stays exactly as it is** — guard at compile time. Removes the ~20–25 signed-in-checks/hour ceiling for the whole app. | See PRE-SHIP CHECKLIST — a **Release** build must still show sign-in |
+| 4 | **The onboarding target.** `OnboardingPreview`, `Sources/OnboardingKit/`, per `docs/SPEC-ONBOARDING.md`. First surface sweepable **without signing in**. | Six paths in one session, no login |
+
+**Then a sweep that finally covers batch 1 items 1, 6, 7 and the 400ms clause.** All four are
+reachable for the first time: the Calendar hazard is struck **and** there is at last an iOS-written
+row to unlog and re-log. **They stay NOT OBSERVED until that run — none of them becomes a pass on
+the strength of today.**
+
+### Item 2 of batch 2 — filed, not blocking, and the table is the reason
+
+**D5 violation.** Every barrel is selectable at some scroll position; **there is no position where
+all four are.** Identical to the pixel on `trt` and `steroid`, default text size.
+
+| | at rest | at FULL SCROLL |
+|---|---|---|
+| `0.3 mL (30u)` | clear, hittable | 49–93 — **above navBottom 100.33, not hittable** |
+| `0.5 mL (50u)` | **642.7–686.7 — straddles plateTop 671** | 97–141 |
+| `1 mL (100u)` | off-screen | **145–189 — hittable, tapped, `selected=true`** |
+| `3 mL (IM)` | off-screen | **193–237 — hittable, tapped, `selected=true`** |
+
+Keep both columns together: **that pair is the whole of why this is not criterion 1**, and a later
+reader given only the at-rest row will re-escalate it.
+
+**And the reconciliation, which is the more useful half:** the at-rest `642.7–686.7` and the capture
+harness's `y 653 against plate 671` **were both correct** — different scroll positions. Set against
+each other they read exactly like a defect. **The conflict was in the framing, not the numbers.**
+
+---
+
 ## PRE-SHIP CHECKLIST — things that can only be checked on the way out
 
 **RELEASE BUILD STILL SHOWS THE SIGN-IN SCREEN.** One launch of a **Release** build before
