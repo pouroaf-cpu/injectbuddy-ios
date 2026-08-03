@@ -535,8 +535,27 @@ final class CaptureCurrentState: XCTestCase {
             ("Retatrutide",    "21-calculator-retatrutide",    true),
             ("BPC-157",        "22-calculator-bpc157",         true),
             ("BPC+TB500",      "23-calculator-bpc157blend",    true),
-            ("BMI",            "24-calculator-bmi",            true),
-            ("Free T Index",   "25-calculator-freetest",       true),
+            // `BMI` (`24-calculator-bmi`) and `Free T Index` (`25-calculator-freetest`)
+            // were REMOVED 2026-08-03, and not because the capture broke.
+            //
+            // Both calculators are WITHDRAWN by the owner's decision (H6, `bf52ecc`) —
+            // "no layout work, no shear work, no styling on either screen". Photographing
+            // them every sweep is layout work by another name.
+            //
+            // The route is also gone, so this could not be repaired by flipping
+            // `fromTools` to `false`: `NavItems.isListed` removes both from all four
+            // browse surfaces — Tools, the drawer, the dashboard add-dialog and
+            // `AddCategoryScreen` — so NOTHING in the app reaches either screen now.
+            //
+            // The existing frames `IB2245771` / `IB2245772` are NOT deleted; they are
+            // evidence and the archive is left alone. Their `SCREENSHOT-LOG.md` and
+            // `2026-08-02-current/README.md` rows carry a dated retirement note, because
+            // a frame that stops being taken with no note is indistinguishable from a
+            // frame that failed to take.
+            //
+            // If either calculator is ever re-listed, these two entries come back IN THE
+            // SAME COMMIT that re-lists it — same rule as the Add-gate test leg in
+            // `CalculatorWiringUITests`.
             ("TRT Microdose",  "26-calculator-microdose",      true),
             ("Steroid Dosage", "28-calculator-steroid",        true),
             // `Cycle Plotter` is NOT in this list — it is captured last, after the F-F
