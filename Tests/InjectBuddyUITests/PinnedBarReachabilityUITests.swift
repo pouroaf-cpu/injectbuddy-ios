@@ -1,6 +1,6 @@
 import XCTest
 
-/// D12, made into something that can go red.
+/// D5, made into something that can go red.
 ///
 /// The pinning gate decides on a SHARE — the pinned bar may own at most 40% of the
 /// content area. That is a proxy, and a proxy can pass while the defect exists: 40%
@@ -162,7 +162,7 @@ final class PinnedBarReachabilityUITests: XCTestCase {
             // permanently-red test is one people learn to ignore. That bought silence
             // on ONE known screen and paid for it with the assertion on EVERY screen at
             // AX5: including the ten not yet surveyed, at the size every finding this
-            // week came out of, on the half of D12 that says the input must be
+            // week came out of, on the half of D5 that says the input must be
             // reachable too. It was a size gate on the assertion — the exact thing this
             // task rejected as a gate on the bar, and wrong for the same reason. A size
             // is a guess at where the problem lives.
@@ -201,7 +201,7 @@ final class PinnedBarReachabilityUITests: XCTestCase {
                           file: file, line: line)
         }
 
-        // PASS 2 — REACHABILITY, at every size, and this is the half with teeth. D12:
+        // PASS 2 — REACHABILITY, at every size, and this is the half with teeth. D5:
         // an action you can reach for a value you can't is worse than an action you
         // can't reach, because the second one stops you. So every input the committing
         // action commits must be bringable to FULL visibility — not "mostly", not
@@ -239,7 +239,7 @@ final class PinnedBarReachabilityUITests: XCTestCase {
 
     /// FOUND BY THIS SUITE, on its first run at AX5. The bar is at its floor there —
     /// the result card is stood down entirely and what is left is the committing action
-    /// D12 requires — so no pinning gate can lift that edge. The fix belongs to the
+    /// D5 requires — so no pinning gate can lift that edge. The fix belongs to the
     /// screen's layout, which is why it is a debt and not a bug in the bar.
     static let expectedShears: [ExpectedShear] = [
         .init(screen: "Steroid Dosage",

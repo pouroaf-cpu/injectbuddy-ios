@@ -71,12 +71,12 @@ is at **default** — the size everyone has been looking at for three days.
 
 `BPC+TB500`. `TB-500 bac water` is cut through its own control by the plate's top
 edge, and `Add` sits below it, full width and enabled. That is **F-A's exact shape
-and D12 word for word** — an action you can reach for a value you can't — except
+and D5 word for word** — an action you can reach for a value you can't — except
 F-A was filed as an AX5 finding on one screen and this is default size on a
 different one.
 
 **`PinnedBarReachabilityUITests` covers three calculators: TRT Dose,
-Reconstitution, Steroid Dosage.** BPC+TB500 is not one of them. So D12's assertion,
+Reconstitution, Steroid Dosage.** BPC+TB500 is not one of them. So D5's assertion,
 built precisely to stop this, is aimed at 3 of 15 screens and the defect is live at
 default size on one it has never looked at. **This is F-D a third time** — the check
 is sound and its AIM is short (§5.33).

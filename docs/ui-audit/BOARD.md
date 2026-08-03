@@ -174,13 +174,13 @@ Things a cold session will hit within minutes and not understand:
 - [ ] **SAFETY — AN INPUT IS SHEARED BY THE PINNED BAR AT DEFAULT SIZE, with `Add`
       enabled below it.** `IB2245770`, `BPC+TB500`. `TB-500 bac water` is cut through
       its own control by the plate's top edge; `Add` sits under it at full width,
-      legible and enabled. **This is F-A's shape and D12 word for word** — except F-A
+      legible and enabled. **This is F-A's shape and D5 word for word** — except F-A
       is an AX5 finding on one screen and this is **the size everyone uses**, on a
       screen nobody had photographed until `9b4afcb`. It has been shipping the whole
       time.
       **WHY NOTHING CAUGHT IT, and this is worth more than the defect:**
       `PinnedBarReachabilityUITests` covers **three** calculators — TRT Dose,
-      Reconstitution, Steroid Dosage. D12's assertion is aimed at **3 of 15 screens**.
+      Reconstitution, Steroid Dosage. D5's assertion is aimed at **3 of 15 screens**.
       §5.33 a third time: the check is sound and its AIM is short. Fixing the aim
       (cover all 15) is the real item; the frame is only where it surfaced.
 
@@ -253,7 +253,7 @@ Things a cold session will hit within minutes and not understand:
       screen being driven. It was true on TRT Dose, Reconstitution and Steroid Dosage
       too — every calculator, since they all render the one shared `resultBar`. §5.37
       exactly: the sentence stated the scope of the sample.
-      **(2) THE CLAIM THAT D12 "WOULD GO RED ON BMI TODAY, AND DOES NOT ONLY BECAUSE OF
+      **(2) THE CLAIM THAT D5 "WOULD GO RED ON BMI TODAY, AND DOES NOT ONLY BECAUSE OF
       THE AIM" WAS FALSE.** `assertReachable` resolved `Add` by LABEL, and the bottom
       tab bar has an `Add` slot with the same label; its `first { $0.isHittable }`
       picked the tab item, which is always enabled and always hittable. So on all three
@@ -291,12 +291,12 @@ Things a cold session will hit within minutes and not understand:
       below it at full width, perfectly legible, enabled, and **`Add` writes a
       protocol**. One complete input is usable on that screen at AX5 and it is not the
       dose.
-      **This is `D12` word for word, and T24's finding on a different screen:** an
+      **This is `D5` word for word, and T24's finding on a different screen:** an
       action you can reach for a value you can't is worse than an action you can't
       reach, because the second one stops you. Filed as safety, not layout — the
       severity is what decides the order it gets fixed in.
       The pinning gate cannot fix it: at AX5 the bar is already at its FLOOR — the
-      result card is stood down entirely and what remains is the committing action D12
+      result card is stood down entirely and what remains is the committing action D5
       requires. The fix belongs to that screen's layout. Carried meanwhile as a named
       expected failure in `PinnedBarReachabilityUITests.expectedShears`, so every other
       screen stays asserted at AX5 and the run goes red the day this one starts
@@ -448,7 +448,7 @@ Things a cold session will hit within minutes and not understand:
       186.00 against band-profiled 334.34 / 226.00 / 185.67. Within 0.33pt every time.
       **The cap is 0.40 and it is measured, not chosen.** There is an irreducible floor
       — `Add` plus hero clearance plus padding is 18.79% at default and 22.56% at AX5,
-      and `D12` makes it mandatory — so the gate chooses inside `[18.79%, 52.40%]`, not
+      and `D5` makes it mandatory — so the gate chooses inside `[18.79%, 52.40%]`, not
       `[0, 1]`. A one-third cap leaves 14.54 points of real budget and `lead` needs
       16.65: it misses by 2.11 points, and what pays is the dose, because the rung
       below renders `0.250 mL` as a small ink secondary row instead of the 7.65:1 teal
@@ -467,7 +467,7 @@ Things a cold session will hit within minutes and not understand:
       y 636.33…701.33 with the plate top at 651.67, so the weekly dose is cut through
       its own glyphs. **The gate cannot fix this one**: at AX5 the bar is already at
       its floor — the result card is stood down entirely and what is left is the
-      committing action, which `D12` requires. The fix is in that screen's layout, not
+      committing action, which `D5` requires. The fix is in that screen's layout, not
       in the bar, so it is filed rather than folded in. Listed here as open, below.
 
 - [ ] **The same headline dose figure now renders twice, conspicuously.** `IB2245750`:
@@ -538,7 +538,7 @@ Things a cold session will hit within minutes and not understand:
       `PinnedBarReachabilityUITests`. 40% of the content area is a fact about area, not
       about whether you can see the dose you are committing — a screen with three tall
       fields can sit under the cap and still shear an input. So the invariant asserted
-      is `D12` itself, in two passes, against the plate's **rendered** frame rather than
+      is `D5` itself, in two passes, against the plate's **rendered** frame rather than
       against the gate's own arithmetic:
       1. the committing action is wholly on screen and hittable, at every size;
       2. at rest no input control straddles the plate's top edge, and at every size
@@ -816,7 +816,7 @@ Safety and accessibility
       end wrote rows that should not exist; the other still displays rows that were
       never started. This closes the write only.
 - [x] **A PRIMARY CTA REPORTED ITSELF NOT HITTABLE — cause found, and it was the
-      measurement probe.** The `bar_plate` element existed so D12 could read the plate's
+      measurement probe.** The `bar_plate` element existed so D5 could read the plate's
       rendered top edge. It was attached as **`.overlay`**, so a `Color.clear` carrying
       `.accessibilityElement()` sat ON TOP of the whole result bar — including the `Add`
       button inside it. The accessibility layer therefore reported the primary CTA of
@@ -840,7 +840,7 @@ Safety and accessibility
       Control reach that CTA through exactly the layer that was reporting it
       unreachable.
       **AIMED AT** (§5.33): `TRT Dose`, `Reconstitution`, `Steroid Dosage` at default
-      size — the three screens D12 opens. The other eleven are not measured by anything
+      size — the three screens D5 opens. The other eleven are not measured by anything
       yet; `bar_plate` is rendered by the one shared `resultBar`, so the same fix
       reaches them, but that is an inference and not a measurement. G2 is what tests it.
       Regression run at default: `Executed 11 tests, with 0 failures` across
@@ -1150,7 +1150,7 @@ Parity and chrome
    skipped — a guard returning early, a run failing partway — the previous run's file is
    still sitting under the name this run meant to write, and the host copies it out as
    this run's evidence. It gets measured, serialised and cited while being a photograph
-   of different code. Nearly happened. Fixed rather than written down (D8): the
+   of different code. Nearly happened. Fixed rather than written down: the
    directory is emptied at run start, and a frame that is not on disk afterwards fails
    the run instead of resolving to whatever is there.
 30. **When an assertion is unsatisfiable, name what makes it unsatisfiable — do not
@@ -1221,17 +1221,17 @@ Parity and chrome
    over the surface the finding was found on for two days, and a closed item does not
    get re-examined.
    **It has now paid out twice more, on the same day it was written.**
-   `PinnedBarReachabilityUITests` implements D12 and is aimed at 3 of 15 calculators —
+   `PinnedBarReachabilityUITests` implements D5 and is aimed at 3 of 15 calculators —
    `IB2245770` is an input sheared by the plate AT DEFAULT SIZE on one of the twelve it
    never looks at. And nothing at all is aimed at result rows against the plate, which
    is three more sheared frames in the same sweep.
    So a closure reads "closed by X, **aimed at Y**", and when Y is not the surface the
    finding was found on, that is a second finding rather than a footnote.
    Do not run it as a sweep — sweeps done in a hurry are where regressions come from
-   (§D9). Add the line as each area is touched; T11 is the natural first pass, and it
+   Add the line as each area is touched; T11 is the natural first pass, and it
    should treat result cards as an UNSURVEYED SURFACE rather than a re-check.
    **AMENDED BY §5.38, and the amendment matters more than the rule it qualifies.** The
-   D12 example above — "aimed at 3 of 15 calculators" — was true and was **not the
+   D5 example above — "aimed at 3 of 15 calculators" — was true and was **not the
    reason** that suite was green over a defect. It was also addressing the wrong element
    entirely. Recording an aim is necessary and it is not sufficient: a check can be
    pointed at the right screen and still be reading something else on it. Ask BOTH — what
@@ -1296,7 +1296,7 @@ Parity and chrome
    **This is §5.33's mirror, and the pair is most of what went wrong today.** Record
    what surface a CHECK was aimed at; record what sample a FINDING was drawn from. Same
    failure at opposite ends of the same sentence — F-D was the ratio sweep's aim, and
-   D12 aimed at 3 of 15 calculators is the same thing again. A scope nobody wrote down
+   D5 aimed at 3 of 15 calculators is the same thing again. A scope nobody wrote down
    is read as "all of it" by the next person, and by you in a week.
 
 38. **A CHECK THAT ADDRESSES A CONTROL BY A STRING THE APP USES TWICE IS MEASURING
@@ -1320,7 +1320,7 @@ Parity and chrome
        cannot ever report "not hittable"; it reports "no element", or it reports a
        different element. Never choose the subject of an assertion by the predicate of
        that assertion.
-   (c) **A plan built on the false negative.** The queue had "widen D12 from 3 screens
+   (c) **A plan built on the false negative.** The queue had "widen D5 from 3 screens
        to 15" ahead of the fixing work, on the reasoning that its hittability assertion
        "already exists and would go red on BMI today". It would not have. Widening the
        aim would have produced fifteen green results about a tab bar. **An aim gap and
@@ -1373,25 +1373,3 @@ and the rules ascend without gaps. An ordering defect became a correctness defec
 "find the next free number" is a forward scan and a descending run is invisible to it.
 Shown red in all three directions before being trusted (§5.24).
 
-**STILL OPEN, FOUND BY THE SAME WORK: THE ENTIRE `D` SERIES IS CITED AND NEVER DEFINED.**
-`D9`, `D12` and now `D19` are referenced in `BOARD.md`, both handovers,
-`SCREENSHOT-LOG.md` and `2026-08-02-current/README.md` — and **no file in this repository
-defines any of them.** `D12` in particular is load-bearing: it is quoted as the invariant
-`PinnedBarReachabilityUITests` implements, described as "word for word" in three findings,
-and a reader cannot check any of that against a source. This is §5.31 for the third time
-and the exact case the new check was *designed* for, sitting one letter outside its
-matcher. Deliberately not auto-fixed: writing definitions for D9/D12/D19 from their
-citations would manufacture a provenance that never existed (§5.32's closing argument).
-Either the definitions exist off-repo and belong here, or the series should be retired in
-favour of the `§5.NN` rules it overlaps. **A human decision, filed rather than guessed.**
-
-**`D19` — the directing side's own call, recorded because it was wrong three times and
-correcting it is worth more than the original claim.** "`assertReachable` already contains
-`Add is on screen but not hittable` and would go red on BMI today — it does not, only
-because of the aim" was stated in three separate messages, written into §1 of this board,
-and committed into a spec (`85d5b4b`). It would not have gone red anywhere. The check was
-resolving `Add` by label against the tab bar and choosing between two matches using
-`isHittable`, the property under test. The failure was reasoning about what an assertion
-would do **by reading it** — the thing this project has a rule against — while
-simultaneously instructing the other side to reproduce defects before trusting
-assertions. See §5.38.

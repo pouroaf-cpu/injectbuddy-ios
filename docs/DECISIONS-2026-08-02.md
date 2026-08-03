@@ -9,7 +9,107 @@ Durable record lives in git. `BOARD.md` holds findings and evidence; this file
 holds decisions and their reasoning. The live task list is on the cross-claude
 bus (key `TASKLIST`) and is state, not record — it is not a substitute for this.
 
+**The `D` rules below and this file's numbered sections are two different series.**
+`D3` is not §3. If you arrived from a `D<n>` citation, read the `D` rules and stop
+there — matching the number against a section heading gives a wrong answer that
+reads right.
+
 ---
+
+## The `D` rules
+
+Ten rules. `BOARD §5` holds the longer rule list and the evidence behind findings;
+these are the ones that apply to every piece of work regardless of what it touches.
+
+### D1 — Measure it, don't read it
+
+No claim from inspection. Anything touching a displayed number, dose, unit,
+calculation, truncation, tap target or the accessibility tree is measured on the
+running app, and so is anything closing a `BOARD` finding.
+
+Work may ship unverified. It may not be **written down** as verified without proof —
+if verification is skipped, the commit says so and the finding stays open.
+
+### D2 — Look at it before you measure it
+
+Judgment pass first: open the frame and ask "would I ship this?" Write down whatever
+reads as wrong, including what no number will attach to.
+
+Metrics are a floor, not a verdict. They were chosen to catch the last set of bugs,
+not the next one.
+
+### D3 — Serial and log row per frame
+
+Every captured frame gets an `IB…` serial and a row in `SCREENSHOT-LOG.md` recording
+when it was taken, from which commit, and of what. Nothing is stamped inside the
+image — the file on disk stays exactly what the device rendered.
+
+### D4 — A check must be able to observe the thing it asserts
+
+Ask which layer actually sees the condition before trusting a result. A truncation
+check that reads the accessibility model gets the string the app *intended*, so it
+passes on the exact frame drawing `1…`.
+
+A green indistinguishable from an absence is not evidence: make a check fail on
+purpose before believing it green.
+
+### D5 — The committing action, and the input it commits
+
+The control that commits an action must be wholly on screen and genuinely reachable,
+**and so must the input it commits.**
+
+*An action you can reach for a value you can't see is worse than an action you can't
+reach, because the second one stops you.*
+
+**Split for screens that cannot save:** the assertion becomes "committing action
+wholly on screen and **not enabled**".
+
+### D6 — Compare leaves, not siblings
+
+When checking whether two elements collide, compare the bottom-most drawn elements.
+Sibling comparison misses the common case — a child colliding with its parent's
+sibling — and goes green on the exact bug it was written for.
+
+The accessibility tree has no z-order and no clipping, so a reported collision may be
+between things the user cannot see, and a clean result is not proof anything is legible.
+
+### D7 — Every press gets visible feedback inside 400ms
+
+Tap to visible change, under 400ms, always. Where the real work takes longer an
+animation bridges the gap — the animation **is** the feedback, not decoration. A
+control that looks identical for half a second reads as broken and gets pressed twice.
+
+Feedback belongs to the shared control, not the screen: `PrimaryButton` and
+`OAuthButton` in `Core/UI/Components.swift` are the two places this lands.
+
+### D8 — Change the screen first, then talk to the server
+
+Never block a screen transition on a database round-trip. Navigate immediately, show
+the destination, fill it in when the data arrives. The wait lives inside the new
+screen, not in front of it.
+
+**The exception, and it is this app's whole subject:** move the *user* forward
+optimistically, never a *number*. A dose, volume or confirmation is not shown as
+settled before the write is confirmed, and a failed write is always surfaced.
+
+### D9 — Every spacing value comes from `Theme.Spacing`
+
+The scale is `xs 4 · sm 8 · md 16 · lg 24 · xl 32` — a 4pt grid. No raw numbers in
+`.padding`. If the value you want is not on the scale that is a design decision: add
+a token, don't inline a number.
+
+### D10 — One screen margin, one control height
+
+Horizontal screen margin is `Theme.Spacing.md` everywhere; content never touches the
+edge. Any two controls that stack in the same flow are the same height, and that
+height is set once at the shared control.
+
+**Padding is additive to `minHeight`.** A control that sets `minHeight: 44` and then
+adds vertical padding renders taller than 44 — measure the resulting frame rather
+than assuming the floor is the height.
+
+---
+
 
 ## 1. Dashboard IA — iOS does not mirror the PWA's six tabs
 

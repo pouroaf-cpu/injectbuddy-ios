@@ -174,7 +174,7 @@ struct CalculatorScreen: View {
         // and the alternatives are worse.
         //
         // There is an IRREDUCIBLE FLOOR. `Add` plus the hero clearance plus padding
-        // measures 18.79% of the content area at default and 22.56% at AX5, and D12
+        // measures 18.79% of the content area at default and 22.56% at AX5, and D5
         // makes it mandatory, so no cap can reach below it. The gate is choosing
         // inside [18.79%, 52.40%], not [0%, 100%].
         //
@@ -706,7 +706,7 @@ private struct ResultCard: View {
     /// gate picked the `lead` rung, and two wiring assertions went red on it. They
     /// were red about something true.
     ///
-    /// The rule that survives is the one D8 was actually reaching for: AN IDENTIFIER
+    /// The rule that survives: AN IDENTIFIER
     /// NAMES THE SURFACE THE USER IS READING. So `result_<label>` follows the row.
     /// If the pinned bar is showing that row, the pinned bar answers to it; if the
     /// row only exists in the scroll, the scroll copy does. Still exactly one element

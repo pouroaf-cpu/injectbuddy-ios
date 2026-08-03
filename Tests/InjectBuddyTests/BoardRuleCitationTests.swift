@@ -43,6 +43,10 @@ final class BoardRuleCitationTests: XCTestCase {
         repoRoot.appendingPathComponent("docs/ui-audit/BOARD.md")
     }
 
+    private var decisionsPath: URL {
+        repoRoot.appendingPathComponent("docs/DECISIONS-2026-08-02.md")
+    }
+
     // MARK: - Reading the rules
 
     /// A rule DEFINITION: a line in §5 opening `NN. **`.
@@ -81,7 +85,12 @@ final class BoardRuleCitationTests: XCTestCase {
     /// Walks the tree rather than taking a list of files: a citation added to a file
     /// nobody thought to enumerate is exactly the citation that goes stale unnoticed.
     /// `.git`, build output and the audit frames are skipped — nothing in them is prose.
-    private func citations() throws -> [(number: Int, where_: String)] {
+    ///
+    /// Takes the matcher rather than owning it: `§5.NN` and `D<n>` are two different
+    /// citation series in the same tree, and the walk that finds one must find the other.
+    /// The `D` series survived a check written the same hour precisely because the walker
+    /// was correct and the matcher was one letter too narrow.
+    private func citations(matching match: (String) -> [Int]) throws -> [(number: Int, where_: String)] {
         let skip: Set<String> = [".git", ".build", "DerivedData", "build",
                                  "InjectBuddy.xcodeproj", ".claude"]
         let readable: Set<String> = ["swift", "md", "yml", "yaml", "json", "properties"]
@@ -105,7 +114,7 @@ final class BoardRuleCitationTests: XCTestCase {
 
             let relative = url.path.replacingOccurrences(of: repoRoot.path + "/", with: "")
             for (offset, line) in text.components(separatedBy: .newlines).enumerated() {
-                for number in Self.citedNumbers(in: line) {
+                for number in match(line) {
                     out.append((number, "\(relative):\(offset + 1)"))
                 }
             }
@@ -124,6 +133,152 @@ final class BoardRuleCitationTests: XCTestCase {
             if !digits.isEmpty, let value = Int(digits) { numbers.append(value) }
         }
         return numbers
+    }
+
+    // MARK: - The `D` rules
+
+    /// Every `D<n>` written in a line, as citations. Both edges are checked, not just the
+    /// leading one: a commit hash like `bd43542` must not yield a citation from the digits
+    /// after its lowercase `d`, and `3D` must not read as a citation at all.
+    ///
+    /// Two digits maximum. A longer run of digits in some future hex blob is not a citation
+    /// and should not be reported as a dangling one.
+    ///
+    /// **No example citation appears in this comment on purpose.** The walker reads every
+    /// file in the tree including this one, so a number written here as an illustration is
+    /// indistinguishable from a real citation — and the first run of this check failed on
+    /// exactly that, in this doc comment. It is the sibling of the probe that became the
+    /// defect it was measuring (§5.39): the matcher's own documentation is inside the
+    /// corpus the matcher reads.
+    static func citedDecisions(in line: String) -> [Int] {
+        var numbers: [Int] = []
+        let characters = Array(line)
+        var index = 0
+        while index < characters.count {
+            defer { index += 1 }
+            guard characters[index] == "D" else { continue }
+
+            // Left edge: start of line, or a character that cannot be part of a word.
+            if index > 0 {
+                let before = characters[index - 1]
+                if before.isLetter || before.isNumber || before == "_" { continue }
+            }
+
+            var end = index + 1
+            while end < characters.count, characters[end].isNumber, end - index <= 2 { end += 1 }
+            guard end > index + 1 else { continue }                 // no digits at all
+
+            // Right edge: a following letter, digit or underscore means this was a word.
+            if end < characters.count {
+                let after = characters[end]
+                if after.isLetter || after.isNumber || after == "_" { continue }
+            }
+
+            if let value = Int(String(characters[(index + 1)..<end])) { numbers.append(value) }
+        }
+        return numbers
+    }
+
+    /// The rules, read from the `## The `D` rules` section of `DECISIONS-2026-08-02.md`.
+    /// A rule is a `### D<n> — …` heading.
+    private func definedDecisions(in decisions: String) -> [(number: Int, line: Int)] {
+        let lines = decisions.components(separatedBy: .newlines)
+        guard let start = lines.firstIndex(where: { $0.hasPrefix("## The `D` rules") }) else {
+            XCTFail("No ``## The `D` rules`` heading in DECISIONS-2026-08-02.md. The section "
+                    + "has been renamed or removed and this check has nothing to read. It is "
+                    + "NOT passing.")
+            return []
+        }
+        // `### ` does not match `hasPrefix("## ")`, so sub-headings stay inside the section.
+        let end = lines[(start + 1)...].firstIndex { $0.hasPrefix("## ") } ?? lines.endIndex
+
+        var found: [(Int, Int)] = []
+        for index in (start + 1)..<end where lines[index].hasPrefix("### D") {
+            // A heading names exactly one rule; take the first number, so a cross-reference
+            // later in the title cannot quietly declare a second.
+            if let number = Self.citedDecisions(in: lines[index]).first {
+                found.append((number, index + 1))
+            }
+        }
+        return found
+    }
+
+    /// The declared extent of the series.
+    private static let declaredDecisions = 1...10
+
+    /// Every rule defined exactly once, and the series contiguous over its declared extent.
+    ///
+    /// The gap assertion carries more weight here than on `§5`. A gap in `§5` is a numbering
+    /// hazard; a gap here is a rule nobody has noticed is missing — and a number left free is
+    /// a number a future rule is given twice, which is how `§5.32` and `§5.33` came to be
+    /// written twice and every citation of them resolved to a coin flip for a day.
+    func testDecisionRulesAreCompleteAndEachNumberAppearsOnce() throws {
+        let decisions = try String(contentsOf: decisionsPath, encoding: .utf8)
+        let rules = definedDecisions(in: decisions)
+
+        // A parser that matches nothing passes everything below it (§5.36), so the floor is
+        // stated as a number rather than left implicit.
+        XCTAssertEqual(
+            rules.count, Self.declaredDecisions.count,
+            "Parsed \(rules.count) `D` rules, expected \(Self.declaredDecisions.count). Either "
+            + "the section's SHAPE changed — in which case this is the parser failing, not the "
+            + "series shrinking — or a rule was added or removed without updating the declared "
+            + "extent.")
+
+        var seen: [Int: [Int]] = [:]
+        for rule in rules { seen[rule.number, default: []].append(rule.line) }
+
+        let duplicated = seen.filter { $0.value.count > 1 }.sorted { $0.key < $1.key }
+        XCTAssertTrue(
+            duplicated.isEmpty,
+            "These `D` numbers are defined more than once, so every citation of them resolves "
+            + "to whichever heading you read first:\n"
+            + duplicated.map { "  D\($0.key) at lines "
+                               + $0.value.map(String.init).joined(separator: ", ") }
+                .joined(separator: "\n"))
+
+        let missing = Set(Self.declaredDecisions).subtracting(seen.keys).sorted()
+        XCTAssertTrue(
+            missing.isEmpty,
+            "No rule defined for \(missing.map { "D\($0)" }.joined(separator: ", ")). A free "
+            + "number is one a future rule will be given while an old citation still points "
+            + "at it.")
+
+        let stray = seen.keys.filter { !Self.declaredDecisions.contains($0) }.sorted()
+        XCTAssertTrue(
+            stray.isEmpty,
+            "\(stray.map { "D\($0)" }.joined(separator: ", ")) is defined outside the declared "
+            + "range. Either the range grew — say so where the series is described — or a "
+            + "number was invented.")
+    }
+
+    /// Every `D<n>` cited anywhere in the repository resolves to a rule that exists.
+    ///
+    /// **This is the assertion the series exists under.** `D5` alone is cited in eleven files
+    /// and is quoted as the invariant an entire UI suite implements; a citation that resolves
+    /// to nothing — or, worse, silently to a different rule after a renumber — is a reader
+    /// being told something false by a document that looks authoritative.
+    func testEveryDecisionCitationResolves() throws {
+        let decisions = try String(contentsOf: decisionsPath, encoding: .utf8)
+        let defined = Set(definedDecisions(in: decisions).map(\.number))
+        XCTAssertFalse(defined.isEmpty, "No `D` rules parsed — see the sibling test.")
+
+        let cited = try citations(matching: Self.citedDecisions)
+        XCTAssertFalse(
+            cited.isEmpty,
+            "Found NO `D<n>` citations anywhere in the repository. There are dozens, in test "
+            + "suites, source comments, the handovers and the board. The walker or the matcher "
+            + "is broken, and a check that reads nothing reports success about nothing (§5.36).")
+
+        let dangling = cited.filter { !defined.contains($0.number) }
+        XCTAssertTrue(
+            dangling.isEmpty,
+            "These citations name a `D` rule that does not exist:\n"
+            + dangling.sorted { $0.where_ < $1.where_ }
+                .map { "  D\($0.number) cited at \($0.where_)" }
+                .joined(separator: "\n")
+            + "\nIf this appeared after a renumber, the citation is stale — repoint it. Do not "
+            + "close it by adding a rule at that number.")
     }
 
     // MARK: - The assertions
@@ -182,7 +337,7 @@ final class BoardRuleCitationTests: XCTestCase {
         let defined = Set(try definedRules(in: board).map(\.number))
         XCTAssertFalse(defined.isEmpty, "No rules parsed — see the note in the sibling test.")
 
-        let cited = try citations()
+        let cited = try citations(matching: Self.citedNumbers)
         XCTAssertFalse(cited.isEmpty,
                        "Found NO `§5.NN` citations anywhere in the repository. There are "
                        + "dozens. The walker or the matcher is broken, and a check that "

@@ -72,19 +72,19 @@ Read `BOARD.md` §5 — 39 rules, each earned by something that went wrong. The 
 ## 5. Your own failure mode — this is the important section
 
 Four of your calls have been wrong and all four were caught by the Mac with measurements. They are
-recorded as D9, D10, D16 and D19 rather than quietly fixed. **They share one shape:**
+recorded rather than quietly fixed. **They share one shape:**
 
 > **You reason about what code or an assertion will do by reading it, and state the conclusion as
 > fact.**
 
-- **D9** — specced a sweep that would have replaced working Dynamic Type with frozen sizes on nine
+- Specced a sweep that would have replaced working Dynamic Type with frozen sizes on nine
   screens, starting with the first screen a new user sees.
-- **D10** — specced an assertion that *could not fail*: "no ellipsis in the displayed string" reads
+- Specced an assertion that *could not fail*: "no ellipsis in the displayed string" reads
   the accessibility model, which returns model text, so it passes on the frame rendering `1…`.
-- **D16** — specced an overlap check comparing *siblings*; the colliding pair is a child and its
+- Specced an overlap check comparing *siblings*; the colliding pair is a child and its
   parent's sibling, so it would have gone green on the exact bug it was written for. Compare
   **leaves**.
-- **D19** — claimed three times, in messages, on the board, and in a committed spec, that a suite
+- Claimed three times, in messages, on the board, and in a committed spec, that a suite
   "would go red on BMI today and does not, only because of the aim". It would not have gone red
   anywhere: it was resolving the button by a label the tab bar also uses, and choosing between
   matches using `isHittable` — the property under test.
@@ -114,12 +114,6 @@ a runtime you cannot execute.
 | Cold-start doc | `docs/WHERE-WE-ARE-2026-08-03.md` |
 | Current screenshots | `docs/ui-audit/2026-08-02-current/` |
 | Human's phone view | the artifact board — this side maintains it |
-
-**Known structural problem, filed and unfixed:** the durable record cites the `D` decision series
-by number and **no file in the repo defines any of them** — their words exist only in `TASKLIST` on
-the bus. `D12` is quoted as the invariant a whole test suite implements. Transcribing them into
-`DECISIONS-2026-08-02.md` is the next queued item after the pause; transcribe what maps
-unambiguously, name the numbers that do not, invent nothing.
 
 ## 8. Where things stood at the stop
 

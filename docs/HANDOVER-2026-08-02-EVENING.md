@@ -21,7 +21,7 @@ Branch `feature/tabview-shell`, tip `c0f69f3`. Everything below is committed and
 
 Three new suites, **each shown red before being trusted**:
 
-- `PinnedBarReachabilityUITests` — D12 as geometry. Red at `BAR_SHARE_CAP=0.55` on
+- `PinnedBarReachabilityUITests` — D5 as geometry. Red at `BAR_SHARE_CAP=0.55` on
   `control_injPerWeek`, the control the T20 finding names.
 - `AuditFolderConsistencyTests` — frame tables against folder contents, both directions.
   Went red **eleven times** on its first run against real data.

@@ -237,7 +237,7 @@ final class CaptureCurrentState: XCTestCase {
     /// set to, plus the chrome geometry needed to turn a PNG into a percentage.
     ///
     /// The frame is the evidence; the printed numbers are only the denominators.
-    /// D11 says measure the LAYOUT off the framebuffer, not the view hierarchy —
+    /// Measure the LAYOUT off the framebuffer, not the view hierarchy —
     /// so what this prints is the fixed chrome (header bottom, tab bar top, screen
     /// height) which is what "the content area" MEANS, and the bar's extent is then
     /// read off the pixels. Asking the hierarchy how tall the bar is would be

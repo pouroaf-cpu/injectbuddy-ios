@@ -30,7 +30,7 @@ commit; losing an invariant costs a defect nobody can see.
    flag exists, `AddScreen` honours it, `CalculatorScreen` never references it — one
    condition, not a design. **Then re-run the wiring assertions**: a CTA gate is exactly
    the kind of change that silently disables a button somewhere it should still work.
-2. **Widen D12's aim to all fifteen** (`PinnedBarReachabilityUITests`). Measurement, no
+2. **Widen D5's aim to all fifteen** (`PinnedBarReachabilityUITests`). Measurement, no
    layout change. Design in §4 below.
 3. **The default-size shears**, enumerated from (2) rather than from the frames.
 4. **Delete the two dead `isIntermittent` entries** in `LeafOverlapUITests`.
@@ -55,7 +55,7 @@ count was taken **before** the tap, which is the only reason the write is attrib
 rather than a story.
 
 **An input sheared by the pinned bar at default size** — `IB2245770`, BPC+TB500,
-`TB-500 bac water` cut through its own control with `Add` live below it. D12 word for
+`TB-500 bac water` cut through its own control with `Add` live below it. D5 word for
 word, at the size everyone uses. F-A is the same defect at AX5 on a different screen.
 
 **Result cards sheared at default** — BMI and Free T Index through `Normal`,

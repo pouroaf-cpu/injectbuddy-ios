@@ -108,11 +108,11 @@ the numbers, which is where the truth is.
 ## 6. Gates before this is ticked
 
 - Measured at default **and** AX5 on the TRT calculator — the screen the last two truncation bugs
-  both lived on. Judgment pass first (D6).
+  both lived on. Judgment pass first (D2).
 - The label pair **shown** reflowing above AX1, not assumed to.
 - Re-run the T20 numbers after: a new element in the scroll changes what is above the fold even
   though it is not in the bar.
-- Serial + log row per D7.
+- Serial + log row per D3.
 
 ## 7. Separate finding — file it, do not bundle it
 

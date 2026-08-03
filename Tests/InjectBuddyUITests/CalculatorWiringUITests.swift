@@ -330,7 +330,7 @@ final class CalculatorWiringUITests: XCTestCase {
     /// FAILURES ARE COLLECTED, not thrown at the first screen. `continueAfterFailure`
     /// is false in this suite, so asserting inline would stop at `BMI` and say nothing
     /// about `Free T Index` — the same "a loop that fails on the third calculator stops
-    /// measuring the rest" problem that decided D12's shape. The point is to learn the
+    /// measuring the rest" problem that decided D5's shape. The point is to learn the
     /// state of every screen in ONE run.
     func testAddCTA_isGatedOnCanSaveProtocol() {
         var wrong: [String] = []

@@ -50,7 +50,7 @@ struct GreetingHeadline: View {
             // screen. Compare IB2245743.
             //
             // Do NOT cite this on anything a user acts on. The calculator names were
-            // considered for the same treatment and rejected (DECISIONS D3) —
+            // considered for the same treatment and rejected —
             // navigation into a dosing screen, and AX5 users are exactly who needs
             // them legible.
             //

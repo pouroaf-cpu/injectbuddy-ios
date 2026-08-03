@@ -120,30 +120,7 @@ partial state. §3 below explains what it is.
 
 ## 3. What to do next, in order
 
-**1. Transcribe the "D" decisions into the repository.**
-
-There is a series of decisions referred to as `D1`–`D19`. They are cited in `BOARD.md`,
-in both handover documents, in `SCREENSHOT-LOG.md` and in a capture folder's README —
-and **no file in this repository defines any of them.** `D12` matters most: it is quoted
-as the rule a whole test suite implements, and described as followed "word for word" in
-three separate findings, with no source a reader can check.
-
-The text exists, but it lives in a **shared task list on the message bus between the two
-machines**, not in git. That is the actual problem, and it is worth stating plainly: *our
-permanent record depends on our temporary one.* If that message database is lost, `D12`
-cannot be recovered except by guessing from documents that cite it.
-
-- Write them into `docs/DECISIONS-2026-08-02.md`. That file already holds the reasoning
-  in prose but carries no D-numbers, which is why searching for them finds nothing.
-- **Safeguard, and it is not optional:** where a number's text maps clearly onto an
-  argument already in that document, transcribe it. Where it does not — a number with no
-  matching argument, or an argument that could be two different numbers — **do not assign
-  it.** Say which numbers are unresolved. Transcribe what exists; invent nothing.
-- Then extend `BoardRuleCitationTests` to cover `D` numbers the same way it covers `§5`
-  ones. It is one letter outside the current matcher, which is why this survived a check
-  written the same hour.
-
-**2. Widen the reachability check to every calculator.** Measurement only — no layout
+**1. Widen the reachability check to every calculator.** Measurement only — no layout
 changes in this step. Its purpose is to produce a *list* of what is broken.
 
 One thing about this step was wrong in every document written before today and is worth
