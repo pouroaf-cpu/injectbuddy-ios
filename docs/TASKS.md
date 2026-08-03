@@ -1115,6 +1115,53 @@ close it by observing the behaviour, not by comparing the code.**
 
 ---
 
+### `X-10` — Onboarding flow as its own runnable target, no login
+
+**Spec: `docs/SPEC-ONBOARDING.md`** (owner's, `6bedc53`). Do not restate it here; read it there.
+Thirteen screens × four segments, two independent branch dimensions, copy verbatim in one data
+file keyed by screen and segment, state in memory handed to a sink protocol. A second app target
+`OnboardingPreview` in the same Xcode project, flow in `Sources/OnboardingKit/`, **no dependency on
+`Core/Backend`, `Core/Auth` or `Features/`** — `Core/Theme` allowed.
+
+**Why it is worth building properly:** it is the first surface in this project that can be swept
+**without signing in**, and sign-in is the measured bottleneck — ~20–25 signed-in checks/hour
+against an 11s no-op rebuild. Every future iteration on this flow then costs a build and nothing
+else.
+
+> **DUPLICATE CHECK — RUN, AND IT FOUND ONE. This is the one thing to read before starting.**
+> `docs/WELCOME-AND-ONBOARDING.md` §3 already specs onboarding: the **five-step personalisation
+> flow** mirroring the PWA's `PersonalisationForm.tsx`, which **writes `public.profiles`** and sets
+> `onboarding_completed_at`. It is open, unbuilt (`B1-31`-adjacent), and it is **not superseded** —
+> the two specs describe different halves of one surface. The new one is the route and the copy;
+> the old one is the **write contract**.
+>
+> `docs/SPEC-ONBOARDING.md` mentions `profiles`, `onboarding_completed_at`,
+> `preferred_weight_unit`, `logging_interests` and `NOT NULL` **zero times** — measured, not
+> impression. So the constraints live only in the older doc:
+> - the three NOT NULL columns and the array **must never be written null** — a skipped step writes
+>   the **default**, not a null;
+> - `onboarding_completed_at` is set **only on completion** — it is the flag that stops the flow
+>   reappearing;
+> - **no rounding on the way in** — 180 lb entered must come back 180 lb.
+>
+> **The risk is concrete and it is deferred, not absent:** this pass ships a no-op sink, so nothing
+> is written and nothing can go wrong yet. The moment a real sink is implemented it will be written
+> against whichever spec its author is holding. **Whoever implements the sink reads
+> `WELCOME-AND-ONBOARDING.md` §3 and `DATA-CONTRACT.md` first** — per `CLAUDE.md`, DATA-CONTRACT is
+> authoritative for what the database accepts, and RLS refuses a bad write **silently**.
+
+**Sub-items, separately schedulable:**
+
+| | What | Owner |
+|---|---|---|
+| `X-10a` | The flow — the target, `OnboardingKit`, the copy file, the state machine, the screens | mac |
+| `X-10b` | The fifteen illustrations — none exist; `SPEC-ONBOARDING.md` §5 lists them. **Placeholders ship in the flow pass; placeholders do not ship to the store.** | human |
+| `X-10c` | The `$X/mo` price — a literal token in the copy until it is set | human |
+
+**Not a ship-blocker for the current launch.** Starts when the batch-1 sweep is done.
+
+---
+
 ## 6. Archive — the superseded 2026-07-31 build backlog
 
 **Kept, not endorsed.** This is what `TASKS.md` held before the transcription, preserved verbatim
