@@ -206,6 +206,26 @@ each other they read exactly like a defect. **The conflict was in the framing, n
 
 ---
 
+## Batch 4
+
+**Sweep 3 results:** item 1 (`unlogDose` + `user_id`) **PASS** — `dose_log` 15→16→15 and a **set
+comparison against the pre-sweep ids returning `missing=0, extra=0`**, which is stronger than a
+count; `draw_ml` **0.373** against `149/2/200 = 0.3725`, confirming batch 3 on the dashboard path.
+Item 7 (delete-account copy) **PASS** — **re-check this the moment real deletion lands; it stops
+being true then.** Item 6 **FAIL**. The 400ms clause: **feedback PASS, spinner NOT OBSERVED, and
+that is where it stops** — `tap()` returns only on quiescence so "button gone" cannot distinguish a
+wired spinner from an unwired one, and `simctl io screenshot` at 856ms/frame cannot see a 400ms
+window. **Not observable with the instruments we have. Do not build a harness to close it** — that
+sentence is a true statement about our evidence and it is worth more than a green.
+
+| # | Change | What the sweep must look at |
+|---|---|---|
+| 1 | **CRITERION 1 — a cancelled load renders as a full-screen error on the home screen.** Observed twice on device after a pull-to-refresh: *"The operation couldn't be completed. (Swift.CancellationError error 1.)"* **with the next-dose card gone.** `DashboardViewModel.load` ends `catch { state = .failed(…) }` with **no case for cancellation** (`DashboardViewModel.swift:95`); `CalendarViewModel.load` is the same shape. **A cancellation is not a failure — it is the app superseding its own request** — and rendering it as one costs the user their dose card for a race they caused by pulling twice. **Intermittent makes it worse, not better: it reaches a user and cannot be reproduced by whoever they report it to.** **Fix at the load pattern, not at two view models — there will be a third. Enumerate every `catch` that sets a failed state and state the count.** This is the optimistic-write family one layer down: a `catch` treating every throw as a user-visible failure. | Pull twice fast on the dashboard: previous state stays, nothing is surfaced, the dose card never disappears |
+| 2 | **Calendar `.refreshable` fires nothing. ONE BOUNDED ATTEMPT — 30 minutes — THEN REMOVE THE AFFORDANCE.** Measured: Calendar parked, a production label change 56s before the pull never appeared, Supabase's API log shows **zero requests** after the initial read. Discriminator, same gesture one minute apart on identically-shaped ScrollViews: **dashboard pull → re-read in 3s; calendar pull → nothing.** The gesture arms `.refreshable` — proven on the dashboard in the same run — and the two screens' source shape is identical, so the cause is **not visible from a source read.** **A pull gesture that silently does nothing is worse than no pull gesture: the user believes they have refreshed and they have not — the same lie as the optimistic tick.** `.task` re-runs on tab re-appearance, so the data path survives removal and only the affordance is lost. **File the mystery with the discriminator either way.** | Either a pull re-reads, or there is no pull to make |
+| 3 | **The Calendar's taken-tick is unreadable to accessibility — cheapest item on the board.** `AgendaRow` conveys "logged" by SF Symbol + colour + strikethrough, **none of which reaches the label**: rows read `"TRT Dose, TRT"` taken or not. **A VoiceOver user cannot tell a taken dose from an untaken one in a dosing app**, and the sweep had to use the database as its observer for exactly this reason. Two lines of `accessibilityValue` at one control. **This is not the deferred accessibility work** — it buys correctness for the user and observability for every future run, at one site. | A run can read the tick without querying the database |
+
+---
+
 ## PRE-SHIP CHECKLIST — things that can only be checked on the way out
 
 **RELEASE BUILD STILL SHOWS THE SIGN-IN SCREEN.** One launch of a **Release** build before
