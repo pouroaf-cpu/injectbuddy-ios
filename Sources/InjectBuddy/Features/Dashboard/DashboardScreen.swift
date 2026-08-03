@@ -22,7 +22,11 @@ struct DashboardScreen: View {
             .task { await reload() }
             .refreshable { await reload() }
             .confirmationDialog("Add a protocol", isPresented: $showCalculatorPicker, titleVisibility: .visible) {
-                ForEach(CalculatorSlug.allCases) { slug in
+                // `listedCases`, not `allCases` — H6 withdraws BMI and Free T Index from
+                // every route in, and this dialog is one. It still offers Cycle Plotter,
+                // which cannot save either: that is deliberate, it is the plotter's only
+                // route into the app today and it stays reachable.
+                ForEach(CalculatorSlug.listedCases) { slug in
                     Button(slug.title) { navigator.push(.calculator(slug)) }
                 }
                 Button("Cancel", role: .cancel) {}
@@ -81,6 +85,12 @@ struct DashboardScreen: View {
                             .contentShape(Rectangle())
                     }
                     .tint(Theme.tealTextStrong)
+                    // Addressed by IDENTIFIER, not by the label. `Add` is also the tab
+                    // bar's middle slot, and a check that resolved this control by its
+                    // text spent a week measuring the tab bar instead — always enabled,
+                    // always hittable, on exactly the screens where the real control was
+                    // not (§5.38). Names the control, adds no element to the tree (§5.39).
+                    .accessibilityIdentifier("cta_add_protocol")
                 }) {
                     ProtocolGrid(protocols: data.protocols) { proto in
                         if let slug = proto.slug {
