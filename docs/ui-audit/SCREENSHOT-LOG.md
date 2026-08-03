@@ -108,3 +108,54 @@ silence here looks like the frame was never attempted.
 | `12-calculator-trt-ax5`, first and second attempts | Same cause, still unsolved: at AX5 the Tools list needs more scrolling than one swipe to bring the TRT row into view. This time the harness **failed the run** instead of photographing the wrong screen, which is the fix working. No frame, no serial. The AX5 calculator remains uncaptured and is the gap in the AX5 survey. | none issued |
 
 **Third attempt succeeded — `IB2245748`.** The harness now scrolls until the row is hittable rather than swiping a fixed number of times, re-querying each pass. Two things had to be true and neither was obvious: at AX5 the list is **lazy**, so `waitForExistence` on the row failed with "does not exist" while it was two swipes away; and `Tools` is a `List`, which XCUITest surfaces as a collectionView, not a scrollView, so asking only for `scrollViews` found nothing to scroll on a screen that scrolls perfectly well by hand.
+
+---
+
+## 2026-08-03 — the default set, re-shot on a harness whose frames mean what their names say
+
+**`testCaptureFullDefaultSweep`, `** TEST SUCCEEDED **`, 806s, 0 failures.** App built from
+`Sources/` at **`3fe7302`**; harness at **`f506c4e`**. Capture window **2026-08-03 05:49–06:03 PDT /
+2026-08-04 00:49–01:03 NZ** — the run's start and end, stated as a window rather than invented
+per-frame times. Each frame's own status bar carries its minute.
+
+> **⛔️ THE THREE SHELL FRAMES IN `2026-08-02-current` ARE PHOTOGRAPHS OF THE WRONG SCREEN**, and the
+> same is true of `2026-08-01-current`. `03-calendar` is the Dashboard, `04-tools` is the Calendar,
+> `05-add` is Tools — `shot()` fired during the cross-fade after `tab()`, so every shell frame landed
+> one screen behind. **The outgoing screen is sharp and the destination ghosts in**, so each is a
+> good photograph of a real screen filed under the next screen's name: **not blurry, misfiled.**
+> Rows `IB2245755`, `IB2245756` and `IB2245757` above are annotated. The frames are **kept, not
+> deleted** — the record that the harness had this defect is now the more useful thing.
+>
+> **`tab()` now asserts arrival** against something only the destination renders. It caught two
+> defects on its first two runs: a proof string that could not match because `.insetGrouped`
+> uppercases `Section` headers, and `Log dose` having **no proof at all** while being captured twice
+> per sweep on trust.
+
+| Serial | File | What it shows | Captured | Folder | Build | Notes |
+|---|---|---|---|---|---|---|
+| IB2245776 | `02-dashboard-IB2245776.png` | Dashboard | 2026-08-03 05:49–06:03 / 2026-08-04 00:49–01:03 | `2026-08-03-current` | `3fe7302` | as above |
+| IB2245777 | `03-calendar-IB2245777.png` | **Calendar — supersedes `IB2245755`, which is the Dashboard. The first true Calendar frame in this project.** | as above | `2026-08-03-current` | `3fe7302` | asserted on the `Today` button |
+| IB2245778 | `04-tools-IB2245778.png` | **Tools — supersedes `IB2245756`, which is the Calendar.** `TESTOSTERONE & HORMONES` is TRT Dose · TRT & EOD · TRT Microdose · HCG and nothing else: **`BMI` and `Free T Index` are gone, H6 confirmed on a frame that can answer it.** Sample: cut off after `BPC+TB500`, so it speaks for three sections and not below them | as above | `2026-08-03-current` | `3fe7302` | asserted on a `Reconstitution` row |
+| IB2245779 | `05-add-IB2245779.png` | **Add — supersedes `IB2245757`, which is Tools** | as above | `2026-08-03-current` | `3fe7302` | asserted on the footer, not the header — the header is `.insetGrouped`-uppercased |
+| IB2245780 | `06-calculator-trt-IB2245780.png` | TRT Dose, at rest | as above | `2026-08-03-current` | `3fe7302` | `GATE … area=690.67 bar=120.00 **share=0.1737**` — the result bar at **17.37%** |
+| IB2245781 | `07-calculator-barrel-row-IB2245781.png` | TRT Dose, barrel row — all four labels keep their units | as above | `2026-08-03-current` | `3fe7302` | |
+| IB2245782 | `08-logdose-sheet-IB2245782.png` | Log-dose sheet | as above | `2026-08-03-current` | `3fe7302` | first capture with an arrival proof |
+| IB2245783 | `11-calculator-keyboard-toolbar-IB2245783.png` | TRT Dose, keypad up | as above | `2026-08-03-current` | `3fe7302` | |
+| IB2245784 | `15-calculator-eod-IB2245784.png` | TRT & EOD | as above | `2026-08-03-current` | `3fe7302` | disclaimer below the fold, y 965 |
+| IB2245785 | `16-calculator-hcg-IB2245785.png` | HCG | as above | `2026-08-03-current` | `3fe7302` | disclaimer below the fold, y 913.67 |
+| IB2245786 | `17-calculator-peptide-IB2245786.png` | Peptide | as above | `2026-08-03-current` | `3fe7302` | disclaimer below the fold, y 1123 |
+| IB2245787 | `18-calculator-reconstitution-IB2245787.png` | Reconstitution — **the disclaimer IS legible in this frame**, where `IB2245765` recorded it appearing nowhere. Clears the pinned region by **+16.00pt** | as above | `2026-08-03-current` | `3fe7302` | the only calculator that clears |
+| IB2245788 | `19-calculator-semaglutide-IB2245788.png` | Semaglutide — `Draw 0.100 mL` complete with its unit | as above | `2026-08-03-current` | `3fe7302` | disclaimer **fully inside `bar_plate`** |
+| IB2245789 | `20-calculator-tirzepatide-IB2245789.png` | Tirzepatide | as above | `2026-08-03-current` | `3fe7302` | disclaimer **fully inside `bar_plate`** |
+| IB2245790 | `21-calculator-retatrutide-IB2245790.png` | Retatrutide | as above | `2026-08-03-current` | `3fe7302` | disclaimer **fully inside `bar_plate`** |
+| IB2245791 | `22-calculator-bpc157-IB2245791.png` | BPC-157 | as above | `2026-08-03-current` | `3fe7302` | disclaimer **fully inside `tabBar`** — and it was never on F-F's list of six |
+| IB2245792 | `23-calculator-bpc157blend-IB2245792.png` | BPC+TB500 | as above | `2026-08-03-current` | `3fe7302` | disclaimer below the fold, y 1124.67 |
+| IB2245793 | `26-calculator-microdose-IB2245793.png` | TRT Microdose | as above | `2026-08-03-current` | `3fe7302` | disclaimer below the fold, y 947.67 |
+| IB2245794 | `27-calculator-plotter-IB2245794.png` | Cycle Plotter | as above | `2026-08-03-current` | `3fe7302` | reached by its only route, not from Tools |
+| IB2245795 | `28-calculator-steroid-IB2245795.png` | Steroid Dosage | as above | `2026-08-03-current` | `3fe7302` | disclaimer below the fold, y 1035.33 |
+
+**Not shot, all three decisions rather than omissions:** the drawer and Settings (they render the
+account's real email and avatar — **so the new account-deletion UI is NOT in this set**, and a
+separately masked capture is owed to `launch/APP-REVIEW-NOTES.md`); the signed-out path (costs the
+Keychain session); and AX5 (this is the default-size set — `2026-08-02-current`'s five AX5 frames are
+**not superseded** and remain the only large-text evidence there is).
