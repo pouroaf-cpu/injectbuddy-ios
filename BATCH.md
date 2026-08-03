@@ -111,6 +111,44 @@ real rows when it is struck early.
 
 ---
 
+## Batch 2 — unblock the Add flow, and the barrel a user cannot reach
+
+**Batch 1's sweep ran and the Add flow still has never executed.** It failed at step 1, before any
+save, so **items 1–7 of batch 1 are NOT OBSERVED — not failed, never reached.** Nothing from them
+is ticked. Item 8 (CI) passed. Item 9 landed the bar at **17.37% from 52.40%**, shown red first at
+cap 0.55 with `bar=120.00` corroborated by two independent suites — that one is real.
+
+**The rig hazard does NOT retire.** A build carrying the fixes is installed, but no dose has been
+written and read back. Calendar tab stays off limits.
+
+| # | Change | What the sweep must look at |
+|---|---|---|
+| 1 | **`NumberField` must accept being empty.** `CalculatorScreen.swift` sets `value = 0` on empty text and the paired `onChange(of: value)` rewrites it to `"0"` — a control fighting its own input. The model needs an empty representation that is not `0`: optional, or a sentinel the formatter renders as `""`. **Fix the control, not the test.** | Clear a weekly dose, retype: no leading zero. Everything else is behind this item. |
+| 2 | **The barrel straddle — criterion 1, not cosmetics.** A user cannot select `1 mL (100u)` or `3 mL (IM)` on `trt` or `steroid`, at default size, no flag. Measured: `control_syringeMl_0.5 mL (50u)` spans y 642.7–686.7, plate top 671.0. **Do NOT re-add `lineLimit`** — that buys the straddle back by reintroducing the truncation D4 forbids, trading one criterion-1 defect for another. Fix as **clearance per D2**: whatever pins the plate reserves the space it occupies. If the plate is an overlay rather than an inset, **that is the finding** and it is one site. | All four barrel rows reachable at default on `trt` AND `steroid`, units still intact |
+| 3 | **Two titles on every calculator.** `RouteContent` applies `.navigationTitle` to every route; item 9 added a content header. **One shared site — suppress the inherited nav title on calculator routes.** Reported not written last pass; that was right then, not now. | Exactly one title per calculator |
+| 4 | **The `syringe` identifier collision.** Item 9's `ScreenHeader` mark is a second `app.images["syringe"]`, so `testCaptureFullDefaultSweep` died after one calculator and **22 frames were not taken**. Give the header mark its own identifier. P6 in its plainest form. | Buys back the screen-outside-the-top-five this sweep could not observe |
+| 5 | **Two stale test lists.** `DynamicTypeTruncationUITests.calculators` and `CalculatorWiringUITests`' BMI leg still route to withdrawn calculators. **Update the lists; do not touch the app.** | — |
+
+**On item 5, worth recording:** two independent suites failing to reach BMI and Free T Index is the
+**running-screen confirmation the unit test explicitly cannot supply**. H6 is now verified on the
+device, which it was not before. The reds are the app being right and the lists being old.
+
+**Then one build, one signed-in session, and the sweep runs the Add flow end to end.** The dashboard
+is sitting on an untaken dose due today, so items 1–7 and the hazard's retirement are one run away
+— *after* item 1, not now.
+
+**The auth bypass is NOT in this batch**, and it would make this cheaper. The write path is the
+ship, and changing how the app boots in the same build we finally verify it in is how a result
+becomes unattributable. **Batch 3 is the bypass plus onboarding**, and if batch 2's sweep is clean
+that is where the sign-in ceiling comes off.
+
+**Filed, left alone:** the `04-tools.png` Calendar-under-a-Tools-label frame; `ProbeAttachmentUITests`
+reporting one occluded entry per run so clearing that debt takes eight runs; and this file's own
+stale `DashboardComponents.swift:104` citation — **the file-plus-a-line rule biting inside a day.**
+Fix that citation to name the string next time this file is touched for another reason, not before.
+
+---
+
 ## PRE-SHIP CHECKLIST — things that can only be checked on the way out
 
 **RELEASE BUILD STILL SHOWS THE SIGN-IN SCREEN.** One launch of a **Release** build before
