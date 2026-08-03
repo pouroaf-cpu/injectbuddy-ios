@@ -21,12 +21,51 @@ struct CalendarScreen: View {
         content
             .background(Theme.groupedBackground.ignoresSafeArea())
             .task { await reload() }
-            // `.task` alone runs ONCE per appearance and gives a user no way back from
-            // any failure — the ErrorBanner's Retry only exists in the `.failed` branch,
-            // so a stale or half-loaded calendar had no route to a fresh read at all.
-            // DashboardScreen has carried this since it was written; the calendar,
-            // which is the screen that records what has actually been injected, did not.
-            .refreshable { await reload() }
+        // ─── NO `.refreshable` HERE, AND IT IS DELIBERATE. UNSOLVED — filed. ──────
+        //
+        // `.refreshable { await reload() }` stood on this line and **fired nothing**.
+        // Removed 2026-08-03 rather than left in place: a pull that silently does
+        // nothing is worse than no pull, because the user believes they refreshed and
+        // they have not — the same lie as the optimistic tick, on the screen that
+        // records what has actually been injected.
+        //
+        // MEASURED, not reasoned (sweep 3, `Sweep3UITests` A5/A6):
+        //   • Calendar parked, untouched. A production label change made 56s before the
+        //     pull never appeared, and Supabase's API log — an observer outside the app
+        //     and outside the suite — shows ZERO requests after the initial read.
+        //   • THE DISCRIMINATOR: the same gesture, one minute apart in the same run, on
+        //     two identically-shaped ScrollViews. Dashboard pull → re-read visible in
+        //     the API log within 3s. Calendar pull → nothing. So the drag arms
+        //     `.refreshable` fine; the Calendar is the difference.
+        //
+        // The two screens' own source is the same shape, so THE CAUSE IS NOT VISIBLE
+        // FROM A SOURCE READ and nobody should try to find it in one again. Three
+        // candidates, none of them measured — whoever picks this up starts by killing
+        // one, on the device:
+        //
+        //   (A) THE STRONGEST, and it is one level up rather than in either screen —
+        //       which is exactly why comparing these two files shows nothing.
+        //       `RouteContent.titleDisplayMode` gives the dashboard `.inline` and every
+        //       other tab root, this one included, a LARGE navigation title. A large
+        //       title owns the pull-down stretch above a plain ScrollView, and the
+        //       dashboard is the ONLY root that does not have one.
+        //   (B) The harness's `scrollContainer()` takes the first hittable scroll-ish
+        //       element, and this screen has a LazyVGrid the dashboard does not. "Same
+        //       gesture" was established; "same target element" was not.
+        //   (C) `reload()` below mutates `visibleMonth` (@State) BEFORE its await;
+        //       `DashboardScreen.reload()` awaits immediately.
+        //
+        // ALSO UNMEASURED, and the cheapest thing to try first: batch 4 item 1 stopped
+        // `CalendarViewModel.load` blanking to `.loading` on a refresh, so the ScrollView
+        // that owns the refresh control is no longer destroyed underneath it mid-pull.
+        // If that was the cause, this affordance comes back by restoring one line — but
+        // it comes back on a MEASUREMENT (a request in the API log), never on the
+        // argument above.
+        //
+        // NOTHING IS LOST FROM THE DATA PATH: `.task` re-runs on tab re-appearance, so
+        // the calendar still re-reads. Only the affordance is gone, and it was an
+        // affordance that did not work.
+        // ─────────────────────────────────────────────────────────────────────────
     }
 
     @ViewBuilder
@@ -331,6 +370,18 @@ private struct AgendaRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // "Logged" is carried by an SF Symbol, a colour and a strikethrough, and NOT ONE
+        // of those reaches the accessibility label: this row read "TRT Dose, TRT" whether
+        // the dose was taken or not. In a dosing app that means a VoiceOver user cannot
+        // tell a taken dose from an untaken one — and it is why the last sweep had to
+        // query the database to observe a tick that is right there on screen.
+        //
+        // A VALUE rather than a longer label: it is this control's STATE, VoiceOver
+        // re-announces it on change without re-reading the whole row, and it arrives in
+        // `XCUIElement.value` where a run can read it directly.
+        //
+        // Minimal on purpose. This is not the deferred accessibility work — one site.
+        .accessibilityValue(pending ? "Saving" : (taken ? "Taken" : "Not taken"))
     }
 }
 
