@@ -161,7 +161,7 @@ evidence* is §5.1, and *a green indistinguishable from an absence is not eviden
    the default screens are clean, but because those were the frames anyone looked
    at. Applying the viewport method to a *default*-size frame we had captured and
    never judged immediately found the result bar taking 52% of the content area and
-   two of five inputs above the fold. §5.7 again, one level up: the AX5 frames are
+   two of five inputs above the fold. §5.9 again, one level up: the AX5 frames are
    not the audit, they are the half that is easier to see.
 23. **A test that cannot fail is worse than no test, and it is easy to spec one by
    accident.** "Assert the displayed string contains no ellipsis" was specced as

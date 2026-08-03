@@ -185,7 +185,7 @@ Three rules came out of that, and they are the ones most likely to matter tomorr
    sizes and weeks. Two denominators: full frame, and the content area between fixed
    header and tab bar.
 
-And the corollary to §5.7 that today earned: **the least-surveyed screen is the
+And the corollary to §5.9 that today earned: **the least-surveyed screen is the
 highest-prior defect, not the lowest.** Nobody complains about a screen nobody has
 looked at. The one screen never captured at large text held the worst finding on the
 board.
