@@ -34,6 +34,13 @@ targets:
       Release: Config/Secrets.xcconfig
     sources:
       - path: Sources/InjectBuddy
+      # The onboarding flow. SPEC-ONBOARDING §1: "Both targets include the
+      # folder." The real app mounts the flow later, between DisclaimerGate and
+      # RootView — that wiring is deliberately NOT done yet, so today this only
+      # compiles OnboardingKit into the app. It is here now so the boundary is
+      # enforced by the app's own build from the first commit: OnboardingKit
+      # must not depend on Core/Backend, Core/Auth or anything in Features/.
+      - path: Sources/OnboardingKit
     dependencies:
       - package: Supabase
         product: Supabase
@@ -89,6 +96,50 @@ targets:
         # next `xcodegen generate`.
         UIUserInterfaceStyle: Light
 
+  # ── OnboardingPreview ──────────────────────────────────────────────────────
+  # A SECOND APP TARGET in this same project (docs/SPEC-ONBOARDING.md §1) whose
+  # root view IS the onboarding flow: launch it and you are on screen 1. No
+  # auth, no RootView gate, no Supabase, no network — which is the point, since
+  # sign-in is the measured bottleneck on this rig.
+  #
+  # It takes NO configFile (Secrets.xcconfig is Supabase's) and NO Supabase
+  # package dependency. If either ever becomes necessary to make this target
+  # build, that is a finding about the OnboardingKit boundary, not a fix.
+  OnboardingPreview:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/OnboardingPreview
+      - path: Sources/OnboardingKit
+      # The one allowed dependency out of the app: SPEC §1 permits Core/Theme.
+      # Included by PATH rather than by target dependency precisely so the app
+      # target's other Core folders cannot come with it.
+      - path: Sources/InjectBuddy/Core/Theme
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.injectbuddy.ios.onboardingpreview
+        INFOPLIST_FILE: Sources/OnboardingPreview/Resources/Info.plist
+        ENABLE_USER_SCRIPT_SANDBOXING: "YES"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: "NO"
+    info:
+      path: Sources/OnboardingPreview/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Onboarding
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        ITSAppUsesNonExemptEncryption: false
+        # LIGHT ONLY, same as the app. This key — not `.preferredColorScheme` —
+        # is what reaches the surfaces SwiftUI cannot.
+        UIUserInterfaceStyle: Light
+
   InjectBuddyUITests:
     # Drives the app through the automation/accessibility layer INSIDE the
     # simulator runtime. It does not post CGEvents and does not go through the
@@ -133,3 +184,12 @@ schemes:
       targets:
         - InjectBuddyTests
         - InjectBuddyUITests
+
+  # Its own scheme so the flow can be launched without building or signing into
+  # the app. No test action: this pass ships no tests for it.
+  OnboardingPreview:
+    build:
+      targets:
+        OnboardingPreview: all
+    run:
+      config: Debug
