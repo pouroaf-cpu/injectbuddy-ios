@@ -183,15 +183,8 @@ is "the button is on screen and NOT enabled"; elsewhere it is "on screen and rea
 
 None of these block the work.
 
-1. **The QA account password should be rotated.** It has been passed between machines
-   over the message bus and sits in that database on both.
-2. **The QA account's email address is sitting in a test result bundle on the Mac**, from
-   a temporary diagnostic that dumped a screen's whole contents. Nothing was committed
-   and the diagnostic is deleted; the file on disk is the `testTEMPAddOnBMI` run under
-   `~/Library/Developer/Xcode/DerivedData/InjectBuddy-*/Logs/Test/`, around 05:04 on
-   2026-08-02. The fix is deleting it.
-3. **Automatic login is not set up on the Mac.** Convenience only.
-4. **The database has no `CHECK` constraints** on some profile columns — and nothing at
+1. **Automatic login is not set up on the Mac.** Convenience only.
+2. **The database has no `CHECK` constraints** on some profile columns — and nothing at
    the database level stops a calculator that cannot produce a dose from writing a
    protocol row. The app now prevents it; the database still would not.
 5. **The `D`-series decisions live only on the message bus** (see §3). Someone should

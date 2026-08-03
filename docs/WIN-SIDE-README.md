@@ -135,7 +135,6 @@ build (H7–H12).
 **Open safety findings:** an input sheared by the pinned panel at default size with a live Add
 beneath it; four barrel-size controls sitting under that panel, unreachable, on two calculators.
 
-**Waiting on the human:** rotate the QA password; a test artefact on the Mac holding the QA email;
 auto-login not configured on the Mac; database CHECK constraints; and the onboarding hold, which
 has been unanswered since before 2 August.
 

@@ -120,11 +120,6 @@ assumption: assert the absence on the strip itself, red first with the modifier 
 
 ## 4. Needs the human — three items, none of them ours to decide
 
-1. **QA password rotation is outstanding.** It was relayed over the cross-claude bus on
-   2026-08-02 at the human's instruction and now sits in the bridge's message database on
-   **both** machines. Nothing else carries it — not a doc, not a commit, not a failure
-   message — but that is one copy too many and rotating it is a decision only they can
-   take.
 2. **Auto-login is not configured on the Mac.** The recurring "GUI session dropped, taps
    are dead" failure is a shell in the `Background` launchd domain, not a login screen
    (`/dev/console` is owned by the user; `launchctl managername` returns `Background`).

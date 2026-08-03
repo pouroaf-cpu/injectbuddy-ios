@@ -132,15 +132,6 @@ cited anywhere in the repo exists in `BOARD.md`.
 
 ## 6. Needs the human — four items, none blocking
 
-1. **QA password rotation** is still outstanding. Relayed over the cross-claude bus on
-   2026-08-02 and sitting in the bridge's message database on **both** machines.
-2. **NEW — the QA account email is in an `.xcresult` on the Mac.** A temporary probe
-   dumped the screen's whole static-text list to diagnose the `Add` outcome, and the
-   drawer's contents were in it. Nothing was committed and the probe is deleted, but the
-   artefact is on disk: the `testTEMPAddOnBMI` run under
-   `~/Library/Developer/Xcode/DerivedData/InjectBuddy-*/Logs/Test/`, 2026-08-02 ~05:04
-   PDT. Same copy-count problem as the password; the fix is deletion. Self-caught, and
-   the discipline is adopted: no untargeted tree dumps.
 3. **Auto-login is not configured on the Mac.** Convenience, not a blocker — the
    recurring "taps are dead" failure is a shell in the `Background` launchd domain, not
    a login screen.
