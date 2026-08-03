@@ -307,8 +307,12 @@ final class CalculatorWiringUITests: XCTestCase {
                        "Result disagrees with the field after chip-following-type.")
     }
 
-    /// PROVES: the calculator's `Add` is gated on `canSaveProtocol` — dead on the
-    /// calculators that cannot produce a protocol, live on the ones that can.
+    /// **ASSERTS ONE END ONLY SINCE H6. READ THE NEXT THREE PARAGRAPHS BEFORE READING
+    /// THIS NAME.** It proves the `Add` CTA is LIVE on a calculator that can save. It no
+    /// longer proves the CTA is DEAD on one that cannot, because there is no longer a
+    /// calculator on which that can be asserted — see THE LEG THAT WAS REMOVED below.
+    /// The name is kept because `docs/TASKS.md` and `BOARD.md` both cite it by name as
+    /// the evidence for the red run recorded below, and a rename would dangle those.
     ///
     /// THE DEFECT THIS IS AIMED AT is a WRITE, not a layout: on `BMI` the button
     /// wrote a `saved_dosages` row from a height and a weight and advanced to a screen
@@ -318,41 +322,70 @@ final class CalculatorWiringUITests: XCTestCase {
     /// already honoured it; the missing code was on this screen.
     ///
     /// SHOWN RED BEFORE IT WAS TRUSTED (§5.24): run against the commit before the
-    /// gate, this reports `BMI`, `Free T Index` — the two calculators whose CTA was
-    /// enabled — and passes on the third leg. The red half and the green half were
-    /// watched in the same run, which is the only version of this that is evidence.
+    /// gate — and therefore against a tree where both were still listed — this reported
+    /// `BMI`, `Free T Index`, the two calculators whose CTA was enabled, and passed on
+    /// the third leg. The red half and the green half were watched in the same run,
+    /// which is the only version of this that is evidence. That run stands as a record
+    /// of the gate having worked; it is not reproducible on today's tree.
     ///
-    /// BOTH ENDS (§5.30), and the second end is the whole reason this is not a
-    /// one-liner. A gate on a CTA is exactly the change that quietly disables a button
-    /// somewhere it should still work, and a test that only asserts "dead on BMI"
-    /// passes just as happily with the CTA dead on all fifteen.
+    /// ## THE LEG THAT WAS REMOVED, AND WHY NOTHING REPLACES IT
     ///
-    /// FAILURES ARE COLLECTED, not thrown at the first screen. `continueAfterFailure`
-    /// is false in this suite, so asserting inline would stop at `BMI` and say nothing
-    /// about `Free T Index` — the same "a loop that fails on the third calculator stops
-    /// measuring the rest" problem that decided D5's shape. The point is to learn the
-    /// state of every screen in ONE run.
+    /// H6 (`bf52ecc`) withdrew `BMI` and `Free T Index` from every route in, on the
+    /// owner's instruction: *"leave them alone, and don't let the links to it go
+    /// anywhere, we will work on later."* `openCalculator(named:)` drives through the
+    /// Tools tab, and `ToolsScreen` renders `CalculatorCategory.members`, which filters
+    /// on `isListed` — so neither row exists to tap. The leg failed with *"BMI never
+    /// became hittable after 12 scrolls"*, which is not a defect in the app: it is this
+    /// test still routing to a withdrawn calculator.
+    ///
+    /// A SUBSTITUTE WAS LOOKED FOR AND THERE IS NONE. `cyclePlotter` is the only other
+    /// slug with `canSaveProtocol == false`, and it IS still listed — but it fails as a
+    /// target twice over:
+    ///
+    ///   1. No `CalculatorCategory` claims it, so `ToolsScreen` cannot render it either
+    ///      and this helper cannot reach it. That is asserted, deliberately, by
+    ///      `CalculatorLinkWithdrawalTests.testCyclePlotterIsStillMissingFromTools`.
+    ///   2. Worse, and this is the part that settles it: `CalculatorScreen` short-
+    ///      circuits that slug to `CyclePlotterScreen`, which renders **no `cta_add` at
+    ///      all**. So even reached by the drawer or the dashboard dialog there is no
+    ///      button to interrogate. An "there is no Add here" assertion in its place
+    ///      would pass identically with `slug.canSaveProtocol &&` DELETED from the gate
+    ///      — a check that cannot fail on the mutation it claims to cover, which is the
+    ///      green-indistinguishable-from-an-absence trap (§5.24). Writing one would be
+    ///      worse than admitting the gap.
+    ///
+    /// WHAT IS LOST, stated so nobody has to rediscover it: **nothing on the device now
+    /// proves the gate disables anything.** Delete `slug.canSaveProtocol &&` from
+    /// `CalculatorScreen`'s `PrimaryButton(isEnabled:)` and this whole suite stays
+    /// green. The unit suite does not close it either —
+    /// `CalculatorLinkWithdrawalTests.testWithdrawalDidNotQuietlyBecomeTheSaveGate`
+    /// asserts the FLAG's value, not that the button reads it.
+    ///
+    /// The exposure is low only because the withdrawal is a second, independent
+    /// mechanism standing in front of the same write. That is not coverage, it is luck
+    /// with a good reason. **The day BMI or Free T Index is re-listed — and H6 says
+    /// "we will work on later", so that day is expected — the gate becomes load-bearing
+    /// again with no device-level test. Restore this leg in the same commit.**
+    ///
+    /// BOTH ENDS (§5.30) was the shape and it is why what survives is the end it is.
+    /// A gate on a CTA is exactly the change that quietly disables a button somewhere it
+    /// should still work, and that failure mode is invisible from every other test we
+    /// have — the withdrawal does not stand in front of it. The end that is still
+    /// reachable is the end nothing else covers.
+    ///
+    /// FAILURES ARE COLLECTED rather than thrown at the first screen, and the collection
+    /// stays although one check is left: `continueAfterFailure` is false in this suite,
+    /// so the shape is what lets the removed leg come back without being rewritten.
     func testAddCTA_isGatedOnCanSaveProtocol() {
         var wrong: [String] = []
 
-        // The three slugs with `canSaveProtocol == false` are bmi, freeTestIndex and
-        // cyclePlotter. `Cycle Plotter` is EXCLUDED WITH ITS REASON RATHER THAN
-        // SILENTLY: it is not a `CalculatorScreen` at all — it routes to
-        // `CyclePlotterScreen`, which renders no `cta_add` — and it is also absent from
-        // the Tools list entirely (BOARD §1), so this helper could not reach it anyway.
-        for name in ["BMI", "Free T Index"] {
-            openCalculator(named: name)
-            let cta = unique("cta_add")
-            guard cta.exists else {
-                wrong.append("\(name): no cta_add at all")
-                continue
-            }
-            if cta.isEnabled {
-                wrong.append("\(name): Add is ENABLED on a calculator that cannot save "
-                             + "a protocol — pressing it writes a saved_dosages row "
-                             + "(frame \(cta.frame))")
-            }
-        }
+        // THE `canSaveProtocol == false` LEG IS DELIBERATELY ABSENT, NOT FORGOTTEN.
+        // It looped over `["BMI", "Free T Index"]`; H6 / `bf52ecc` withdrew both from
+        // every route in, so neither has a row in Tools to reach. `cyclePlotter` is the
+        // only remaining non-saving slug and cannot stand in — it renders no `cta_add`
+        // at all, so a check there could not fail. The full argument, and what that
+        // costs, is in this test's doc comment. Do not re-add these two names to get the
+        // old shape back; re-add them when `isListed` lets them back onto a screen.
 
         // THE OTHER END. TRT can save, so its CTA must be live — with a valid result
         // under it, which is why the chip is tapped first: `isEnabled` is

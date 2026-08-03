@@ -61,11 +61,29 @@ import XCTest
 ///     xcrun simctl ui booted content_size large     # ALWAYS reset
 final class DynamicTypeTruncationUITests: XCTestCase {
 
-    /// Every calculator that renders numeric fields. `cyclePlotter` is excluded —
-    /// it routes to a bespoke chart screen with no `NumberField` on it.
+    /// Every calculator that renders numeric fields AND that a user can still reach.
+    ///
+    /// `cyclePlotter` is excluded because it routes to a bespoke chart screen with no
+    /// `NumberField` on it.
+    ///
+    /// `BMI` and `Free T Index` are excluded because THEY ARE WITHDRAWN — H6, commit
+    /// `bf52ecc`, on the owner's instruction: *"leave them alone, and don't let the
+    /// links to it go anywhere, we will work on later."* `CalculatorSlug.isListed`
+    /// returns false for both, so no category claims them and `ToolsScreen` renders no
+    /// row for either. **This list follows the app; it does not lead it.** Do not
+    /// "restore" these two to fix the red — the red was this list being stale, and the
+    /// sweep said so in plain words: *"Could not reach Free T Index in Tools"*,
+    /// *"Could not reach BMI in Tools"*. That failure is the device-level confirmation
+    /// of the withdrawal that `CalculatorLinkWithdrawalTests` states a unit test cannot
+    /// supply.
+    ///
+    /// THE SCREENS THEMSELVES ARE INTACT and still carry unmeasured `NumberField`s, so
+    /// this is coverage genuinely given up rather than coverage that stopped existing.
+    /// The day `isListed` stops excluding them, put both names back here in the same
+    /// commit — a re-listed calculator arrives unmeasured at every content size.
     private static let calculators = [
-        "TRT Dose", "TRT & EOD", "TRT Microdose", "HCG", "Free T Index",
-        "Semaglutide", "Tirzepatide", "Retatrutide", "BMI",
+        "TRT Dose", "TRT & EOD", "TRT Microdose", "HCG",
+        "Semaglutide", "Tirzepatide", "Retatrutide",
         "Peptide", "Reconstitution", "BPC-157", "BPC+TB500",
         "Steroid Dosage",
     ]
