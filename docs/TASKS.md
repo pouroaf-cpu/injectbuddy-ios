@@ -237,6 +237,46 @@ accessibility-tree intersection between two elements, one of which is not drawn 
 from the sweep. Two of the three `isIntermittent` entries for this pair (`TRT Dose`,
 `Steroid Dosage`) name a collision that cannot occur at rest at all and are dead entries.
 
+> ### ⚠️ RE-MEASURED 2026-08-03 — THE FINDING NAMED THE WRONG FURNITURE, AND THE SCOPE WAS UNDERSTATED.
+>
+> **The owner's H4 won't-fix STANDS and is untouched.** He decided the symptom does not matter, and
+> that decision is unaffected by the cause having been misattributed. This is recorded under his
+> strike, not beside it, and is **not** a re-opening.
+>
+> **The old probe measured the disclaimer against the HERO CIRCLE and nothing else.** F-F is *"the
+> disclaimer is unreadable at rest"*, and `SCREENSHOT-LOG.md:74` records three causes — *"the `Add`
+> plate, the hero circle and the tab bar"*. So `overlap=none` never meant "readable"; it meant "does
+> not intersect a 58×58 circle". The two coincided on the six screens where the disclaimer happened
+> to land on the circle, **and nobody noticed because they agreed.**
+>
+> Re-measured against the **whole** pinned region (`bar_plate` + hero + tab bar):
+>
+> | | margin | occluder |
+> |---|---|---|
+> | Reconstitution | **+16.00pt** | **none — genuinely clear** |
+> | Semaglutide · Tirzepatide · Retatrutide | −83.00pt | **`bar_plate`** — the intersection rect IS the disclaimer's own rect; the string is *entirely inside* the result-bar plate |
+> | BPC-157 | −188.00pt | **`tabBar`** — and it was never on F-F's list of six |
+> | BMI · Free T Index | — | **not reachable — H6 withdrew them from Tools** |
+>
+> **THE HERO OCCLUDES NOTHING.** The occluders are the **result-bar plate** and the **tab bar**. The
+> finding was right that something was wrong and wrong about its own mechanism.
+>
+> **Corroborated two ways, which is why it is reportable:** the accessibility geometry above, and the
+> pixels — the string is legible in today's `18-calculator-reconstitution.png` and absent from the
+> frames for the other four. Neither alone would have been enough.
+>
+> **Scope: at least seven screens hide it at rest, by TWO mechanisms** — four behind pinned furniture,
+> the rest simply below an 874pt window (y 913–1124). **Nobody has measured whether the below-fold
+> ones become readable on scroll, and that is not being measured** — it is a sweep on a struck
+> won't-fix and needs the owner's word.
+>
+> **FILED, NOT CHASED — `bar_plate` on TRT Dose reports `minY = 451.49` while every other screen
+> reports `671.00`** (2026-08-03). A plate 220pt higher on one screen is either a real layout
+> difference or an element resolving to something unexpected. **It changed no reported result** —
+> TRT's disclaimer is off-screen — and after a day of mis-aimed probes neither side should guess
+> which. Recorded with the number and the date; if it is real it reappears the moment anything
+> measures that screen.
+
 ### `B1-12` — content draws into the tab bar and past the bottom of the display at AX5
 **OPEN.** A picker value on TRT and a result row on Reconstitution both reach into the tab bar;
 `Testosterone Enanthate` extends to y 915 on an 874pt display. `heroOverhang` is 22pt and reserves

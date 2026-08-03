@@ -116,6 +116,79 @@ final class CaptureCurrentState: XCTestCase {
 
     /// The lowest match on screen. "Tools" is both a tab and the nav back button
     /// once a calculator is open, and `buttons["Tools"]` then fails on ambiguity.
+    /// Something only the destination renders. **A tab tap is not arrival**, and this is
+    /// the difference between the two.
+    ///
+    /// ─── WHY, AND IT COST TWO CAPTURE CYCLES ───────────────────────────────────────
+    ///
+    /// `shot()` used to fire during the cross-fade after `tab()`, so **every shell frame
+    /// landed one screen behind.** `03-calendar-IB2245755.png` in `2026-08-02-current` is
+    /// the DASHBOARD mid-fade; `04-tools-IB2245756.png` is the CALENDAR, with a
+    /// **pre-H6** Tools list ghosting behind it. Both were filed as evidence and one
+    /// finding was read off the second.
+    ///
+    /// **Why nothing caught it — this is the transferable part.** `shot()` fails a frame
+    /// that is BYTE-IDENTICAL to a previous one. A mid-transition frame is byte-identical
+    /// to *nothing*, so it passes every check that looks for repetition **while being a
+    /// photograph of a different screen.** ***Repetition-detection cannot detect
+    /// wrongness.***
+    ///
+    /// **And why the calculator captures were already safe:** a frame that renders its
+    /// own identity is self-verifying. `19-calculator-semaglutide.png` has the word
+    /// `Semaglutide` in its pixels, so a mistimed capture would be visibly wrong.
+    /// `03-calendar` has nothing in it that says "calendar" — **which is exactly why the
+    /// defect could live there.** So an identity assertion is **mandatory for shell
+    /// frames and belt-and-braces for the rest, and that is a property of the SCREEN,
+    /// not of this harness's mood.**
+    ///
+    /// **NOT a settle-wait.** A sleep is a guess that gets tuned until it stops failing.
+    /// This cannot pass on the previous screen at any timing.
+    private enum ShellTab: String {
+        case dashboard = "Dashboard"
+        case calendar = "Calendar"
+        case tools = "Tools"
+        case add = "Add"
+        /// The raised hero slot. It presents a SHEET rather than switching tab, so its
+        /// proof is the sheet's own title — arrival here means the sheet is up, not that
+        /// a tab changed. **This case exists because the assertion refused to capture it
+        /// without one**, which is the enumeration doing its job on its second run.
+        case logDose = "Log dose"
+
+        /// Enumerated, with no `default`: a new tab cannot be captured until someone
+        /// says what proves you have arrived on it.
+        var arrivalProof: (query: (XCUIApplication) -> XCUIElement, what: String) {
+            switch self {
+            case .dashboard:
+                return ({ $0.descendants(matching: .any)
+                            .matching(identifier: "cta_add_protocol").firstMatch },
+                        "the Protocols section's Add control")
+            case .calendar:
+                return ({ $0.buttons["Today"].firstMatch }, "the calendar's Today button")
+            case .tools:
+                return ({ $0.staticTexts["Reconstitution"].firstMatch },
+                        "a calculator row (Reconstitution)")
+            case .add:
+                // The FOOTER, not the "What are you adding?" header. That header is a
+                // `Section` header under `.insetGrouped`, which SwiftUI UPPERCASES — so
+                // `staticTexts["What are you adding?"]` never matches and the proof
+                // fails on a screen it is standing on. Caught on the first run of this
+                // assertion, which is the assertion working: a wrong proof fails loudly
+                // instead of letting a frame be shot on trust.
+                //
+                // The footer is unique to this screen and is not case-transformed.
+                return ({ $0.staticTexts["Pick a category to find the right calculator, "
+                                         + "fill it in, then add it to your protocols."].firstMatch },
+                        "the Add screen's footer")
+            case .logDose:
+                // The sheet's navigation title. Not the "Which protocol?" header — that
+                // one is `.uppercased()` in the source, so the string here and the string
+                // in the tree are different, which is the trap the Add proof already hit.
+                return ({ $0.navigationBars["Log a dose"].firstMatch },
+                        "the Log a dose sheet's title")
+            }
+        }
+    }
+
     private func tab(_ label: String) {
         let matches = app.buttons.matching(identifier: label)
         XCTAssertTrue(matches.firstMatch.waitForExistence(timeout: 8), "No \(label) tab.")
@@ -125,6 +198,19 @@ final class CaptureCurrentState: XCTestCase {
         XCTAssertNotNil(lowest, "\(label) exists but nothing hittable.")
         lowest?.tap()
         _ = app.wait(for: .runningForeground, timeout: 2)
+
+        // ARRIVAL, ASSERTED. A tab whose destination this harness does not know how to
+        // recognise fails loudly rather than being captured on trust.
+        guard let destination = ShellTab(rawValue: label) else {
+            return XCTFail("`tab(\"\(label)\")` has no arrival proof. Add one to `ShellTab` "
+                           + "before capturing it — a frame taken on trust is how "
+                           + "`03-calendar` came to be a photograph of the Dashboard.")
+        }
+        let proof = destination.arrivalProof
+        XCTAssertTrue(proof.query(app).waitForExistence(timeout: 8),
+                      "Tapped \(label) but never arrived: \(proof.what) is not on screen. "
+                      + "Any frame taken here would be a photograph of the PREVIOUS screen "
+                      + "under a filename claiming \(label).")
     }
 
     private func openTRT() { openCalculator(named: "TRT Dose", expecting: "field_mgWeek") }
@@ -599,7 +685,7 @@ final class CaptureCurrentState: XCTestCase {
                 app.buttons["kb_done"].firstMatch.tap()
             }
 
-            if let hit = measureHeroOverDisclaimer(on: name) {
+            if let hit = measureDisclaimerOcclusion(on: name) {
                 heroOverlaps.append(hit)
             }
             toolsRoot()
@@ -615,14 +701,40 @@ final class CaptureCurrentState: XCTestCase {
         // The README names which frame carries the finding instead.
         let ranked = heroOverlaps.sorted { $0.area > $1.area }
         for h in ranked {
-            print(String(format: "HERO-DISCLAIMER-HIT %@ area=%.1fpt² rect=%@",
+            print(String(format: "DISCLAIMER-OCCLUDED %@ area=%.1fpt² rect=%@",
                          h.name, h.area, NSCoder.string(for: h.rect)))
         }
-        XCTAssertFalse(ranked.isEmpty,
-                       "The hero overlapped the disclaimer on NO calculator at rest. F-F "
-                       + "claims it does on every one, and this run measured all of them — "
-                       + "so either the finding is now stale or this measurement is not "
-                       + "looking at what it thinks it is. Do not close F-F on this.")
+
+        // ─── WHAT THIS ASSERTS, AND WHY IT IS NOT A TRIPWIRE ON THE WON'T-FIX ───────
+        //
+        // It used to assert `!ranked.isEmpty` — "the hero overlaps SOMEWHERE" — as a
+        // guard against F-F silently lapsing. **That assertion was retired 2026-08-03,
+        // and it behaved correctly right up to the end:** it refused to let a change
+        // pass unnoticed and its message said in terms *"do not close F-F on this"*.
+        // It is gone because the world changed and because the probe behind it was
+        // measuring one occluder out of three — not because it was wrong.
+        //
+        // F-F itself is **struck as WON'T FIX by the owner** (H4; `BOARD.md:373`,
+        // `TASKS.md:221`). H4 deliberately removed the expected-failure entries so the
+        // suite would stop tracking a debt nobody intends to pay, so a check that goes
+        // red on the accepted condition is **a permanent red by decision — the stale
+        // pass wearing the other colour.**
+        //
+        // So: **measure and report every calculator, assert only the enumerated set that
+        // currently clears.** Report-only would leave nothing able to fail — if
+        // Reconstitution's disclaimer disappeared next week the sweep would print a
+        // number into a log and stay green. An enumerated must-hold set asserts what is
+        // TRUE, can only shrink deliberately, and gives regression cover without
+        // carrying a red for something the owner has accepted.
+        let occludedNames = Set(ranked.map(\.name))
+        let regressed = Self.disclaimerMustClear.intersection(occludedNames).sorted()
+        XCTAssertTrue(regressed.isEmpty,
+                      "REGRESSION: \(regressed.joined(separator: ", ")) — the disclaimer is "
+                      + "in `disclaimerMustClear` because it was measured CLEAR of the pinned "
+                      + "bottom furniture on 2026-08-03, and it no longer is. This is not F-F "
+                      + "re-opening (F-F is struck won't-fix, H4): it is a screen that was "
+                      + "good regressing. Fix it, or remove it from the set DELIBERATELY and "
+                      + "say why.")
 
         // ── Cycle Plotter, last, by the only route that reaches it ──────────────────
         openCalculator(named: "Cycle Plotter", fromTools: false)
@@ -826,30 +938,110 @@ final class CaptureCurrentState: XCTestCase {
     ///
     /// Returns nil when the screen has no disclaimer of this exact wording
     /// (`CyclePlotterScreen` has its own, longer one) or when the two do not intersect.
-    private func measureHeroOverDisclaimer(on name: String)
+    /// The calculators whose disclaimer is CURRENTLY CLEAR of the pinned bottom
+    /// furniture, and which must stay that way.
+    ///
+    /// **AN ENUMERATED MUST-HOLD SET, NOT A TRIPWIRE ON THE WON'T-FIX.** It asserts what
+    /// is TRUE today rather than what a struck finding once claimed. It is a list rather
+    /// than a predicate, so it can only change deliberately: **a screen joining this set
+    /// is a decision someone makes in a commit; a screen leaving it is a red.** That is
+    /// D7's shape from the other end, and it gives regression protection without
+    /// carrying a permanent red for a condition the owner has accepted.
+    ///
+    /// Measured 2026-08-03. Reconstitution's disclaimer sits at y 641.67 and the pinned
+    /// region starts far below it. **Do not add a screen here without a measurement.**
+    private static let disclaimerMustClear: Set<String> = ["Reconstitution"]
+
+    /// Where the disclaimer is, relative to EVERYTHING pinned to the bottom.
+    ///
+    /// ─── WHY THIS REPLACED `measureHeroOverDisclaimer`, 2026-08-03 ──────────────────
+    ///
+    /// The old probe intersected the disclaimer with **the hero circle and nothing
+    /// else** — and F-F is *"the disclaimer is unreadable at rest"*, which
+    /// `SCREENSHOT-LOG.md:74` records as being caused by **three** things: *"the `Add`
+    /// plate, the hero circle and the tab bar"*.
+    ///
+    /// **So `overlap=none` never meant "readable". It meant "does not intersect a 58×58
+    /// circle".** The two coincided on the six screens where the disclaimer happened to
+    /// land on the circle, and nobody noticed *because they agreed* — the same shape as
+    /// a citation that sits beside a real source and is never checked, because two
+    /// things agreed for a while and only one of them was ever measuring the claim.
+    ///
+    /// **It came apart on BPC-157**, whose disclaimer sits at y 845.67 — BELOW the
+    /// circle, so `overlap=none` — and inside the tab bar. **The string is absent from
+    /// `22-calculator-bpc157.png` entirely.** A clean probe result for an invisible
+    /// disclaimer. It also produced a real number about the wrong thing: a "clears by
+    /// 8pt" margin measured to the circle, on screens whose actual occluder is the
+    /// pinned bar starting well above it.
+    ///
+    /// **THE FRAME IS THE ARBITER.** This probe reports geometry; where geometry and
+    /// pixels disagree, the pixels win and the probe is wrong.
+    ///
+    /// Returns the intersection when the disclaimer is occluded, `nil` when it is clear
+    /// or not on screen at all.
+    private func measureDisclaimerOcclusion(on name: String)
         -> (name: String, area: CGFloat, rect: CGRect)? {
         let disclaimer = app.staticTexts["Maths only — not medical advice."]
-        let hero = app.images["syringe"]
         guard disclaimer.exists else {
-            print("HERO-DISCLAIMER \(name): no disclaimer with this wording in the tree.")
+            print("DISCLAIMER \(name): not in the tree.")
             return nil
         }
-        guard hero.exists else {
-            print("HERO-DISCLAIMER \(name): no `syringe` glyph in the tree.")
-            return nil
-        }
+
+        // Every occluder, not one of them. Each is optional: the result bar is absent on
+        // screens that have no result, and a missing element must narrow the region
+        // rather than silently pass the whole screen as clear.
+        var occluders: [(String, CGRect)] = []
+        let plate = app.descendants(matching: .any).matching(identifier: "bar_plate").firstMatch
+        if plate.exists { occluders.append(("bar_plate", plate.frame)) }
+        let hero = app.images["syringe"]
+        if hero.exists { occluders.append(("hero", hero.frame)) }
+        let tabBar = app.tabBars.firstMatch
+        if tabBar.exists { occluders.append(("tabBar", tabBar.frame)) }
+
         let window = app.windows.firstMatch.frame
-        let df = disclaimer.frame, hf = hero.frame
-        let overlap = df.intersection(hf)
-        let hit = !overlap.isNull && overlap.width > 0.5 && overlap.height > 0.5
-        // ALWAYS printed, hit or miss. The point of running this on all fourteen is to
-        // turn "on every calculator" into an enumeration, and a measurement that prints
-        // only when it finds something cannot tell you where it looked.
-        print("HERO-DISCLAIMER \(name): disclaimer=\(df) hero=\(hf) "
-              + "onScreen=\(window.intersects(df)) "
-              + "overlap=\(hit ? "\(overlap)" : "none")")
-        guard hit else { return nil }
-        return (name, overlap.width * overlap.height, overlap)
+        let df = disclaimer.frame
+        let onScreen = window.intersects(df)
+
+        guard !occluders.isEmpty else {
+            print("DISCLAIMER \(name): NO OCCLUDER RESOLVED — this probe measured nothing. "
+                  + "Not a clear result.")
+            return nil
+        }
+
+        // The pinned region's top edge is the highest thing pinned to the bottom.
+        let pinnedTop = occluders.map(\.1.minY).min()!
+        let margin = pinnedTop - df.maxY          // >0 clear, <=0 occluded
+
+        var worst: (String, CGRect)? = nil
+        for (label, rect) in occluders {
+            let i = df.intersection(rect)
+            guard !i.isNull, i.width > 0.5, i.height > 0.5 else { continue }
+            if worst == nil || i.width * i.height > worst!.1.width * worst!.1.height {
+                worst = (label, i)
+            }
+        }
+
+        // ALWAYS printed, hit or miss, and the MARGIN is printed whenever it MEANS
+        // something, so a shrinking number is visible run over run. **There is
+        // deliberately no "fails below N points" threshold** — a threshold is a number
+        // someone tunes, and the moment it exists a red means "below a figure we picked"
+        // rather than "the thing collided". The margin is information; the collision is
+        // the assertion.
+        //
+        // **`n/a` WHEN THE DISCLAIMER IS OFF-SCREEN, not a number.** A disclaimer below
+        // the window produces a large negative — `-597pt` on TRT Dose — which reads as
+        // "catastrophically occluded" and actually means "far below the fold". It is
+        // disambiguated by `onScreen=false` on the same line, and that is not enough: a
+        // field that cannot be misread beats a field that is disambiguated elsewhere.
+        // Today has been a day about numbers that were correct and about the wrong thing.
+        let marginText = onScreen ? String(format: "%.2fpt", margin) : "n/a (below the fold)"
+        print(String(format: "DISCLAIMER %@: y=%.2f–%.2f onScreen=%@ pinnedTop=%.2f "
+                     + "margin=%@ occluder=%@",
+                     name, df.minY, df.maxY, onScreen ? "true" : "false", pinnedTop,
+                     marginText, worst.map { "\($0.0) \($0.1)" } ?? "none"))
+
+        guard onScreen, let hit = worst else { return nil }
+        return (name, hit.1.width * hit.1.height, hit.1)
     }
 
     /// Set the size from the host first:
