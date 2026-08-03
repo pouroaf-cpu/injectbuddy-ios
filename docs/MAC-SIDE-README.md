@@ -64,7 +64,15 @@ messages. The rules:
 iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
 
 - **Credentials** come from `.env.local` (gitignored) and **must** carry the `TEST_RUNNER_` prefix.
-  Without it `xcodebuild` does not forward them, **the suite skips every test and reports success.**
+  **Corrected 2026-08-03 — the mechanism is the reverse of how it reads.** `xcodebuild` forwards
+  host variables carrying `TEST_RUNNER_` **and strips the prefix on the way through**. The host sets
+  `TEST_RUNNER_QA_EMAIL`; the test reads `env["QA_EMAIL"]`. Getting that pairing backwards is
+  indistinguishable from having no credentials at all.
+  Proved by paired run, same test, same build: **without** the prefix — `Executed 1 test, with 1
+  test skipped`, **RC=0, TEST SUCCEEDED**, 42s. **With** it — `Executed 1 test, with 0 failures`,
+  126s of real execution. A skip and a pass are the same exit code, so **every past UI run made
+  without the prefix proved nothing while appearing green.** Anything closed on such a run is
+  suspect until re-checked.
 - **`simctl ui content_size` is device state, not run state.** Set it and reset it *in the same
   command*. A left-over accessibility size has already read as "the app broke" once when nothing was
   wrong.
@@ -73,10 +81,40 @@ iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
 - **`Tools` is a `List`** — XCUITest surfaces it as a collectionView, not a scrollView, and its rows
   are lazy at accessibility sizes, so `waitForExistence` reports "does not exist" for a row two
   swipes away.
-- **You cannot spawn subagents.** Everything on this side is serial. Windows has agents, a browser,
-  the PWA source and the database — ask it rather than working around not having them.
+- **You CAN spawn subagents, and you can query the database directly.** Both halves of the old note
+  here were wrong and were corrected 2026-08-03 after a session ran a dozen concurrent agents and
+  read production Postgres over MCP. Windows still owns the **PWA source** — that is not in this
+  repo and cannot be inferred from a doc in it; ask, do not guess. What is genuinely serial is the
+  **rig**: one simulator, one framebuffer, one `content_size`.
+- **One runner owns the device for a whole session; nobody else touches it.** Everyone else files an
+  entry in `docs/TEST-QUEUE.md` and the runner batches them. **Batch by SIGN-IN, not by build** —
+  measured 2026-08-03: cold build 258s, **no-op rebuild 11s**, unit suite 45s wall / 1.2s execution,
+  one real signed-in UI test 159s wall. Harness overhead is ~41s per run regardless of content, so
+  the build is not the bottleneck once DerivedData is warm — sign-in is, at ~20–25 signed-in
+  checks/hour.
+- **A batch does not go to the runner until it compiles locally.** A runner burned 349s discovering
+  a tree left mid-rewrite by a concurrent agent. A failing build that belongs to someone else's
+  half-finished file is not information.
+- **Padding is additive to `minHeight`.** A control that sets `minHeight: 44` and then adds vertical
+  padding renders taller than 44 — measure the resulting frame rather than assuming the floor is the
+  height. (The tokens themselves are `DESIGN-PARITY.md` §11.)
+- **One serial and one log row per frame.** A capture without its serial cannot be matched to the
+  run that produced it, and a montage or downscaled composite is not a frame you may take a number
+  off.
 - **Never put credentials in an assertion, a failure message, an `.xcresult`, a screenshot or a
   commit.**
+
+> **TEMPORARY HAZARD — 2026-08-03. Strike this block when `unlogDose` carries `user_id`.**
+> **Do not tap a dose cell on the Calendar tab on the QA account.** The two halves of the log toggle
+> have opposite outcomes: `logDose` fails on `dose_log.user_id` being `NOT NULL` with no default,
+> while `unlogDose` deletes on `(protocol_id, dosed_on)` with no payload and **succeeds**, because
+> RLS `USING` scopes it. Tapping a ticked dose permanently deletes a real row the app cannot
+> re-create.
+> **The dashboard card is safe** — `NextDoseCard` renders "Mark taken" only in the `!alreadyTaken`
+> branch, and `markTaken` is insert-only and cannot reach `unlogDose`. Log from the dashboard
+> freely and read the row back. Never toggle on Calendar.
+> A hazard that outlives its cause is the `content_size` trap again — delete this block, do not
+> leave it as history.
 
 The full test invocation:
 
