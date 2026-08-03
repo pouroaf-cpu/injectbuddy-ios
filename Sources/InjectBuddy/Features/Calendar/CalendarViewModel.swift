@@ -104,9 +104,7 @@ final class CalendarViewModel: ObservableObject {
                 try await backend.unlogDose(protocolId: occ.protocolId, dosedOn: occ.dayKey)
                 writtenKey = key
             } else {
-                let row = try await backend.logDose(NewDoseLogPin(protocolId: occ.protocolId,
-                                                                  dosedOn: occ.dayKey,
-                                                                  drawMl: nil, site: nil))
+                let row = try await backend.logDose(NewDoseLogPin(for: occ))
                 // Key off the row the database returned, not off the tapped occurrence.
                 writtenKey = "\(row.protocolId)@\(row.dosedOn)"
             }

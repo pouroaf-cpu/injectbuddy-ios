@@ -191,6 +191,20 @@ struct DoseLogPin: Codable, Identifiable, Equatable {
     }
 }
 
+/// Insert body for a logged dose.
+///
+/// **THE MEMBERWISE INITIALISER IS DELIBERATELY SUPPRESSED.** Declaring the two
+/// initialisers below removes it, so no call site can build a pin by listing fields —
+/// which is how `drawMl: nil` came to be written at all three log paths at once and
+/// how the dashboard produced the only NULL `draw_ml` in the table. A fourth log path
+/// added tomorrow does not compile until it says where its volume comes from.
+///
+/// `draw_ml` is `numeric` and NULLABLE in production and there are no triggers on the
+/// table, so nothing server-side enforces this. The write is the only thing that can.
+/// The column is consumed: the web's inventory route reads remaining supply as
+/// `(vial_count × vial_ml) − Σ(dose_log.draw_ml since stocked_on)`, so a NULL is a dose
+/// that consumes nothing — the "never run dry mid-protocol" promise failing in the
+/// direction of running dry.
 struct NewDoseLogPin: Encodable {
     var protocolId: String
     var dosedOn: String
@@ -202,5 +216,25 @@ struct NewDoseLogPin: Encodable {
         case protocolId = "protocol_id"
         case dosedOn = "dosed_on"
         case drawMl = "draw_ml"
+    }
+
+    /// From the protocol itself — the log-a-dose sheet, which picks a protocol and a day
+    /// and has no projection in hand.
+    init(for dosage: SavedDosage, dosedOn: String, site: String? = nil) {
+        self.protocolId = dosage.id
+        self.dosedOn = dosedOn
+        self.drawMl = DoseVolume.perInjectionMl(for: dosage)
+        self.site = site
+    }
+
+    /// From a projected occurrence — the dashboard card and the calendar agenda, which
+    /// hold occurrences and not the protocols behind them. The volume travels ON the
+    /// occurrence (`DoseProjection` computes it once per protocol), so these two paths
+    /// need no second lookup and cannot fall out of step with the projection.
+    init(for occurrence: DoseOccurrence, site: String? = nil) {
+        self.protocolId = occurrence.protocolId
+        self.dosedOn = occurrence.dayKey
+        self.drawMl = occurrence.drawMl
+        self.site = site
     }
 }

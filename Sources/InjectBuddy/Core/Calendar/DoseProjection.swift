@@ -50,12 +50,85 @@ struct DoseOccurrence: Equatable, Identifiable {
     let protocolId: String
     let slug: CalculatorSlug?
     let label: String
+    /// Millilitres drawn for THIS injection, when the protocol produces a volume.
+    ///
+    /// Carried on the occurrence rather than looked up at the log site, so that the
+    /// dashboard and the calendar — which both hold occurrences and NOT the protocols
+    /// they came from — cannot write a dose without its volume. `dose_log.draw_ml` is
+    /// what the web's inventory route subtracts from the vial
+    /// (`app/api/inventory/route.ts`: `(vial_count × vial_ml) − Σ draw_ml`), so a NULL
+    /// here is a dose that consumes nothing and a stock reading that never goes down.
+    let drawMl: Double?
 
     /// Stable identity for diffing/SwiftUI lists: protocol + day.
     var id: String { "\(protocolId)@\(dpFormatDay(date))" }
 
     /// "YYYY-MM-DD" form, for matching against dose_log pins.
     var dayKey: String { dpFormatDay(date) }
+}
+
+// MARK: - Draw volume
+
+/// THE derivation of "how many millilitres is one injection of this protocol".
+/// One function, one answer, every caller.
+///
+/// It does not compute anything itself — it re-runs the calculator the protocol was
+/// saved from. That is the point: the volume written to `dose_log.draw_ml` is the same
+/// number the user read off the result card when they saved, produced by the same
+/// engine, and if it is ever wrong it is wrong in ONE place rather than in a second
+/// derivation that drifts from the first.
+///
+/// **`config["mlDrawn"]` is NOT this number and must never be used as it.** It is
+/// present in trt/microdose/steroid configs at a flat `0.5` because
+/// `CalculatorCatalog.configExtras` writes the web's default for "the unused half of
+/// the mode pair" — its own comment says so. Reading it would put a plausible, wrong
+/// volume on every dose, which is worse than a NULL: a NULL under-consumes the vial
+/// visibly, a wrong number mis-decrements it silently.
+enum DoseVolume {
+
+    /// Millilitres for one injection, or nil when this protocol has no volume that can
+    /// be stated honestly.
+    ///
+    /// Returns nil, deliberately, for: a `calculator_type` this build does not know;
+    /// a calculator that produces no volume (bmi, freetest, reconstitution, plotter);
+    /// an invalid config; and a config saved in a dosing MODE this app's `evaluate`
+    /// does not run — see `modeIsEvaluatedAsSaved`.
+    static func perInjectionMl(for dosage: SavedDosage) -> Double? {
+        guard let slug = CalculatorSlug(rawValue: dosage.calculatorType),
+              modeIsEvaluatedAsSaved(dosage.config, slug: slug) else { return nil }
+        let values = CalculatorCatalog.values(fromConfig: dosage.config, slug: slug)
+        // `.u100` is not a guess and not a default that matters: the syringe scale
+        // changes the UNITS row only (`unitsPerInj = mlPerInj × unitsPerML`). Every
+        // family's volume — `mgPerInj / strength`, `dose / concentration` — is
+        // scale-invariant, so this argument cannot move the number being written.
+        let result = CalculatorEngine.evaluate(slug: slug, values: values, scale: .u100)
+        guard result.isValid, let ml = result.drawMl, ml.isFinite, ml > 0 else { return nil }
+        return ml
+    }
+
+    /// Whether `evaluate` would run this config under the mode it was SAVED in.
+    ///
+    /// `evaluate` hard-codes a mode for three families — trt is `.perweek`, microdose
+    /// and steroid are `.ndays` — because that is the one mode the iOS form offers. The
+    /// web's pages offer more (`ndays`, `perweek`, `ml2mg`) and write the mode into the
+    /// config, and the same row evaluated in the wrong mode yields a DIFFERENT volume
+    /// from the same numbers.
+    ///
+    /// So a row saved in a mode this build does not run is refused rather than
+    /// approximated. Refusing writes NULL, which under-reports consumption and is
+    /// visible; approximating writes a wrong volume, which mis-decrements a vial and is
+    /// not. This is not a second derivation — it is the one derivation declining to
+    /// answer outside its domain.
+    private static func modeIsEvaluatedAsSaved(_ config: JSONValue, slug: CalculatorSlug) -> Bool {
+        guard let mode = config["mode"]?.string, !mode.isEmpty else { return true }
+        switch slug {
+        case .trt:                  return mode == "perweek"
+        case .microdose, .steroid:  return mode == "ndays"
+        // The rest either ignore `mode` in `evaluate` (glp1 reads conc/dose only) or
+        // never carry one (hcg, bpc157, bpc157blend, eod).
+        default:                    return true
+        }
+    }
 }
 
 // MARK: - Engine
@@ -146,6 +219,10 @@ enum DoseProjection {
 
             let slug = CalculatorSlug(rawValue: proto.calculatorType)
             let label = proto.label ?? slug?.shortTitle ?? proto.calculatorType
+            // Once per protocol, not once per day: the volume is a property of the
+            // protocol, and re-evaluating it inside the day loop would run the engine
+            // thirty times for one answer.
+            let drawMl = DoseVolume.perInjectionMl(for: proto)
 
             // Walk dose days from the protocol start. Interval may be fractional
             // (e.g. 3.5 for twice-weekly): accumulate in days and round to the day.
@@ -171,7 +248,8 @@ enum DoseProjection {
                     result.append(DoseOccurrence(date: occDay,
                                                  protocolId: proto.id,
                                                  slug: slug,
-                                                 label: label))
+                                                 label: label,
+                                                 drawMl: drawMl))
                 }
                 step += 1
                 // Safety: never loop forever on a degenerate interval.

@@ -65,7 +65,14 @@ extension CalculatorEngine {
                 ResultRow(label: "Weekly total", value: "\(fmt(r.weeklyTotalMg, 3)) mg"),
                 ResultRow(label: "Total doses in vial", value: fmt(r.totalDoses, 1)),
             ], isValid: r.isValid,
-               scheduleLine: r.isValid ? "Vial lasts ~\(fmt(r.vialWeeks, 1)) weeks" : nil)
+               scheduleLine: r.isValid ? "Vial lasts ~\(fmt(r.vialWeeks, 1)) weeks" : nil,
+               // `drawMl` was the ONE injectable branch that did not carry it, while its
+               // own first row renders `Draw per injection`. Structured `drawMl` has two
+               // consumers and peptide was silently absent from both: the barrel
+               // over-capacity check (`ResultCard.overCapacity`) never fired on this
+               // calculator, and `DoseVolume.perInjectionMl` had no volume to log.
+               // Same omission, two symptoms — the one-of-N-sites shape again.
+               drawMl: r.mlPerInj)
 
         case .reconstitution:
             let r = reconstitution(peptideMg: v.number("peptideMg"), targetConc: v.number("targetConc"))

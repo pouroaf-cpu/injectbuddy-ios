@@ -250,6 +250,53 @@ enum CalculatorCatalog {
         }
     }
 
+    /// The INVERSE of `CalculatorViewModel.configJSON()` — a saved `config` read back
+    /// into the value bag `CalculatorEngine.evaluate` takes.
+    ///
+    /// Exists so a saved protocol can be re-evaluated without a screen. The one caller
+    /// today is `DoseVolume.perInjectionMl`, which needs the draw volume for a dose that
+    /// is being LOGGED, long after the calculator that produced it went away.
+    ///
+    /// Seeded from the spec defaults and then overwritten key by key, never built from
+    /// zero: a config missing a key must fall back to what the form would have shown,
+    /// not to 0. A 0 strength divides into an infinite volume.
+    ///
+    /// The two `configOmittedKeys` inversions are done explicitly, because they are the
+    /// keys the web writes under a DIFFERENT NAME AND TYPE from the iOS field, so the
+    /// loop above cannot see them: `peptide.doseUnit` ("mcg"/"mg") is the iOS
+    /// `doseUnitMcg` picker (1/0), and `steroid.slug` (a compound key string) is the iOS
+    /// `compound` index into `SteroidCatalog.all`. Miss either and the evaluation runs on
+    /// the spec default rather than on what was saved.
+    static func values(fromConfig config: JSONValue, slug: CalculatorSlug) -> CalculatorValues {
+        let spec = spec(for: slug)
+        var v = CalculatorValues.defaults(for: spec.fields)
+        for field in spec.fields {
+            guard let raw = config[field.key] else { continue }
+            switch field.kind {
+            case .number, .picker, .segmented, .stepperDays:
+                if let d = raw.double { v.numbers[field.key] = d }
+            case .stringPicker:
+                if let s = raw.string { v.strings[field.key] = s }
+            case .toggle:
+                if let b = raw.bool { v.bools[field.key] = b }
+            }
+        }
+        switch slug {
+        case .peptide:
+            if let unit = config["doseUnit"]?.string {
+                v.numbers["doseUnitMcg"] = unit.lowercased() == "mcg" ? 1 : 0
+            }
+        case .steroid:
+            if let key = config["slug"]?.string,
+               let idx = SteroidCatalog.all.firstIndex(where: { $0.key == key }) {
+                v.numbers["compound"] = Double(idx)
+            }
+        default:
+            break
+        }
+        return v
+    }
+
     static func spec(for slug: CalculatorSlug) -> CalculatorSpec {
         switch slug {
 

@@ -5,9 +5,14 @@ import SwiftUI
 // the same slot via the ib:log-dose bridge.
 //
 // Deliberately the LEAN version (operator, 2026-07-30): pick a protocol, log it for a
-// day. No body-site picker, no draw volume — both columns exist on dose_log and both
-// are left nil here, exactly as DashboardViewModel.markTaken already does. Site
-// rotation is a dashboard feature and belongs with that rewrite, not in this sheet.
+// day. No body-site picker — `site` stays nil, and site rotation is a dashboard feature
+// that belongs with that rewrite, not in this sheet.
+//
+// `draw_ml` is NO LONGER left nil, and the note that used to stand here — "no draw
+// volume … exactly as DashboardViewModel.markTaken already does" — was describing the
+// defect rather than a decision. There is no volume PICKER, which is what "lean" meant;
+// there is a volume, derived from the chosen protocol's own config by
+// `DoseVolume.perInjectionMl`. Nothing is asked of the user for it.
 //
 // It writes through the same backend.logDose the dashboard uses, so there is one
 // dose-write path in the app rather than a second one drifting alongside it.
@@ -189,12 +194,14 @@ struct LogDoseSheet: View {
     }
 
     private func log() async {
-        guard let id = selectedId, !isSaving else { return }
+        // The PROTOCOL, not just its id: the draw volume is derived from its config.
+        guard let id = selectedId,
+              let dosage = protocols.first(where: { $0.id == id }),
+              !isSaving else { return }
         isSaving = true
         errorMessage = nil
-        let pin = NewDoseLogPin(protocolId: id,
-                                dosedOn: Self.dayFormatter.string(from: day),
-                                drawMl: nil, site: nil)
+        let pin = NewDoseLogPin(for: dosage,
+                                dosedOn: Self.dayFormatter.string(from: day))
         do {
             _ = try await backend.logDose(pin)
             isSaving = false

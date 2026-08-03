@@ -115,9 +115,10 @@ final class DashboardViewModel: ObservableObject {
         guard !isMarkingTaken else { return }
         isMarkingTaken = true
         actionError = nil
-        let pin = NewDoseLogPin(protocolId: occurrence.protocolId,
-                                dosedOn: occurrence.dayKey,
-                                drawMl: nil, site: nil)
+        // Carries `draw_ml` from the occurrence. This path wrote NULL — the only NULL in
+        // the table against fourteen web-written rows that all carry a volume — and a
+        // NULL is a dose the web's inventory route subtracts nothing for.
+        let pin = NewDoseLogPin(for: occurrence)
         do {
             let written = try await backend.logDose(pin)
             // Re-read `loaded`: a pull-to-refresh may have replaced the model while the
