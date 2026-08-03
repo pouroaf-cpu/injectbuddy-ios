@@ -359,3 +359,33 @@ adds/removes" rule names, and running it is what made the file part of the targe
 a licence to run it routinely. The test addresses `cta_add`, `kb_done` and the calculator's first
 text field, all of which live in `CalculatorScreen.swift`, which item 9 rewrote; whether those
 identifiers still resolve is a question for the run, not for a source read.
+
+---
+
+## Onboarding motion — BUILT, JUDGED BY EYE, NOT VERIFIED BY INSTRUMENT (2026-08-03)
+
+The owner asked for text that **arrives** rather than appears. It is built: per-line reveal, ~60ms
+stagger, ~350ms ease-out, headline → body → action, entry only, and Reduce Motion returns the settled
+state with no offset, no stagger and no fade.
+
+**It cannot be verified by screenshot comparison, and that is measured rather than assumed.** Two
+findings, together leaving no screen where the instrument has resolution:
+
+1. **On screens reached by a tap, the "early" frame is not early.** Proving which screen you are on —
+   polling the progress bar for its exact percentage — takes **longer than the 350ms reveal**.
+   `pathway`'s early and settled frames are byte-identical.
+2. **On `welcome`, the one screen reached by launch where the early frame IS early, a third frame
+   taken after the reveal still differs from the second** (181635 vs 181585 bytes). The name field is
+   focused on appear and **the caret blinks**, so any two frames of that screen differ. *The only
+   screen where the early frame is provably early is the only screen with a caret on it.*
+
+**A Reduce Motion test was written and deleted.** The caret made it red on a correct build and would
+have made the normal check green on a build ignoring the setting entirely.
+
+**Two options exist and are deliberately not built:** a noise-floor comparison (*differs by much more
+than the steady-state difference*) — which needs a **threshold**, and thresholds get tuned until they
+stop failing; and retroactive early-frame identification by three-way comparison — a harness. Same
+call as the 400ms press-feedback clause.
+
+**So the owner is told plainly: we can show him it arrives, and we cannot prove it with a check.**
+Evidence: `docs/ui-audit/2026-08-04-onboarding/`.

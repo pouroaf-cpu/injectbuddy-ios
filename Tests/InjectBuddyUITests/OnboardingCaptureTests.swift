@@ -227,79 +227,27 @@ final class OnboardingCaptureTests: XCTestCase {
     /// the framework happens to return.
     private static let typedName = "Pou"
 
-    // MARK: - Reduce Motion: the same instrument, the opposite expectation
-
-    /// ─── WHY THIS EXISTS SEPARATELY FROM THE SWEEP ────────────────────────────────
-    ///
-    /// `testWalkSixPaths` asserts the early and settled frames **differ**, and names
-    /// Reduce Motion as one reason they might not. That protects the main run — but it
-    /// leaves the Reduce Motion path itself **completely unverified**, and SPEC §3.3 makes
-    /// it non-negotiable: everything lands in its final state, no offset, no stagger, and
-    /// **no fade** (the fade goes because here opacity carries no state — `ANIMATIONS.md`
-    /// §9.1 applied, not broken).
-    ///
-    /// **So the assertion INVERTS: the two frames must be BYTE-IDENTICAL.** Same
-    /// instrument, opposite expectation, and that is what makes either reading mean
-    /// something:
-    ///
-    ///   • differ **with** Reduce Motion on  → the reveal is running when it must not.
-    ///   • identical **without** it          → the reveal is not running at all.
-    ///
-    /// Neither result is ambiguous, which a single-direction check cannot manage.
-    ///
-    /// **The host sets and RESETS the setting in one command** — the rig rule that has
-    /// already cost this project a day:
-    ///
-    ///     xcrun simctl spawn <dev> defaults write com.apple.Accessibility ReduceMotionEnabled -bool YES ; \
-    ///     TEST_RUNNER_CAPTURE=1 TEST_RUNNER_REDUCE_MOTION=1 xcodebuild test … \
-    ///       -only-testing:InjectBuddyUITests/OnboardingCaptureTests/testReduceMotionLandsSettled ; \
-    ///     xcrun simctl spawn <dev> defaults write com.apple.Accessibility ReduceMotionEnabled -bool NO
-    ///
-    /// Two screens, the ones with the most staggered lines: `welcome` (art, placeholder,
-    /// title, field) and `pathway` (title, body, four option cards).
-    func testReduceMotionLandsSettled() {
-        // ── THE SETTING IS ASSERTED, NOT ASSUMED ──────────────────────────────────
-        //
-        // A run with the flag NOT forwarded would compare two frames of a screen that is
-        // animating normally, find them identical only by luck, and report a green about
-        // a behaviour it never observed. **A check that cannot fail is worse than no
-        // check** — this is the same shape as `TEST_RUNNER_` env not reaching the app and
-        // the suite "skipping and reporting success".
-        XCTAssertEqual(ProcessInfo.processInfo.environment["REDUCE_MOTION"], "1",
-                       "TEST_RUNNER_REDUCE_MOTION=1 was not forwarded. Without it this test "
-                       + "cannot tell 'Reduce Motion is honoured' from 'the setting never "
-                       + "reached the device', and a green would mean nothing.")
-
-        arrive(at: 25, screen: "welcome", path: "rm")
-        shootIdenticalPair("rm-01-welcome")
-
-        let nameField = app.textFields["onboarding.welcome.name"].firstMatch
-        XCTAssertTrue(nameField.waitForExistence(timeout: 8), "rm: no name field.")
-        tapPrimary("rm")
-
-        arrive(at: 35, screen: "pathway", path: "rm")
-        shootIdenticalPair("rm-02-pathway")
-    }
-
-    /// The inverse of `shootPair`. Both frames are written, because the pair IS the
-    /// evidence and a reader should be able to see there was nothing between them.
-    private func shootIdenticalPair(_ name: String) {
-        let early = XCUIScreen.main.screenshot().pngRepresentation
-        write(early, "\(name)-early.png", path: "rm")
-        Thread.sleep(forTimeInterval: settle)
-        let settled = XCUIScreen.main.screenshot().pngRepresentation
-
-        XCTAssertEqual(early, settled,
-                       "\(name): the early and settled frames DIFFER under Reduce Motion, so "
-                       + "something is still animating on entry. SPEC §3.3: everything lands "
-                       + "in its final state — no offset, no stagger, no fade. A motion-heavy "
-                       + "onboarding is exactly the surface that makes people ill.")
-
-        // Written under its own name even though it should be identical: if this run ever
-        // fails, the two files are what a human compares.
-        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        try? settled.write(to: dir.appendingPathComponent("\(name)-settled.png"))
-    }
+    // MARK: - Reduce Motion
+    //
+    // ***THERE IS NO REDUCE MOTION TEST, AND THAT IS A MEASUREMENT RATHER THAN AN
+    // OMISSION.*** One was written: same instrument, opposite expectation — the two frames
+    // must be IDENTICAL under Reduce Motion, where they must DIFFER without it. Neither
+    // reading would then be ambiguous.
+    //
+    // **It failed, and the discriminator showed the failure was the caret, not the app.**
+    // `welcome` focuses its field on appear; a blinking cursor makes any two frames of that
+    // screen differ, with or without Reduce Motion. The test would have gone red on a
+    // correct build and — worse — the NORMAL check would have gone green on a build that
+    // ignored Reduce Motion entirely.
+    //
+    // **Reduce Motion is implemented** (`OnboardingReveal` returns the settled state
+    // immediately and applies no offset, no stagger and no fade) **and it is unverified by
+    // instrument.** Verify it by eye with the setting on, and set and reset it in the same
+    // command:
+    //
+    //     xcrun simctl spawn <dev> defaults write com.apple.Accessibility ReduceMotionEnabled -bool YES ; \
+    //     … look … ; \
+    //     xcrun simctl spawn <dev> defaults write com.apple.Accessibility ReduceMotionEnabled -bool NO
 
     // MARK: - Arrival
 
@@ -350,40 +298,43 @@ final class OnboardingCaptureTests: XCTestCase {
         // run on the instrument's limitation rather than on a defect.
         writeAllowingIdentical(settled, "\(path)-\(name)-settled.png")
 
-        // ─── MOTION IS ASSERTED ON `welcome` ONLY, AND HERE IS WHY ────────────────────
+        // ─── MOTION IS NOT ASSERTED ANYWHERE. BOTH FRAMES ARE ARTEFACTS. ─────────────
         //
-        // **PROVING WHICH SCREEN YOU ARE ON AND PHOTOGRAPHING IT BEFORE IT SETTLES ARE
-        // MUTUALLY EXCLUSIVE WITH XCUITEST.** `arrive()` polls the progress bar until it
-        // reads the step's percentage, and that round-trip takes LONGER than the reveal's
-        // 350ms + stagger. By the time the screen is proved, the animation is over.
+        // **MEASURED 2026-08-03, and it killed the one check that looked like it worked.**
         //
-        // **This is a property of the instrument, not of this sweep** — it will be true of
-        // every animated screen anyone tries to capture on this rig.
+        // Two problems, and together they leave no screen where a screenshot comparison
+        // can see an entrance animation:
         //
-        // MEASURED 2026-08-03: `welcome` (reached by app launch, nothing to prove) DIFFERS;
-        // `pathway` (reached by a tap) is byte-identical. So the early frame is provably
-        // early on `welcome` and provably late everywhere else.
+        //   1. **On every screen reached by a tap, the early frame is not early.**
+        //      `arrive()` polls the progress bar to prove which screen this is, and that
+        //      round-trip takes LONGER than the reveal's 350ms + stagger. Proving the
+        //      screen consumes the window. `pathway`'s two frames are byte-identical.
         //
-        // **The other twelve screens are NOT exempted from a claim — they were never in
-        // one.** Their frames are artefacts; the settled one is the frame to judge.
+        //   2. **On `welcome` — the one screen reached by launch, where the early frame IS
+        //      early — a THIRD frame taken after the reveal still differs from the second.**
+        //      181635 vs 181585 bytes. Something animates continuously: the name field is
+        //      focused on appear and **the caret blinks.** So early-vs-settled differing
+        //      there proves nothing; it would differ whether or not the reveal ran.
         //
-        // > **THE OPTION THAT EXISTS AND IS DELIBERATELY NOT BUILT.** The early frame could
-        // > be identified retroactively by a three-way comparison: matching the PREVIOUS
-        // > screen's settled frame ⇒ a transition frame of the old screen; differing from
-        // > both ⇒ the new screen mid-reveal. That would give proven early frames
-        // > everywhere. **It is a harness, the 400ms press-feedback precedent applies —
-        // > *"not observable with the instruments we have; do not build a harness to close
-        // > it"* — and the MVP posture says no.** Recorded so nobody re-derives it.
+        // > ***The only screen where the early frame is provably early is the only screen
+        // > with a caret on it.***
         //
-        // **Shooting first and proving arrival afterwards was considered and REFUSED.** An
-        // unproven frame is `03-calendar`.
-        guard name == "01-welcome" else { return }
-        XCTAssertNotEqual(early, settled,
-                          "\(path)/\(name): the early and settled frames are BYTE-IDENTICAL on "
-                          + "the ONE screen where the early frame is provably early, so the "
-                          + "entrance reveal did not run. Either the animation is not firing, "
-                          + "or Reduce Motion is on — and if it is on, this run is not "
-                          + "measuring what it claims to.")
+        // **So the honest position is that motion is NOT MEASURABLE BY SCREENSHOT
+        // COMPARISON ANYWHERE IN THIS FLOW**, and that is a true statement about our
+        // evidence rather than a check that passes for the wrong reason. Same call as the
+        // 400ms press-feedback clause: *"not observable with the instruments we have; do
+        // not build a harness to close it."*
+        //
+        // **THE MOTION BRIEF'S STATUS: built, judged by eye, NOT verified by instrument.**
+        //
+        // > **TWO OPTIONS THAT EXIST AND ARE DELIBERATELY NOT BUILT**, so nobody
+        // > re-derives them:
+        // > 1. The third frame gives a steady-state noise floor, so an entrance could be
+        // >    asserted as *early-vs-settled differs by MUCH MORE than settled-vs-settled2*.
+        // >    **It needs a "much more", which is a threshold, and thresholds get tuned
+        // >    until they stop failing** — the thing banned on the barrel fit.
+        // > 2. Retroactive early-frame identification by three-way comparison against the
+        // >    previous screen's settled frame. A harness; same precedent.
     }
 
     /// Prints the sweep's own coverage limits **into the run's output**.
@@ -393,13 +344,16 @@ final class OnboardingCaptureTests: XCTestCase {
     private func announceCoverage() {
         print("""
         ONBOARDING-SWEEP COVERAGE
-          • Motion asserted on `welcome` ONLY (early≠settled). Reduce Motion inverts it on
-            the same screen (early==settled) in `testReduceMotionLandsSettled`.
-          • TWELVE screens are captured and UNVERIFIED FOR MOTION. Their early frames are
-            not early: `arrive()`'s round-trip is longer than the 350ms reveal, so proving
-            the screen consumes the window. This is a property of XCUITest on this rig.
-          • Route, branch rules 1/3/4, the five personalisation placements and the loop's
-            state reset ARE asserted on every path.
+          • MOTION IS NOT VERIFIED BY THIS SWEEP, ON ANY SCREEN. Early frames are not
+            early on tapped screens (the arrival proof consumes the 350ms window), and
+            on `welcome` — where the early frame IS early — a blinking caret makes any
+            two frames differ, so the comparison proves nothing. Both frames per screen
+            are ARTEFACTS, not evidence of an animation.
+          • Motion status: BUILT, JUDGED BY EYE, NOT VERIFIED BY INSTRUMENT.
+          • Reduce Motion is implemented and likewise unverified by instrument.
+          • WHAT *IS* ASSERTED, on every path: the route (each arrival proved against
+            SPEC §3's exact bar percentage), branch rules 1/3/4 from BOTH ends, the five
+            personalisation placements rendering, and the loop clearing the typed name.
         """)
     }
 
