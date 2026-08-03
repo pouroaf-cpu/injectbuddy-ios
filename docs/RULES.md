@@ -12,12 +12,27 @@ take the next free number by reading to the END of the list — the numbers must
 ascending and contiguous, which `BoardRuleCitationTests` asserts.
 
 **NEVER BULK-REPOINT `§5`. Not with `sed`, not with a find-and-replace, not "in one pass",
-not by anyone.** `§5` is not a private namespace: `docs/SPEC-RESULT-SHEET-AND-SYRINGE.md`
-lines 75 and 315 use `§5` to mean **that spec's own section 5** (the over-capacity
-warning), and `docs/TASKS.md` line 275 uses it to mean **`math-spec.md` §5** in another
-repository. Neither has anything to do with these rules. **And nothing would catch it:**
-`BoardRuleCitationTests` deliberately ignores a bare `§5` — it only resolves `§5.NN` — so
-rewriting those three sites corrupts them in total silence and every check stays green.
+not by anyone.** `§5` is not a private namespace. `docs/SPEC-RESULT-SHEET-AND-SYRINGE.md`
+uses it twice to mean **that spec's own section 5** — find them by the strings
+`"See §5."` and `"Over-capacity (§5)."`. `docs/TASKS.md` uses it to mean **`math-spec.md`
+§5** in another repository — find it by the string `` `spec/math-spec.md` ``. Neither has
+anything to do with these rules. **And nothing would catch it:** `BoardRuleCitationTests`
+deliberately ignores a bare `§5` — it only resolves `§5.NN` — so rewriting those sites
+corrupts them in total silence and every check stays green.
+
+**Worse, two sites are matched AND wrong.** `docs/PWA-SPEC-PROTOCOL-DETAIL.md` cites
+`COMPETITOR-NOTES §5.5` and `COMPETITOR-NOTES §5.1`, meaning
+`docs/ui-audit/COMPETITOR-NOTES.md` §5 items 5 and 1. Those resolve *accidentally* against
+these rules and the matcher gives no warning. A pointer that resolves and is wrong is the
+worst case in this file.
+
+**A durable reference in this repo is a FILE PLUS A STRING, never a file plus a line.**
+This paragraph used to name "`docs/TASKS.md` line 275". That content moved to line 1332
+within six hours of being written — the warning against trusting line numbers was itself
+carrying a stale line number. Line numbers are fine in a message read in the next ten
+minutes and wrong in anything committed. Re-derive position by matching the string, at
+edit time, per file.
+
 Repoint citations one at a time, reading each one, or do not repoint them.
 
 **This copy is additive, and it is NO LONGER a verbatim copy.** Rules **1–39 were lifted
