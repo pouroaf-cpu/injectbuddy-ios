@@ -35,6 +35,22 @@ is done, per the MVP posture.
 The owner's instruction: *"I think we make this as a separate app, its own folder inside the ios, and
 then we can test it without a login. All we need is the onboarding screens."*
 
+**Screen 1 assumes the user has already signed up.** That is a premise of the flow, not something
+this target implements — there is no auth in it, no session, and no network. The flow begins where
+it would begin in the real app: immediately after account creation.
+
+**Finishing loops back to screen 1 with state cleared.** Both end states — `dashboard` and `locked`
+— return to `welcome` and reset **`segment`, `exp`, `skipped`, `plan` and every collected field.**
+This is what makes it a testing surface rather than a demo: an endless walk-through, so six paths
+cost one build and no relaunches.
+
+**Reset every field, not just the route.** A stale `segment` leaking across a loop shows the wrong
+benefit copy on the next pass and reads as a copy bug — a defect in the thing being tested, blamed
+on the thing that is correct.
+
+**Do not add a "you have finished" interstitial.** The loop is the end state. Keep the wireframe's
+back and restart affordances as specced.
+
 **Build it as a second app target in the same repo and the same Xcode project — not a second repo.**
 
 - `OnboardingPreview` is an app target whose root view is the onboarding flow itself. **No auth, no
@@ -247,7 +263,11 @@ half-life curve · body map · big log button / syringe · logo-celebration · p
 
 **Delivers:** the `OnboardingPreview` target, `Sources/OnboardingKit/`, all thirteen screen types,
 both branch dimensions, the copy file, the progress bar, working back, placeholder art, and a
-build that runs to `dashboard` and to `locked` without a login.
+build that runs to `dashboard` and to `locked` without a login — **and loops from both back to
+screen 1 with all state cleared**, so the six paths are walkable in one session without relaunching.
+
+**Auth is assumed complete, not absent.** Screen 1's premise is a user who has just signed up. The
+target contains no auth because it does not need any, not because the flow happens before sign-up.
 
 **Explicitly not in this pass:** StoreKit or any real purchase, the notification permission actually
 being requested, writing anything to Supabase, mounting the flow in the real app, the win-back email

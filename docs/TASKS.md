@@ -409,6 +409,20 @@ Historical: `result_Weekly total` measured as two elements, y=641 (pinned, hitta
 question in `B1-18`.
 
 ### `B1-28` — Welcome + onboarding, piece 2: restyle `AuthFlowView`
+
+> **SCHEDULED LAST, 2026-08-03 — owner's call. "Bypassed" does NOT mean "dropped".**
+> All auth work — this restyle, the verify screen, resend, reset and Discord OAuth — is the **final
+> item before submission**, not deferred past ship. A **DEBUG-only** bypass boots the app straight
+> past `AuthFlow` on this rig so nobody types credentials to look at a screen; **Release is
+> untouched and the gate stays exactly as it is.**
+> **A Release build must be launched before submission to confirm the sign-in screen is still
+> there** — see `BATCH.md` → PRE-SHIP CHECKLIST. A debug bypass that leaks to Release ships an app
+> anyone can open as someone else, and every test we own runs the debug build, so nothing we have
+> would catch it.
+> Useful side effect worth recording: the bypass removes the ~20–25 signed-in-checks/hour ceiling
+> **for the whole app**, not just for onboarding. It supersedes the open question about reusing a
+> signed-in session across runs — that investigation is cancelled, not pending.
+
 **PARTIAL — CODE DONE, VISUALLY UNVERIFIED.** Builds, tests green. **Not ticked until measured**,
 same bar as everything else. Not screenshotted: the simulator holds a signed-in session and
 `AuthFlowView` only renders when signed out; signing out would cost every authenticated screen for

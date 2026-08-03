@@ -111,6 +111,17 @@ real rows when it is struck early.
 
 ---
 
+## PRE-SHIP CHECKLIST — things that can only be checked on the way out
+
+**RELEASE BUILD STILL SHOWS THE SIGN-IN SCREEN.** One launch of a **Release** build before
+submission, confirming `AuthFlow` appears. A DEBUG-only auth bypass is being added so the app boots
+straight past sign-in on this rig; if it ever leaks to Release we ship an app **anyone can open as
+someone else**, and it is exactly the class of defect that looks fine in every test we own —
+because every test we own runs the debug build. Compile-time guard is the fix; this launch is the
+evidence. **Not optional and not delegable to a passing green.**
+
+---
+
 ## Batch-after-next — the cold-start batch. ONE erase, ONE run.
 
 **Ordering is deliberate and not negotiable: this happens AFTER the batch-1 sweep**, because
