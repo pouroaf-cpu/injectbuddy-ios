@@ -96,9 +96,9 @@ xcodebuild test -project InjectBuddy.xcodeproj -scheme InjectBuddy \
 - **The app is light-only.** `UIUserInterfaceStyle: Light` is locked and every dark path was removed
   deliberately. Do not reintroduce one.
 - **iOS writes to Supabase directly via PostgREST** and never calls `/api/dosages`. Dedup is a
-  unique index on `(user_id, calculator_type, config)`. Some comments still describe the old
-  assumption. **`user_id` must be present on every write** — omitting it is how "saving a protocol
-  from iOS had never worked" happened, every insert refused by RLS.
+  unique index on `(user_id, calculator_type, config)`. **`user_id` must be present on every write**
+  — omitting it is how "saving a protocol from iOS had never worked" happened, every insert refused
+  by RLS.
 - **The auth session lives in the Keychain.** Uninstalling does not sign you out; `simctl erase`
   does.
 - **The PWA source and the database are on the Windows box.** Anything derived from them must be

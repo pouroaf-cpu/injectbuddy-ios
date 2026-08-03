@@ -184,12 +184,22 @@ Things a cold session will hit within minutes and not understand:
       §5.33 a third time: the check is sound and its AIM is short. Fixing the aim
       (cover all 15) is the real item; the frame is only where it surfaced.
 
-- [ ] **Result cards are sheared by the plate at default size too.** `BMI`
-      (`IB2245771`) and `Free T Index` (`IB2245772`) are cut through the word
-      `Normal`; `Semaglutide` (`IB2245766`) through `Units (U-100)`. The in-scroll
+- [ ] **Result cards are sheared by the plate at default size too.** **STILL OPEN on
+      `Semaglutide`; the two withdrawn screens are struck.**
+      ~~`BMI` (`IB2245771`) and `Free T Index` (`IB2245772`) are cut through the word
+      `Normal`;~~ `Semaglutide` (`IB2245766`) through `Units (U-100)`. The in-scroll
       card runs under the plate wherever it is tall enough, and **nothing watches
       result rows against the plate** — the reachability sweep reads `field_*` and
       `control_*` only. Same aim gap as the item above, so they are likely one fix.
+      **BMI AND FREE T INDEX STRUCK — SCREENS DESCOPED by the owner's decision,
+      2026-08-03** (`SPEC-2026-08-03-HUMAN-TASKS.md` H6 — *"leave them alone, and
+      don't let the links to it go anywhere, we will work on later"*; H6: **"No layout
+      work, no shear work, no styling on either screen."**). Both are being removed from
+      the Tools list and the add-protocol dialog, so the shear is unreachable, not
+      fixed. Struck by his call, **not** closed by a fix and **not** our oversight; the
+      measurement on both screens stands. If either screen is ever re-enabled, this
+      shear comes back with it — re-file it then, not before. **The `Semaglutide` half
+      is untouched and remains a live defect.**
 
 - [ ] ~~**SAFETY / DATA — `Add` WRITES A PROTOCOL ROW FROM A CALCULATOR THAT COMPUTES NO
       DOSE.**~~ **THE WRITE IS CLOSED — see §3.** Kept here in full because the DISPLAY
@@ -360,8 +370,19 @@ Things a cold session will hit within minutes and not understand:
       Two of those are at DEFAULT size and neither was on the board — §5.22 again, the
       default frames are the half nobody looks at.
 
-- [ ] **THE DISCLAIMER IS UNREADABLE AT REST ON EVERY CALCULATOR — and that is not
-      what this finding used to say.** Measured at rest on all fourteen at `9b4afcb`.
+- [x] **F-F — THE DISCLAIMER IS UNREADABLE AT REST ON EVERY CALCULATOR.**
+      **STRUCK: WON'T FIX, by the human's decision, 2026-08-03**
+      (`SPEC-2026-08-03-HUMAN-TASKS.md` H4 — *"F-F is closed as won't fix, by the
+      human's decision. He was shown that 'not medical advice' is never legible at rest
+      on any calculator and said it does not matter."*). He was shown the measurement
+      and accepted it. Struck by his call, **not** closed by a fix and **not** our
+      oversight — do not re-file it, and do not carry expected-failure entries for it.
+      **THE MEASUREMENT BELOW STANDS AS RECORDED FACT.** Won't-fix decides what we
+      *do*; it does not make the measurement untrue. The string genuinely is not drawn.
+      Anything that later reasons about the disclaimer, the hero frame, `§5.34`'s
+      tree-vs-pixels lesson, or the `isIntermittent` dead entries must read it as still
+      accurate. Everything from here down is preserved verbatim for that reason.
+      **THE MEASUREMENT, UNCHANGED.** Measured at rest on all fourteen at `9b4afcb`.
       **Superseding the original wording** ("the raised hero covers the tail of the
       disclaimer on every calculator … the last ~19pt is behind it"), which was right
       that something is wrong and wrong about what, where and how many.
@@ -420,10 +441,16 @@ Things a cold session will hit within minutes and not understand:
       value or a unit. Probably resolves with the screen-header rule
       (`DESIGN-PARITY §9`), which is already open.
 
-- [ ] **`Oxan-drolone`, hyphenated mid-word.** `IB2245752`. Same family as
+- [x] ~~**`Oxan-drolone`, hyphenated mid-word.** `IB2245752`. Same family as
       `Semaglu-tide` on Tools (`IB2245747`), so one shared cause rather than two
       screen-specific bugs — worth fixing once, on whatever sets the hyphenation policy
-      for these labels.
+      for these labels.~~
+      **STRUCK — NOT A DEFECT. Reversed by the owner's decision, 2026-08-03**
+      (`SPEC-2026-08-03-HUMAN-TASKS.md` H3). Hyphenation is **accepted behaviour**:
+      *"`Semaglu-tide` and `Retatru-tide` are accepted behaviour, not defects."* Struck
+      by the owner's call, not closed by a fix and not our oversight — the measurement
+      was right, the judgement that it was a defect was overturned. **H3: "Do not
+      re-file hyphenation. It was raised, shown, and decided against."**
 
 - [x] **The result bar owns 52.40% of the content area at DEFAULT size — CLOSED,
       measured.** Gated on a **measured share**, not a Dynamic Type category. The bar
@@ -568,19 +595,28 @@ Things a cold session will hit within minutes and not understand:
       in §5.19 and every screen still needs checking against it.
 
 - [ ] **Tools at AX5 reads as broken.** `IB2245731`, and unchanged from
-      `2026-08-01-current/10-tools-ax5.png`. Six things in one frame:
-      `Semaglu-tide` hyphenated mid-word, `Tirzepatide` wrapping to an orphaned
-      `e` on line two, `Retatru-tide`, the `Tools` title clipped against the
+      `2026-08-01-current/10-tools-ax5.png`. **STILL OPEN — the hyphenation half only
+      is struck; everything else here is live.** Six things were filed in one frame:
+      ~~`Semaglu-tide` hyphenated mid-word~~, `Tirzepatide` wrapping to an orphaned
+      `e` on line two, ~~`Retatru-tide`~~, the `Tools` title clipped against the
       header row above it, icons that stayed small while the text went huge, and
       four rows filling the entire screen. **This frame passed the audit, and
       passed correctly** — that is what §5.15 exists for.
+      **HYPHENATION HALF STRUCK — NOT A DEFECT. Reversed by the owner's decision,
+      2026-08-03** (`SPEC-2026-08-03-HUMAN-TASKS.md` H3): *"`Semaglu-tide` and
+      `Retatru-tide` are accepted behaviour, not defects. Strike the hyphenation half
+      of the Tools-at-AX5 finding … Do not re-file hyphenation. It was raised, shown,
+      and decided against."* H3 also names what stays: *"the overlap, the clipped
+      title, and icons that stayed small while text grew."* Do not read this strike as
+      the finding closing.
       Constraints on the fix: **no `dynamicTypeSize(...up to:)` cap** on
       calculator names (navigation labels in a dosing app; AX5 users are exactly
       who needs them legible) and **no `lineLimit`**. Direction to try first: fix
       the icon at a sensible size instead of letting the layout starve the label,
-      let the row grow vertically since the list scrolls and vertical space is
-      cheap, and stop the hyphenation. The title collision is the screen-header
-      rule (`DESIGN-PARITY §9`) and probably resolves with it.
+      and let the row grow vertically since the list scrolls and vertical space is
+      cheap ~~, and stop the hyphenation~~ — that last clause is struck, see above; do
+      not act on it. The title collision is the screen-header rule (`DESIGN-PARITY §9`)
+      and probably resolves with it.
       Then re-check the other nine screens at AX5 with the judgment pass, not the
       metric pass — the expectation is that this is not the only one.
 

@@ -166,7 +166,7 @@ the web `public/app.js` and locked with golden unit tests.
 **iOS never calls `/api/dosages`.** It writes straight to PostgREST, so nothing server-side validates
 the payload. Dedup is a unique index on `(user_id, calculator_type, config)` — deliberately *not*
 `.upsert`, which PostgREST resolves to `ON CONFLICT DO UPDATE` and would overwrite `start_date`,
-shifting every projected dose. Some source comments still describe the old assumption.
+shifting every projected dose.
 
 `user_id` must be set explicitly on inserts. Reads omit it because RLS scopes SELECTs; carrying that
 assumption into the write path made every insert fail the `WITH CHECK` — iOS protocol saving had never

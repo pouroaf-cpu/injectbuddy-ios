@@ -81,10 +81,26 @@ stops tracking a debt nobody intends to pay. Record it as his call with the date
 
 *Win's note, recorded once and not to be re-raised:* the audience for that line is not users.
 
-## H5 — Calculator name into the nav bar
+## H5 — Calculator name out of the scrolling content
 
-The screen title moves into the top navigation bar (`BPC-157`, `TRT Dose`), and the header area is
-restyled.
+> **The nav-bar wording below is SUPERSEDED — struck 2026-08-03, against a measurement.** It is
+> kept struck rather than deleted so nobody re-derives it. **The deliverable is UNCHANGED:** the
+> title comes out of the scrolling content and the truncating-title defect closes. Only the
+> *destination* named in the original wording is dead. There is one live instruction here, not two.
+
+~~The screen title moves into the top navigation bar (`BPC-157`, `TRT Dose`), and the header area is
+restyled.~~
+
+**Why it was struck.** `docs/DESIGN-PARITY.md:225-244` — the §9 addendum, measured on device —
+probed a wrapping `Text` in `.principal` at default and AX5: two lines render, **three are clipped
+at both ends**, and the bar does not grow further at AX5. It fails **silently** — no ellipsis, so
+nothing on screen says content is missing, and a sheared third line reads as a rendering glitch or
+as the whole title. "Testosterone Dosage Calculator" does not fit two lines at AX5. §9 had already
+rejected the nav bar on that measurement and chosen **option (a), the branded header in the content
+area** (`DESIGN-PARITY.md:206`, `:241`). The nav bar was specified before the probe; the probe
+settled it. This is a spec that lost to a measurement.
+
+**Build option (a): the content-area header.** Not `.principal`.
 
 This resolves the open screen-header parity finding, which had been about the title colliding with
 the header row. Two things it must not undo: **titles never truncate** (`Steroid Dos…` is a live

@@ -165,8 +165,11 @@ is "the button is on screen and NOT enabled"; elsewhere it is "on screen and rea
    which is a mirror of it that only carries two of the three states. And note that
    simply hiding "archived" rows fixes nothing, because no row has ever been archived.
 
-4. **Result cards are cut by the bar** on BMI, Free T Index and Semaglutide at normal
-   text size.
+4. **Result cards are cut by the bar** on ~~BMI, Free T Index and~~ Semaglutide at normal
+   text size. **BMI and Free T Index struck — both screens descoped by the owner's
+   decision, 2026-08-03** (`SPEC-2026-08-03-HUMAN-TASKS.md` H6: "No layout work, no
+   shear work, no styling on either screen"). Struck by his call, not our oversight;
+   the measurement on both still stands. **Semaglutide is still live.**
 
 5. **Cycle Plotter is missing from the Tools list** — the screen whose job is listing
    calculators. Its only route is a dialog on the dashboard, eight scrolls in.

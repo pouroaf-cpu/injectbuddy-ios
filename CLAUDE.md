@@ -62,7 +62,7 @@ there and why.
   deliberately. Don't reintroduce one.
 - **iOS writes to Supabase directly via PostgREST** and never calls `/api/dosages`. Dedup is a
   unique index on `(user_id, calculator_type, config)`. `user_id` must be present on every write or
-  RLS refuses it silently. Some source comments still describe the old assumption.
+  RLS refuses it silently.
 - **The auth session lives in the Keychain**, so uninstalling the app does not sign you out —
   `simctl erase` does.
 - **The PWA source is not in this repo.** It lives on the Windows machine at `Projects\Injectbuddy`.

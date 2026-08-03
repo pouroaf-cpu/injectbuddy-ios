@@ -1,5 +1,25 @@
 # Result panel spec — what a calculated result should look like
 
+> ## ⛔ SUPERSEDED — 2026-08-03. Do not build from this document.
+>
+> **Superseded by `docs/SPEC-RESULT-SHEET-AND-SYRINGE.md`, by the owner's decision on
+> 2026-08-03.** That spec is the live one. It reverses this document's §4 in terms: *"it reverses
+> `RESULT-PANEL-SPEC.md` §4"*, and it cancels this document's build: *"the barrel-fit proportion
+> strip is **cancelled** … Do not build both."*
+>
+> **Nothing in §3, §4 or §5 is to be built or followed — §4 and §5 in particular.**
+>
+> - **§3 — the barrel-fit proportion strip: cancelled.** Do not build it. A drawn syringe with a
+>   fill front answers the same question, and building both is explicitly forbidden.
+> - **§4 — "do not build a drawn syringe": reversed.** The drawn syringe *is* the deliverable now.
+>   The three objections here were answered against the shipped PWA implementation; see §§1–3 of
+>   the superseding spec. Do not act on this section.
+> - **§5 — the strip's accessibility rules: dead with the strip.** They describe an element that
+>   will not exist. The superseding spec carries its own accessibility requirements; use those.
+>
+> This file is **kept as the history of the reversal** — it is what was argued, and what lost. Read
+> it to understand why the decision went the way it did, never as an instruction to build.
+
 Win, 2026-08-02. Derived from the PWA source on the Windows box, `ui-audit/calculator-reference/`,
 and a survey of what has shipped in this category.
 
