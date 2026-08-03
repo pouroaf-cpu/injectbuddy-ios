@@ -40,6 +40,9 @@ and are not:
    evidence status and it does not remove an entry.
 4. **`X-01` is not from the board.** It arrived from the directing side during this pass and is
    recorded in `§5`, outside the 74, so the count check does not read it as an unexplained delta.
+5. **`DUP-01`…`DUP-15` are not from the board either.** They came out of the 2026-08-03 duplication
+   sweep (task S2) and are recorded in `§8`, outside the 74, for the same reason. They are findings
+   *about the documents*, not about the app — no `DUP-` entry adds or removes an app defect.
 
 **Statuses are transcribed, never upgraded.** In particular §4 is **NOT KNOWABLE** and is not a tick —
 per `CLAUDE.md`, unverifiable goes to §4, not to a closed item. `B4-04` says "ACCEPTED" and is still
@@ -1088,3 +1091,415 @@ and the duplicates are listed so a human can decide which copies retire:
 | `B2-04` three web-only calculators | `PWA-SPEC-MISSING-CALCULATORS.md`, `STATUS.md` |
 | `B1-33` measure Settings | `§6` TASK 8 |
 | BOARD §5 rules cited throughout | `docs/RULES.md` — an additive copy of the same 39 rules, by the same discipline as this file |
+
+---
+
+## 8. From the 2026-08-03 duplication sweep — contradictions and duplication
+
+**Not from the BOARD inventory. Outside the 74** (see `§0`, delta note 5). These are findings about
+the *documents*, filed here because there is nowhere else that a session actually reads.
+
+**Filed one item per CAUSE, not one per SITE.** Fifteen entries against roughly **130 sites**. That
+ratio is the point, and it is the lesson of the QA-credential incident stated as a filing rule: four
+documents once carried the same QA item, and filing per-site would rebuild that problem inside the
+fix. Where an entry names several documents, they are **sites of one cause** — close it once, in one
+pass, or not at all.
+
+**Every claim below was re-verified against the tree at `6de193a`,** not taken from the sweep.
+Line numbers in the sweep predated the archive move (`909c994`) and several had moved; the ones here
+are current. Two of the sweep's findings did not survive verification and are recorded as such in
+`DUP-15` rather than filed as work.
+
+**Ordered most dangerous first.** `DUP-01`…`DUP-13` are contradictions — two documents that cannot
+both be acted on. `DUP-14` is hygiene: statements that AGREE, so no session can be misled by them,
+only bored. `DUP-15` is about the sweep itself.
+
+---
+
+### `DUP-01` — a CANCELLED spec still has five live pointers into it
+**OPEN. Most dangerous item in this section: acting on any one of these builds a cancelled feature.**
+
+`docs/RESULT-PANEL-SPEC.md` carries a `⛔ SUPERSEDED — 2026-08-03` banner at `:3-18`. Its §3
+(barrel-fit strip) is **cancelled**, its §4 (do not draw a syringe) is **reversed**, its §5 is
+**moot** — superseded by `docs/SPEC-RESULT-SHEET-AND-SYRINGE.md`, the owner's call. Five places
+still point at it as live work:
+
+| site | what it says | what it needs |
+|---|---|---|
+| `HANDOVER-2026-08-02-EVENING.md:104-108` | T26 as open queue item 3; Mac "owes win two reads", one of them whether the **14pt track** reads as furniture | **delete** — the track is the cancelled §3 |
+| `HANDOVER-2026-08-02-EVENING.md:114-119` | "**Blocking T26 §5**" — `accessibilityHidden` does not remove the hero glyph | **delete as a blocker** — see below |
+| `ui-audit/BOARD.md:412-417` | inside the `accessibilityHidden` finding: "**invalidates an assumption in `RESULT-PANEL-SPEC §5`**" | **RE-AIM, do not delete** — see below |
+| `Sources/InjectBuddy/Features/Shell/MainShell.swift:261` | source comment: "the barrel-fit strip in RESULT-PANEL-SPEC §5 is specced on exactly it" | **repoint** — DECIDED by the directing side, **not done here**, see the ownership note |
+| `docs/TASKS.md:234` (this file, `B1-13`) | transcribes the BOARD sentence verbatim | follows whatever BOARD is re-aimed to; do not repoint it independently or the two drift |
+
+**Why the a11y blocker is moot for the syringe but the BOARD entry is not deletable.**
+`SPEC-RESULT-SHEET-AND-SYRINGE.md:265-266` makes the syringe **one VISIBLE accessibility element**
+with a label of the form `"Syringe, 37.5 of 100 units"` — it is no longer trying to hide a
+decorative duplicate, so `accessibilityHidden` is not on its critical path at all. But the BOARD
+finding underneath is a *measured fact about the app* — a decorative glyph is a VoiceOver stop on
+every screen — and it stands whatever the result panel does. **Re-aim it away from
+`RESULT-PANEL-SPEC §5` and onto the hero glyph itself. Deleting it deletes a measurement.**
+
+**Ownership note — the `MainShell.swift` repoint is decided but NOT actioned here.** The directing
+side has decided that comment should be repointed. `Sources/` is owned by another agent as of this
+pass, so it is filed, not edited. Whoever holds that file makes the one-line change; do not batch it
+with the doc edits.
+
+---
+
+### `DUP-02` — "needs the human: database CHECK constraints" is carried open in four documents, and three quarters of it is already done
+**OPEN — owner: HUMAN. Scope is `logging_interests` ONLY.** This is the "needs the human" cluster,
+and it is **one item, not four.**
+
+**The work is largely done and verified.** `DATA-CONTRACT.md:62-77`: constraints applied 2026-08-03,
+**verified against all 91 live rows first — zero violated any of them**, so it was additive and
+nothing was rewritten. `profiles_preferred_weight_unit_check`, `profiles_preferred_height_unit_check`
+and `profiles_preferred_dose_unit_check` all exist in production. The four open asks all name
+"`profiles.preferred_*` **and** `logging_interests`". Only the `logging_interests` half survives —
+`DATA-CONTRACT.md:49` shows it as `text[]`, default `{}`, with the four allowed values enforced
+nowhere in the database.
+
+**The four stale copies. Sites to correct, NOT separate items:**
+
+| site | numbering |
+|---|---|
+| `HANDOVER-2026-08-02-EVENING.md:121-132` §4 — "three items", listed **2, 3** | broken |
+| `HANDOVER-2026-08-02-NIGHT.md:133-140` §6 — "four items", listed **3, 4** | broken |
+| `WHERE-WE-ARE-2026-08-03.md:182-192` §5 — listed **1, 2, 5** | broken |
+| `WIN-SIDE-README.md:138-139` — prose, no list | n/a |
+
+**Record the diagnostic, it is worth more than the item.** Three of the four have **BROKEN
+NUMBERING** — a header promising three items above a list starting at 2, a list running 1, 2, 5.
+That is the fingerprint of items being deleted **from the copies** rather than from a source: each
+document was pruned independently, and the gaps are where the pruning happened. It is the same
+failure the QA-credential incident had, visible in the numbering before anyone reads the content.
+**A list whose numbers skip is evidence that it is a copy.**
+
+---
+
+### `DUP-03` — T27 (`Units (U-100)` on a 3 mL barrel) is open in two documents and closed-by-construction in a third
+**OPEN, with a stated acceptance condition.** Three sites, one finding:
+
+- `HANDOVER-2026-08-02-EVENING.md:109-110` — queue item 4, open, "filed unbundled deliberately".
+- `RESULT-PANEL-SPEC.md:117-122` — open, inside the superseded spec (`DUP-01`).
+- `SPEC-RESULT-SHEET-AND-SYRINGE.md:27-28` — **"closed by construction here, provided the port keeps
+  the barrel-derived scaling and does not hardcode U-100."**
+
+**File the proviso as the acceptance condition, not as a tick.** T27 closes when, and only when, the
+shipped port derives the scale from the selected barrel. A port that hardcodes U-100 reopens it
+silently — and silently is exactly how it got filed in the first place. Assert the 3 mL case
+specifically; it is the one with no units scale.
+
+---
+
+### `DUP-04` — the live profile counts disagree, and the real defect is that two of them carry no date stamp
+**OPEN.** `DATA-CONTRACT.md` is authoritative per `CLAUDE.md`.
+
+| site | claim | dated? |
+|---|---|---|
+| `DATA-CONTRACT.md:64, :91, :104` | **91 live rows**; **90 of 91** have `timezone = NULL` | **yes — "Applied 2026-08-03"** |
+| `README.md:193` | 88 of 89 | **no** |
+| `START-HERE.md:226-227` | 88 of 89 | **no** |
+| `PWA-SPEC-HISTORY-INVENTORY-SETTINGS.md:274` | "live distribution across **89 profiles**" | yes — header `:3` "Extracted 2026-08-02" |
+| `PWA-SPEC-HISTORY-INVENTORY-SETTINGS.md:427` | 88 of 89 | same header |
+
+**The numbers are not the item.** 88/89 → 90/91 over one day is a live table growing, which is
+correct behaviour; both were true when written. **The item is that `README.md:193` and
+`START-HERE.md:226-227` state a production row count with no date on it**, so a future session
+cannot tell a stale number from a fresh one and has no way to know which to trust. `PWA-SPEC` does it
+right — its number is dated at the top of the file and reads as a snapshot.
+
+Fix: every production count carries the date it was queried, or it is written as a *shape*
+("`timezone = NULL` is the norm, not the edge") with no number at all. The shape is what the design
+depends on; the count is not.
+
+---
+
+### `DUP-05` — six documents describe a side drawer as THE navigation; the app ships a bottom tab bar
+**OPEN. One cause — the 2026-06-05 shell — across six documents.**
+
+| site | what it says |
+|---|---|
+| `README.md:4` | "all 14 dosage calculators in a **side drawer**" |
+| `README.md:143` | "`NavItems` — the single source for **drawer items**" |
+| `README.md:149` | "`MainShell` + **off-canvas DrawerView**" |
+| `docs/SCREENS.md:3, :4, :23, :59, :124, :179` | "All screens render inside `MainShell` (**drawer** + `NavigationStack`)"; hamburger toolbar; reachable "from the drawer" |
+| `docs/WIREFRAME-PLAN.md:11, :28, :36, :41, :60-61, :77-81` | "**One side drawer holds everything**"; §5 "Drawer spec (**core deliverable**)" |
+| `docs/LAUNCH-CHECKLIST.md:26` | see below |
+| `docs/README.md:9, :22, :35` | "All 14 calculators reachable from a single **side drawer**"; "Side menu: custom SwiftUI off-canvas drawer" |
+
+What actually shipped is the TabView shell — `§6` TASK 14, and `B1-10` / `B1-12` are findings *about
+the tab bar*, measured on the running app.
+
+**`LAUNCH-CHECKLIST.md:26` is the dangerous one and is why this is not just tidying.** It is a
+**Definition of Done**: *"Confirm Definition of Done: unauthed→auth, authed→dashboard, drawer lists
+14 calcs + Dashboard + Calendar, swipe/scrim dismiss…"*. That is an **acceptance criterion for a
+shell that no longer ships**. Anyone working the launch checklist honestly cannot pass it, and the
+only ways through are to fake it or to rebuild the drawer.
+
+Note the archived docs already handle this correctly — `docs/archive/INSTRUCTIONS.md:1-5` says in its
+own banner *"Its Definition of Done refers to a drawer that no longer exists."* The six above have no
+such banner. **One pass, one decision: banner them all or correct them all.**
+
+---
+
+### `DUP-06` — an archived handover that advertises itself as "everything a fresh session needs" is wrong three ways
+**OPEN — low urgency, it is in `docs/archive/`, but it self-describes as a startup doc.**
+
+`docs/archive/HANDOVER-2026-08-01-FULL.md:3-5`: *"**One self-contained document.** Everything a fresh
+session needs."* Its Part B (`:181` onward) is contradicted by `docs/HARNESS-AND-LOOSE-ENDS.md` three
+independent ways:
+
+| Part B says | `HARNESS-AND-LOOSE-ENDS.md` says |
+|---|---|
+| `:195` "The three red assertions — exact state, and what is already ruled out" — presented as live diagnoses | `:13-17` "**CLOSED 2026-08-02, and the diagnosis below was wrong.** Why it got that wrong is more useful than the fact that it did." |
+| device state erased and signed out at iOS first-boot | `:190-193` "**The previous text here said erased and signed out… That is no longer true, and a cold session planning around it is wrong within minutes.**" Observed 2026-08-02: **not erased**. |
+| `:233`, `:294` the quick-value row is unreachable because "the **keyboard** covers the chips" | `:223-225` "**Resolved 2026-08-02, and the premise was wrong: the pinned result bar IS the occluder.**" It sits *above* the keyboard. |
+
+The third is the one that costs a session: a fresh reader debugging keyboard avoidance is looking at
+the wrong occluder, and `B3-12` records that `quick_mgWeek_400.tap()` **reported success and moved
+nothing** — so the wrong premise plus a green tap is a whole afternoon.
+
+Fix is one banner on that file — `docs/archive/README.md` already lists it as superseded, but the
+file's own opening line still claims to be self-contained and a reader who lands on it directly never
+sees the folder README.
+
+---
+
+### `DUP-07` — `DECISIONS-2026-08-02.md:389` cites `D3` for a rule that is not `D3`
+**OPEN. One site, one line, and the file predicted this exact error.**
+
+`:385-389` closes with *"Calculator names were considered under the same argument and rejected
+(D3)."* `D3` is at `:41` and is **"Serial and log row per frame"** — nothing to do with type-size
+caps. The real site is **§13, `:298-301`**: *"no `dynamicTypeSize(...up to:)` cap on calculator names
+— they are navigation labels in a dosing app and AX5 users are exactly who needs them legible."*
+
+**The file's own warning at `:12-15` describes this error in advance:** *"The `D` rules below and this
+file's numbered sections are two different series. `D3` is not §3. If you arrived from a `D<n>`
+citation, read the `D` rules and stop there — matching the number against a section heading gives a
+wrong answer that reads right."* A reader following the warning correctly lands on `D3`, finds a
+screenshot-logging rule, and concludes the citation is broken — which it is, but only after they have
+been sent to the one place guaranteed not to help.
+
+Fix: `(§13)`, not `(D3)`. **Repoint it by hand, alone.** `RULES.md:14-21` bans bulk repointing —
+"not with `sed`, not with a find-and-replace, not 'in one pass'."
+
+---
+
+### `DUP-08` — the rig OS is written two ways, and BOTH are right
+**OPEN as a wording fix, NOT as a contradiction. Resolved against the running system, per
+`RULES.md` §5.1.**
+
+`xcrun simctl list runtimes` on this machine returns exactly:
+
+```
+iOS 18.3 (18.3.1 - 22D8075) - com.apple.CoreSimulator.SimRuntime.iOS-18-3
+```
+
+So the runtime's **name** is `iOS 18.3` and its **version** is `18.3.1`. Neither set of documents is
+wrong; they are quoting different fields of the same object.
+
+| says `18.3.1` | says `18.3` |
+|---|---|
+| `WHERE-WE-ARE-2026-08-03.md:198` | `HANDOVER-2026-08-02-NIGHT.md:144` |
+| `MAC-SIDE-README.md:64` | `HANDOVER-2026-08-02-EVENING.md:136` |
+| | `HARNESS-AND-LOOSE-ENDS.md:193` |
+| | `ui-audit/2026-08-01-current/README.md:4` |
+| | `ui-audit/2026-08-02-current/README.md:3` |
+
+`BOARD §0` (`ui-audit/BOARD.md:32`) is the rig-state authority and, as it happens, states neither.
+Fix: `BOARD §0` records **`iOS 18.3 (18.3.1)`** — the full simctl string — and everything else points
+at it. **Do not "correct" the five to 18.3.1; they are not errors.** This entry exists so nobody
+spends a pass reconciling a disagreement that is not one, and so the next person who notices it finds
+this instead of re-deriving it.
+
+---
+
+### `DUP-09` — the two cold-start docs disagree about the branch tip, on their first line
+**OPEN.** Reconcilable, and that is not the point.
+
+- `WHERE-WE-ARE-2026-08-03.md:6` — "Branch `feature/tabview-shell`, tip `62ab0bf`."
+- `WIN-SIDE-README.md:120` — "Branch `feature/tabview-shell`, tip **`368a9fe`**, clean, everything
+  pushed."
+
+Both commits exist and both are on the branch; `368a9fe` is the later of the two, and each document
+was accurate when it was written. **The item is that a cold-start doc's first paragraph states a
+commit sha**, so the two documents a fresh session is told to read give it two different answers to
+"where am I" before it has run a single command.
+
+Fix: neither cold-start doc names a sha. `git log -1` is authoritative, always current, and costs one
+command. Name the *branch* — that is stable and it is what the reader actually needs.
+
+---
+
+### `DUP-10` — `README.md` sends a cold session to `START-HERE.md` first; two other documents say `START-HERE` is explicitly NOT a startup doc
+**OPEN. Three sites, and this one mis-routes every fresh session that starts at the repo root.**
+
+- `README.md:12-21` — "**Starting a fresh session? Read these, in this order** — 1. `docs/START-HERE.md`…"
+- `CLAUDE.md:49` — "`docs/START-HERE.md` | The long session log — the story of *why*. **Not a startup
+  doc.**"
+- `MAC-SIDE-README.md:23-24` — "`START-HERE.md` is the long session log behind these — go there when
+  you need the story of *why*, **not to begin.**"
+
+`START-HERE.md:3-6` agrees with the latter two — its own opening says *"Opening the project cold?
+Read `WHERE-WE-ARE-2026-08-03.md` first."* So `README.md` is the only document in the repo that
+disagrees, and it is the one a session sees first. Its list also omits both startup docs
+(`MAC-SIDE-README.md`, `WIN-SIDE-README.md`) entirely.
+
+Fix: `README.md`'s reading list becomes the two side-READMEs, matching `CLAUDE.md:38-39`.
+
+---
+
+### `DUP-11` — three documents are stale as WHOLE FILES, not in places
+**OPEN. These cannot be fixed line by line; each needs a banner or a rewrite, as one decision.**
+
+**`docs/STATUS.md`** — self-describes as a "snapshot, ≤50 lines, prune don't append" and every
+headline in it has been overtaken:
+- `:4` "**It compiles.**" is the *Now* section, on an app that has since been measured, screenshotted
+  and audited across two sessions.
+- `:9` `c8114b1`, `db512cf` "**not pushed**" and `:32` "`[ ] Push c8114b1/db512cf`" — both are in
+  history and the tree is clean.
+- `:8-10` "phase 2 is the conformance runner (TASK 20) plus the eight unbuilt calculators" — TASK 20
+  is still live (`§6`), but the phase framing predates the entire UI audit.
+
+**`docs/LAUNCH-CHECKLIST.md`** — `:6` "**Last updated 2026-06-05 by bison30**", two months stale. Its
+P0 §B is "First Mac build + verify", which happened on 2026-07-31 (`§6` TASK 19, `STATUS.md:4-7`),
+and `:26` is the drawer Definition of Done in `DUP-05`.
+
+**`docs/README.md`** — `:14` "This is a **greenfield native app** (no Swift code exists yet)". The
+app has ~50 source files, 27 unit tests and five XCUITest suites. Its retired-docs block at `:26-29`
+is **correct and current** (it was fixed by `909c994`); the greenfield framing around it was not.
+
+**Do not delete any of the three.** `LAUNCH-CHECKLIST` holds live App Store Connect work that exists
+nowhere else, and `STATUS.md` holds the `CalculatorCatalog` don't-touch note (`:50-54`) that `§6`
+TASK 21 depends on. Banner, then triage the live remainder into this file.
+
+---
+
+### `DUP-12` — the running "Nth check caught reporting success while observing nothing" tally is frozen at a different number in six documents
+**OPEN. Ten statements, seven documents, and it will diverge again on the next find.**
+
+This is load-bearing rhetoric — it is the sentence that makes `RULES.md §5.24` land — and it is
+carried as a **running total** in places that have no way to know when it changes.
+
+| kind | site | number |
+|---|---|---|
+| **running total** | `HANDOVER-2026-08-02-EVENING.md:39` | "**six** checks were found reporting success" |
+| **running total** | `HANDOVER-2026-08-02-NIGHT.md:127` | "**Seventh** check found reporting success" |
+| **running total** | `MAC-SIDE-README.md:54-55` | "**Eight** checks have now been caught" |
+| **running total** | `WIN-SIDE-README.md:66-67` | "**Eight** checks have now been caught" |
+| incident ordinal | `RULES.md:355` · `ui-audit/BOARD.md:1301` | "the **seventh** check" |
+| incident ordinal | `RULES.md:390` · `ui-audit/BOARD.md:264` · `TASKS.md:137` (`B1-07`) | "the **eighth** check" |
+
+**The distinction is the fix.** The six **incident ordinals** are correct and must not be touched —
+they date a specific incident inside the finding that recorded it, the way a case number does. The
+four **running totals** are the defect: four documents each claiming to hold the current count, three
+different answers, and the two startup docs agreeing only by accident.
+
+**One item: the total belongs in ONE place.** Put it in `RULES.md` beside rule §5.24 — the rule the
+number exists to support — and have the other three say "see `RULES.md §5.24` for the count". The
+next find then updates one integer instead of four, and the two startup docs stop being able to
+disagree.
+
+---
+
+### `DUP-13` — two `§5.7` citations should be `§5.9`, and two `§5.7` citations nearby are CORRECT
+**OPEN. Four sites, two wrong, two right. Read all four before touching any.**
+
+`RULES.md:73-77` — **rule 7** is *"Prefer a container that truncates visibly over one that clips
+silently… Never accept silent clipping on a title, a value or a unit."*
+`RULES.md:84-85` — **rule 9** is *"The screens nobody complains about are where defects accumulate,
+because attention follows complaints rather than risk."*
+
+| site | text | verdict |
+|---|---|---|
+| `ui-audit/BOARD.md:689` | "This is §5.7 — **attention follows complaints rather than risk** — with a number" | **WRONG → §5.9** |
+| `docs/TASKS.md:447` (`B1-32`) | "So the log sheet was never an outlier; it was the first one anyone looked at. This is `§5.7` with a number attached, and the number is **10**." | **WRONG → §5.9** |
+| `ui-audit/BOARD.md:419` | "§5.7 bans this outright — never accept **silent clipping** on a title" | **CORRECT — do not touch** |
+| `docs/TASKS.md:240` (`B1-14`) | "`§5.7` bans this outright — never accept silent clipping" | **CORRECT — do not touch** |
+
+**These two were left on disk deliberately by the agent that fixed the other three** (`6e160aa`,
+"§5.22 was citing itself wrong — §5.7 repointed to §5.9, all three sites"), precisely because
+`RULES.md:14-21` forbids bulk repointing: *"NEVER BULK-REPOINT `§5`. Not with `sed`, not with a
+find-and-replace, not 'in one pass'… Repoint citations one at a time, reading each one, or do not
+repoint them."*
+
+**So this entry is the instruction, not the fix.** Repoint the two wrong ones **individually, reading
+each in context**. A `sed s/§5.7/§5.9/` over this repo breaks two correct citations to fix two broken
+ones — net zero, and it destroys the silent-clipping ban that `B1-14` and `B3-10` both hang on.
+`ui-audit/BOARD.md:1099` and `RULES.md:164` already cite `§5.9` correctly and are the model.
+
+---
+
+### `DUP-14` — twelve pure-duplication clusters: ~69 statements that AGREE
+**OPEN — HYGIENE, not a defect. ONE item covering all twelve clusters.**
+
+Everything below is **consistent everywhere it appears**. No session can be misled by it; the cost is
+that a fact updated in one place goes stale in five, and the QA-credential incident is what that
+looks like when it finally bites. Filed as one item so nobody opens twelve.
+
+| cluster | statements | authoritative home |
+|---|---|---|
+| `TEST_RUNNER_` prefix or the suite skips and reports success | 11 | `RULES.md` rule 26 / `BOARD §5.26` — **plus the security exception below** |
+| light-only lock (`UIUserInterfaceStyle: Light`) | 10 | `CLAUDE.md` |
+| `simctl ui content_size` is DEVICE state, reset in the same command | 7 | `RULES.md` (rig rules) |
+| Keychain holds the session, so `simctl erase` signs you out and uninstall does not | 6 | `CLAUDE.md` |
+| `savedDosages()` filters neither `status` nor `is_active` | 6 | `B1-05`, this file |
+| `project.yml` generates `Info.plist`; hand edits are destroyed | 5 | `CLAUDE.md` + `§7` above |
+| Cycle Plotter absent from Tools | 5 | `B1-06`, this file |
+| `.upsert` would have overwritten `start_date` and shifted every occurrence | 5 | `B3-15`, this file |
+| the `10-tools-ax5` judgment-pass story | 4 | `RULES.md` §5.15 — **see the hyphenation warning below** |
+| `result_<label>` addressing ambiguity | 4 | `B1-27`, this file |
+| F-E picker overflow, specced in three places | 3 | `B1-09`, this file |
+| onboarding must ship Settings-first, wizard second | 3 | `DATA-CONTRACT.md:55-60` |
+
+**Two things in this table must NOT be lost in a merge, and they are the reason this is filed rather
+than swept by a script:**
+
+1. **`START-HERE.md:242-246` alone carries a security item.** *"The password was relayed over the
+   message bus on 2026-08-02 at the human's instruction and sits in the bridge's DB on both machines;
+   **rotation is outstanding**."* It is the **only** security statement in an eleven-statement
+   cluster, and it is in the copy most likely to be judged redundant. Rotation is a live human task.
+   **Relocate it before anything in that cluster is deleted** — it does not belong to the
+   `TEST_RUNNER_` cluster at all, it just lives next door.
+2. **Three of the four `10-tools-ax5` retellings still list hyphenation among the six problems.** The
+   owner **reversed** that on 2026-08-03 (H3) — mid-word hyphenation is accepted behaviour, see
+   `B1-15` and `B1-26` rows 1–2. Those three retellings are not merely duplicated, they are
+   **duplicated AND now wrong**, and a session reading any of them re-files a defect the human
+   already decided against. This cluster is the one to do first.
+
+Counts are the sweep's, spot-checked and corroborated for order of magnitude; **re-derive the exact
+site list at fix time** rather than trusting the integers above.
+
+---
+
+### `DUP-15` — what the sweep got wrong, recorded against the SWEEP
+**CLOSED — recorded so nobody acts on either.** No work in this entry.
+
+**1. `docs/TEST-QUEUE.md` was flagged as dead multi-agent residue. It is not.** It was created
+**today** — `727e2d8` and `f5e915a`, both 2026-08-02 — and `:1-11` describes the *current* one-runner
+device protocol ("One simulator, one runner. No agent other than the test-runner touches the device"),
+not the retired 2026-07 claim-a-row arrangement. It is also OFF LIMITS to this pass.
+
+**The lesson is about the method, not the file. A duplication sweep matches on SHAPE, and today's
+scaffolding has the same shape as 2026-07's residue** — both are coordination files describing who
+may touch what. Nothing in the text distinguishes them; only the commit date does, and a text sweep
+does not read commit dates. **Rule: anything a sweep flags as dead that is younger than the current
+session is confirmed with a human before deletion.** `git log --format='%ad' -- <file>` is one
+command and it is not optional.
+
+**2. The sweep's claim that `docs/README.md` advertises three retired docs as live is now FALSE.**
+It was true when swept. `909c994` moved `INSTRUCTIONS.md`, `AGENT-WORKFLOW.md` and `ACTIVE.md` into
+`docs/archive/`, and `docs/README.md:26-29` now names all three as *"Retired and moved to `archive/`
+on 2026-08-02 — do not follow"*. All three carry their own in-file `RETIRED` banner
+(`archive/INSTRUCTIONS.md:1`, `archive/AGENT-WORKFLOW.md:1`, `archive/ACTIVE.md:1`) — including
+`INSTRUCTIONS.md`, which the sweep reported as the one lacking a banner. `docs/archive/README.md`
+records all three. The related claim that `docs/TASKS.md:3-4` still tells agents to claim a row in
+`ACTIVE.md` is also false as of `6de193a` — `§0` replaced that text, and `§6`'s surviving mention
+`:795-796` explicitly marks the workflow retired.
+
+**Both of these are the same failure and it is the sweep's, not the documents'.** A sweep is a
+**snapshot**, and a snapshot of a repo under active edit decays within hours. Every finding from one
+must be re-verified against the tree before it is filed, which is why the header of this section
+records the sha it was verified at. Filing an already-fixed finding costs a future session a full
+pass to discover the fix — the same cost as filing a wrong one.
