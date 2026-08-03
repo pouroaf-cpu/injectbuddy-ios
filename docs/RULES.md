@@ -1,5 +1,29 @@
 # Rules — earned the hard way
 
+## Shipping posture — MVP
+
+**Owner's standing decision, 2026-08-03.** We are pushing an MVP. Things will not be
+perfect. Get it out the door; we fix up later as we go.
+
+**Three things block a ship, and nothing else does:**
+
+1. **It does the thing** — the core write and read paths work.
+2. **It does not harm or mislead the user** — a dosing app never shows a dose as taken
+   when it was not, and never destroys a real log.
+3. **It passes App Store review** — account deletion, privacy, the disclaimer gate.
+
+Everything else is **fix-forward**: file it, ship, fix after. **Do not open a new front —
+docs, rules, audits, parity sweeps — while a ship-blocker is open.**
+
+**This changes *timing*, never *method*.** When a fix is made it still lands at the shared
+control, it is still one build per batch and one signed-in session per sweep, and
+P1–P6 / D1–D9 still govern how a thing is verified when it is verified. **MVP means fewer
+things get done, not that the done ones are unproven.** A finding that is deferred is
+filed, not ticked — the one thing an MVP posture must never buy is a green that was not
+earned.
+
+---
+
 **Project law.** These are the rules the rest of the repo cites, and they are cited from
 source comments, test suites, handovers and `CLAUDE.md`. They were written inside
 `docs/ui-audit/BOARD.md` §5, which is an audit board; they outlive any one audit, so they
