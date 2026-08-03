@@ -24,6 +24,22 @@ is done, per the MVP posture.
 > **Read both before implementing a real sink.** This pass ships a no-op sink, so nothing here can
 > go wrong yet — the risk arrives the day someone writes a real one while holding only this file.
 >
+> ### ⚠️ THE TWO FLOWS BOTH ASKED FOR A NAME. SETTLED 2026-08-03 — READ THIS BEFORE BUILDING §3.
+>
+> `WELCOME-AND-ONBOARDING.md` §3 step 1 collects `nickname` — *"How should we greet you?" / "Make the
+> dashboard yours"*. **Screen 1 of THIS flow now collects a name too, and both run immediately after
+> signup.** Left alone, a new user is asked their name twice inside a minute, by two screens, in two
+> voices. Nobody had noticed they were the same question: §3 predates the owner's instruction and the
+> instruction does not mention §3.
+>
+> **Owner's call, via win: iOS asks for a name exactly ONCE, and screen 1 is that once.** It writes
+> **`profiles.nickname` — the same column §3 step 1 owns, not a new one.** That is what dissolves the
+> collision rather than managing it.
+>
+> **So if §3's five-step personalisation is ever built on iOS, its step 1 is SKIPPED when a nickname
+> already exists.** Same column, so it is a prefill question rather than a second ask. The web has
+> two surfaces because they grew at different times; we are not obliged to import that.
+>
 > The three constraints that are in neither this file nor the wireframes it was written from:
 > - **A skipped step writes the DEFAULT, never a null.** Three `profiles` columns are NOT NULL and
 >   `logging_interests` is a NOT NULL array; steps 2–5 are all skippable.
@@ -96,7 +112,7 @@ first screen (endowed progress) and the values below are exact.
 
 | # | Screen | Bar | Notes |
 |---|---|---|---|
-| 1 | `welcome` | 25% | |
+| 1 | `welcome` | 25% | **REPLACED 2026-08-03** — congratulation **+ the name field**. See §3.1. |
 | 2 | `pathway` | 35% | **Branch 1**, mandatory, sets `segment` |
 | 3 | `experience` | 45% | **Branch 2**, mandatory, sets `exp` |
 | 4a | `benefit1` | 55% | copy by `segment` |
@@ -134,6 +150,119 @@ first screen (endowed progress) and the values below are exact.
 Back must work from every screen. The wireframe also has a restart; the preview target should keep
 one, as a debug affordance only.
 
+### 3.1 Screen 1 — the congratulation and the name (owner-directed 2026-08-03)
+
+Owner's words: *"the first screen should be Congratulations you have taken the first step, what
+should we address you by? (e.g. get name input). All other screens are then addressed personally
+after that."*
+
+**It REPLACES `welcome`, it does not precede it.** Both are congratulation beats and two in a row is
+one too many. **The step case stays `.welcome`** — it is still screen 1, and the name is referenced
+by the route arrays, the bar table, the accessibility identifiers and the tests; renaming is churn
+with no user-visible effect.
+
+**THE BAR STAYS AT 25% AND NO OTHER PERCENTAGE MOVES.** Deliberate — it keeps §3's measured table
+valid.
+
+| | |
+|---|---|
+| Congratulation line | ⚠️ **PLACEHOLDER.** The owner's line is not written yet. Build against a **visibly** fake string — not a plausible sentence someone will later mistake for his. |
+| Prompt | **"What should we address you by?"** — **from his instruction**, not from the three source files. Different provenance from the rest of §4; noted so nobody hunts for it in a wireframe. |
+| Field placeholder | **"What should InjectBuddy call you?"** — **his SHIPPED copy**, verbatim from `PersonalisationForm.tsx`. |
+| Field label | `Nickname` · `optional` |
+| Required? | **NO. Optional, with a Skip.** |
+| Max length | **60**, enforced client-side. The server 400s above it — *"Nickname must be 60 characters or fewer"* — and the last possible moment is the worst place to find out. |
+| Stored | `OnboardingState.name` → **`profiles.nickname`**. No-op sink this pass. |
+
+**Why optional, against the first instinct that it should be required.** The shipped web screen is
+optional and says so — *"Leave it blank and we'll use the name already on your account."* And the
+live distribution decides it: across 89 profiles, **`display_name` is 89/89** (backfilled at signup
+from metadata or the email local-part) while **`nickname` is 1/89**. Almost every real user already
+has a usable name before we ask. A required field would be a wall in front of a question we mostly
+know the answer to.
+
+**The name resolves in three rungs, in this order:**
+
+> ### `nickname` → `display_name` → nameless copy
+
+**In the `OnboardingPreview` target there is no session, so it always falls to rung 3.** That is
+correct behaviour and not a bug — say so in the file, because it will look like one.
+
+### 3.2 Personalisation — a budget, not a garnish
+
+A name on every screen reads as a mail-merge and does the opposite of what was asked for.
+
+**FIVE screens carry a name. Eight do not.** Not screen 1 (it is where the name is given), not
+`benefit2`, not `benefit3`, not `reminders`, not `inventory`, not the end states.
+
+| # | Screen | Position |
+|---|---|---|
+| 1 | `pathway` | end of title |
+| 2 | `experience` | mid-sentence, body |
+| 3 | `setup` | late-sentence, body |
+| 4 | `firstDose` | opening, body |
+| 5 | `paywall` | mid-sentence, body |
+
+**Never twice in the same position, and four distinct positions rather than two** — a strict
+alternation is itself a pattern a reader can feel.
+
+**THE NAMELESS FORM OF EVERY PERSONALISED STRING IS THE EXISTING OWNER COPY, BYTE-FOR-BYTE.** This is
+the whole design:
+
+- It satisfies "must read correctly with the name absent" **by construction** — the no-name path
+  falls back to a sentence already written and already approved, not to a degraded version of a new
+  one. **"Nice work, ." is not reachable, because the nameless string never had a slot in it.**
+- The only new writing is the **six** named variants, each an **insertion into** a sentence rather
+  than a rewrite of one.
+- Both forms are declared as a pair in `OnboardingCopy`. **Nothing is computed at a call site**, and
+  exactly one resolver decides — trimmed-empty is *absent*, not empty.
+
+**`benefit1` was the original ask and was moved to `experience` deliberately.** `benefit1`'s copy is
+entirely segment-varied, so personalising it costs **four** strings, each a rewrite of an owner
+sentence on the screen where the copy *is* the product. Whereas *"So we talk to you like a mate —
+not a manual"* is already a sentence **about how we address the user**, so putting the name in it is
+the line doing what it says.
+
+**The paywall HEADLINE is deliberately not personalised** — segment-varied, four more strings, and it
+is the one line on that screen doing commercial work.
+
+### 3.3 Motion and visual (owner-directed 2026-08-03)
+
+Owner: *"The onboarding needs to look visually better and the text should feel animated and personal,
+not another form or buttons to pick."* **This is the actual brief and it is where the work is.**
+
+**Text arrives, it does not appear.** Per-line reveal: opacity 0→1 with a small upward offset,
+staggered **~60ms** per line, **~350ms** ease-out, **headline → body → action**.
+
+- **One pass on entry only. Never re-animate on a back-navigation.**
+- **Never animate the progress bar's fill from zero on every screen.** It is endowed progress; a bar
+  that refills each time is a bar that measures nothing.
+- `0.35s` is on the sanctioned scale — `ANIMATIONS.md` §8, "Transitions / reveals". Not invented.
+
+**The choice screens stop being button stacks.** `pathway` and `experience` become full-width cards
+with room to breathe — label, one supporting line where the copy gives one, generous vertical
+padding, **selected state by FILL, not by a checkmark.** They should read as *choosing a lane*, not
+as a form control.
+
+**Every spacing value comes from `Theme.Spacing`** — `DESIGN-PARITY` §11, the `4 · 8 · 16 · 24 · 32`
+grid. **If a value the design wants is not on the scale, that is a finding, not a licence to inline
+a number.**
+
+**Reduce Motion — not optional. A motion-heavy onboarding is exactly the surface that makes people
+ill.** Everything lands in its final state: no offset, no stagger, **and no fade**.
+
+> **Why the fade goes too, when `ANIMATIONS.md` §9.1 says to KEEP opacity under Reduce Motion.** §9.1
+> keeps opacity *because it carries state* — a control that changes colour is telling you something.
+> Here the opacity carries nothing; it is pure entrance decoration. So removing it is the rule
+> **applied**, not broken. Recorded because a later reader comparing the two documents will otherwise
+> file it as a conflict.
+
+**The progress bar stays.** Make it quieter, not absent.
+
+**Verification: motion is JUDGED, not asserted.** One no-login session, six paths, judgment pass
+first — *would I ship this frame?* — then the same bar measurement to prove nothing drifted.
+**Two frames per screen, early and settled, and confirm the settled frame is the composed one.**
+
 ---
 
 ## 4. Copy — verbatim. Do not paraphrase, do not "improve".
@@ -144,11 +273,43 @@ same shared-control rule the calculators are under.
 
 ### Shared
 
-**1 · welcome** — `You made it. 🎉`
+**1 · welcome** — ⚠️ **REPLACED 2026-08-03. See §3.1.**
+
+The congratulation line is **the owner's to write and is not written yet.** Build against a visibly
+fake placeholder. Prompt — **from his instruction** — `What should we address you by?`; field
+placeholder — **his shipped copy** — `What should InjectBuddy call you?`; label `Nickname` ·
+`optional`; `maxLength 60`; optional, with a Skip.
+
+> **The old screen-1 copy, retired. It is NOT the new screen and must not be reinstated as one** —
+> it is recorded because two congratulation beats in a row was the reason for the replacement, and a
+> later reader finding it deleted outright would not know that.
+>
+> `You made it. 🎉`
 > Most people wing it and hope for the best. You showed up because you want to **know**. That's the
 > hard part — and look, you're already a quarter of the way there.
+> CTA: `Keep going`
 
-CTA: `Keep going`
+### The six personalised pairs
+
+**Nameless = today's copy, unchanged. Named = the only new writing.** ⚠️ **The named forms below are
+PROPOSED and are not yet owner-approved.**
+
+| Screen | Form | String |
+|---|---|---|
+| `pathway` | nameless | `What brings you here?` |
+| | **named** | `What brings you here, {name}?` |
+| `experience` | nameless | `So we talk to you like a mate — not a manual.` |
+| | **named** | `So we talk to you like a mate, {name} — not a manual.` |
+| `setup` | nameless | `Two minutes here, and every chart, reminder and forecast is built around **you** — not some average person who doesn't exist.` |
+| | **named** | `Two minutes here, and every chart, reminder and forecast is built around **you**, {name} — not some average person who doesn't exist.` |
+| `firstDose` (default) | nameless | `One tap. That's the whole habit. Everything after this is momentum.` |
+| | **named** | `{name}, one tap. That's the whole habit. Everything after this is momentum.` |
+| `firstDose` (`.adv`) | nameless | `You know the drill. One tap, and it's on the record.` |
+| | **named** | `You know the drill, {name}. One tap, and it's on the record.` |
+| `paywall` | nameless | `Look what you just did{opener}. Here's the honest deal:` |
+| | **named** | `Look what you just did, {name}{opener}. Here's the honest deal:` |
+
+The paywall's two rule-6 openers are **reused unmodified** — the variant logic is untouched.
 
 **2 · pathway** — `What brings you here?`
 > Everyone's on their own journey. Tell us yours, and everything from here is built around it.
