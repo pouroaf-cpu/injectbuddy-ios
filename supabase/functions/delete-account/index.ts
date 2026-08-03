@@ -250,24 +250,106 @@ Deno.serve(async (req) => {
     // 5 · Storage. BEST-EFFORT — a storage failure must never block deletion of
     //     the account itself (SPEC §1.4). Failures are collected and returned so
     //     a partial file cleanup is VISIBLE rather than silent.
+    //
+    // ─── WHY STORAGE RUNS HERE, BEFORE `profiles` AND BEFORE THE AUTH USER ───
+    //
+    // This ordering decides WHICH failure is possible, and only one of the two is
+    // recoverable:
+    //
+    //   • Files first (this order): a later failure leaves the files deleted and
+    //     the account still alive. Annoying, visible, and the user can retry.
+    //   • Account first: a failure leaves the account gone and the files orphaned,
+    //     with NO authenticated caller left who could ever retry. That is exactly
+    //     the state the shipped web product is in today.
+    //
+    // So the order is chosen so that the recoverable failure is the one that can
+    // happen. It is not incidental and it should not be "tidied".
+    //
+    // ─── PAGINATION, AND WHY A BARE `list()` WAS WRONG ──────────────────────────
+    //
+    // `list` caps at 1000 and a truncated page is INDISTINGUISHABLE from a bucket
+    // that happens to hold exactly that many files. A single call would hand back a
+    // partial cleanup reported as a success — a green that is really an absence, in
+    // the one function whose entire job is to leave nothing behind. So: page until
+    // a page comes back short.
+    //
+    // ─── FLATNESS IS A MEASURED ASSUMPTION, NOT A PROPERTY OF STORAGE ───────────
+    //
+    // `list` is NOT recursive, so this code assumes objects live at `<uid>/<file>`.
+    // MEASURED against `storage.objects` on 2026-08-03: six objects across the three
+    // buckets, every one at depth 2 — `avatars` 1, `blood-tests` 5,
+    // `progress-photos` 0. So the assumption holds today. **`progress-photos` is
+    // empty, so its flatness is unproven rather than verified**, and the first
+    // nested write would break this silently.
+    //
+    // Supabase returns a folder placeholder as an entry with a NULL `id`. Removing
+    // `<uid>/<folder>` is a no-op that reports success, so any null-`id` entry is
+    // pushed to `storageFailures` instead — turning a future silent leak into a
+    // visible one.
     const storageFailures: string[] = [];
+    const PAGE = 1000;
     for (const bucket of USER_PREFIX_BUCKETS) {
       try {
-        const { data: files, error: listError } = await admin.storage
-          .from(bucket)
-          .list(uid, { limit: 1000 });
-        if (listError) {
-          storageFailures.push(`${bucket}: ${listError.message}`);
-          continue;
-        }
-        const paths = (files ?? []).map((f: { name: string }) => `${uid}/${f.name}`);
-        if (paths.length > 0) {
-          const { error: removeError } = await admin.storage.from(bucket).remove(paths);
-          if (removeError) storageFailures.push(`${bucket}: ${removeError.message}`);
+        let offset = 0;
+        for (;;) {
+          const { data: files, error: listError } = await admin.storage
+            .from(bucket)
+            .list(uid, { limit: PAGE, offset });
+          if (listError) {
+            storageFailures.push(`${bucket}: ${listError.message}`);
+            break;
+          }
+
+          const page = files ?? [];
+          if (page.length === 0) break;
+
+          const paths: string[] = [];
+          for (const f of page as Array<{ name: string; id: string | null }>) {
+            if (f.id === null) {
+              // A folder placeholder. `remove()` on it would silently do nothing.
+              storageFailures.push(
+                `${bucket}: unexpected nested path "${uid}/${f.name}" — not removed. ` +
+                  `This function assumes flat <uid>/<file> objects; that assumption ` +
+                  `no longer holds for this bucket.`,
+              );
+              continue;
+            }
+            paths.push(`${uid}/${f.name}`);
+          }
+
+          if (paths.length > 0) {
+            const { error: removeError } = await admin.storage.from(bucket).remove(paths);
+            if (removeError) storageFailures.push(`${bucket}: ${removeError.message}`);
+          }
+
+          // A short page is the only reliable end-of-list signal.
+          if (page.length < PAGE) break;
+          offset += page.length;
         }
       } catch (e) {
         storageFailures.push(`${bucket}: ${e instanceof Error ? e.message : String(e)}`);
       }
+    }
+
+    // ─── THE DURABLE RECORD OF A STORAGE FAILURE LIVES HERE, NOT ON THE DEVICE ──
+    //
+    // The caller is about to lose its account. Anything iOS records locally dies
+    // with the app's data or with the user's next reinstall, and there is no
+    // session left to upload it with — the client cannot be the record for an
+    // event that happens as the client ceases to exist.
+    //
+    // This is server-side and Supabase retains function logs, so one structured
+    // line here is the durable trace: which user, which prefixes, still holding
+    // files after their account was deleted. iOS's `print` is a developer
+    // convenience and nothing more.
+    if (storageFailures.length > 0) {
+      console.error(
+        JSON.stringify({
+          event: "account_deletion_storage_incomplete",
+          uid,
+          failures: storageFailures,
+        }),
+      );
     }
 
     // 6 · profiles, keyed by `id` — NOT by `user_id`.

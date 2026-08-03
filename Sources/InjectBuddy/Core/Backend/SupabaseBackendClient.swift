@@ -385,4 +385,112 @@ struct SupabaseBackendClient: BackendClient {
     }
 
     private struct InsertedID: Decodable { let id: String }
+
+    // MARK: account deletion
+
+    /// Invokes the `delete-account` Edge Function. SPEC: docs/SPEC-ACCOUNT-DELETION.md.
+    ///
+    /// **Why this is not a PostgREST call like everything else in this file.** The
+    /// deletion has to clear tables some of which have no self-DELETE policy, plus
+    /// three storage prefixes, plus the auth user — work that needs the service-role
+    /// key. **A service-role key in the app binary is a service-role key in every
+    /// user's hands**, so the privileged half lives in the Edge Function and this
+    /// method's only job is to carry the caller's own JWT to it.
+    ///
+    /// The function derives the uid from that verified token and never from a request
+    /// body, which is what makes it an account-deletion endpoint rather than an
+    /// any-account-deletion endpoint. **That is why nothing is sent in the body here
+    /// and why nothing should ever be added to it.**
+    ///
+    /// The `Authorization` header is set explicitly from the live session rather than
+    /// left to the client's ambient token. On this one call it is worth being able to
+    /// read the auth off the call site.
+    @discardableResult
+    func deleteAccount() async throws -> [String] {
+        let session = try await client.auth.session
+
+        let result: DeleteAccountResult
+        do {
+            result = try await client.functions.invoke(
+                "delete-account",
+                options: FunctionInvokeOptions(
+                    method: .post,
+                    headers: ["Authorization": "Bearer \(session.accessToken)"]
+                )
+            )
+        } catch let FunctionsError.httpError(code, data) {
+            // A non-2xx carries the function's own message in the body. Surfacing it
+            // beats "the operation could not be completed" on the one screen where a
+            // user needs to know whether their data is actually gone.
+            throw AccountDeletionError.failed(
+                message: DeleteAccountResult.message(fromErrorBody: data),
+                statusCode: code)
+        }
+
+        // Belt and braces: the function returns `ok: false` only alongside a 500, so
+        // this is unreachable today. It exists so that loosening the function's status
+        // codes later cannot silently turn a failure into a success here.
+        guard result.ok else {
+            throw AccountDeletionError.failed(message: result.error, statusCode: nil)
+        }
+
+        // Storage is best-effort by design (SPEC §1.4) — a file that could not be
+        // removed must not block the account going away, and every database step has
+        // already succeeded by this point. So this is NOT thrown: the account really
+        // is deleted and telling the user it failed would be as wrong as telling the
+        // other case it succeeded.
+        //
+        // But it is not discarded either. It is handed back for the caller to log,
+        // because a stuck file after a deletion is a retention event and it has to
+        // reach somewhere a human can read it.
+        return result.storageFailures
+    }
+
+    private struct DeleteAccountResult: Decodable {
+        let ok: Bool
+        let error: String?
+        let storageFailures: [String]
+        let emailTablesSkipped: [String]
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            ok = (try? c.decode(Bool.self, forKey: .ok)) ?? false
+            error = try? c.decode(String.self, forKey: .error)
+            storageFailures = (try? c.decode([String].self, forKey: .storageFailures)) ?? []
+            emailTablesSkipped = (try? c.decode([String].self, forKey: .emailTablesSkipped)) ?? []
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case ok, error, storageFailures, emailTablesSkipped
+        }
+
+        /// Pulls the function's `error` string out of a non-2xx body, falling back to
+        /// nil rather than to a decoding error — a failure to parse a failure must not
+        /// replace the real problem with a JSON complaint.
+        static func message(fromErrorBody data: Data) -> String? {
+            struct Body: Decodable { let error: String? }
+            return (try? JSONDecoder().decode(Body.self, from: data))?.error
+        }
+    }
+}
+
+/// Failures of the one irreversible operation in the app. `LocalizedError` because
+/// every call site surfaces failures via `(error as? LocalizedError)?.errorDescription`.
+enum AccountDeletionError: LocalizedError, Equatable {
+    /// Nothing was deleted, or the deletion aborted part-way. Either way the account
+    /// still exists and the user must not be told otherwise.
+    ///
+    /// **There is deliberately no `deletedButFilesRemain` case.** A stuck file is not
+    /// a failed deletion — the account and every row are gone — so it is returned from
+    /// `deleteAccount()` to be logged, not thrown at a user who has no action to take.
+    case failed(message: String?, statusCode: Int?)
+
+    var errorDescription: String? {
+        switch self {
+        case let .failed(message, _):
+            return "Your account was NOT deleted. "
+                + (message ?? "The server could not complete the deletion.")
+                + " Nothing has been removed — you can try again."
+        }
+    }
 }

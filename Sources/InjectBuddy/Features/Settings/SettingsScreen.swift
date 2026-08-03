@@ -40,25 +40,20 @@ struct SettingsScreen: View {
         .sheet(isPresented: $showSafari) {
             SafariView(url: discordLinkURL).ignoresSafeArea()
         }
-        // The dialog describes what the BUTTON DOES, which is sign out. It used to say
-        // "This permanently removes your account and saved protocols. This can't be
-        // undone." while `deleteAccount()` called `auth.signOut()` and nothing else —
-        // no row deleted, no request sent, the account and every saved protocol intact
-        // and waiting at the next sign-in. That is the app telling a user their data is
-        // gone when it is not.
+        // STEP 2 of 2. The row opens this; the destructive action is inside it and it
+        // is not the default button. SPEC-ACCOUNT-DELETION §3.
         //
-        // Deletion itself is filed as launch-blocking (LAUNCH-CHECKLIST — Apple requires
-        // an in-app deletion path for any app that creates accounts); this change is the
-        // copy only, so the screen stops making a claim the code does not keep.
-        .confirmationDialog("Sign out of this device?",
-                            isPresented: $showDeleteConfirm,
-                            titleVisibility: .visible) {
-            Button("Sign out", role: .destructive) { Task { await deleteAccount() } }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Account deletion isn't available in the app yet. This signs you out on "
-                 + "this device — your account and saved protocols are kept, and signing "
-                 + "back in restores them. To have your account deleted, contact support.")
+        // This copy promises a real deletion, and as of the `delete-account` Edge
+        // Function that promise is kept. It previously said deletion was unavailable
+        // BECAUSE it was: `deleteAccount()` called `auth.signOut()` and nothing else,
+        // and an earlier version of the copy claimed a permanent removal while the
+        // account and every saved protocol sat intact waiting for the next sign-in.
+        // **Do not restore a promise here ahead of the code that keeps it.**
+        .sheet(isPresented: $showDeleteConfirm) {
+            DeleteAccountSheet(
+                isOnline: network.isOnline,
+                onDelete: { await deleteAccount() }
+            )
         }
     }
 
@@ -158,18 +153,19 @@ struct SettingsScreen: View {
                 Label("Sign out", systemImage: "power")
             }
 
+            // STEP 1 of 2. Opens the confirm sheet; deletes nothing on its own.
+            //
+            // Apple requires deletion to be REACHABLE, not buried behind a support
+            // contact or a survey (Guideline 5.1.1(v)). Two taps and a clear label is
+            // the limit — do not add a reason picker, a retention offer or a cooling-off
+            // step to this path.
             Button(role: .destructive) {
                 showDeleteConfirm = true
             } label: {
                 Label("Delete account", systemImage: "exclamationmark.triangle")
             }
-            // Says so BEFORE the tap, not only inside the dialog. The row is the thing a
-            // user scans for; leaving it to read as a working delete until they commit to
-            // a destructive confirmation is the same false promise one screen later.
-            Text("Account deletion isn't available in the app yet — contact support to "
-                 + "have your account removed.")
-                .font(.caption)
-                .foregroundStyle(Theme.secondaryLabel)
+            .disabled(!network.isOnline)
+            .accessibilityIdentifier("cta_delete_account")
         } header: {
             Text("Account")
         } footer: {
@@ -183,7 +179,8 @@ struct SettingsScreen: View {
                     Text(error).foregroundStyle(Theme.danger)
                 }
                 if !network.isOnline {
-                    Text("Password changes need a connection. Sign out still works offline.")
+                    Text("Password changes and account deletion need a connection. "
+                         + "Sign out still works offline.")
                 }
             }
         }
@@ -230,16 +227,135 @@ struct SettingsScreen: View {
         passwordResetNote = "Password reset email sent to \(email)."
     }
 
-    private func deleteAccount() async {
-        // Account deletion is NOT implemented and this method does not do it. Tracked as
-        // launch-blocking in docs/LAUNCH-CHECKLIST.md — App Store Review Guideline 5.1.1(v)
-        // requires an in-app deletion path for any app that lets users create an account.
-        // Needs a backend endpoint first: BackendClient has no delete-account method, and
-        // PostgREST + RLS cannot remove an auth.users row from the client.
-        //
-        // Until then this signs the user out, and the confirmation copy above says so
-        // rather than promising a deletion that never happens.
-        await auth.signOut()
+    /// Returns nil when the account was deleted, or the message to show when it was not.
+    ///
+    /// **D9's sharpest case in this app.** The sheet stays open and shows the message on
+    /// anything other than a confirmed success — a failed deletion that reads as success
+    /// leaves a user believing their health data is gone when it is not. That is why the
+    /// outcome comes back to the caller rather than going into `auth.lastError`, which
+    /// nothing on this screen renders for a signed-in user.
+    private func deleteAccount() async -> String? {
+        guard network.isOnline else {
+            return "You're offline. Nothing has been deleted — reconnect and try again."
+        }
+        do {
+            // Throws unless the server confirmed every table, bucket prefix and the auth
+            // user itself. Returns the storage prefixes whose files could not be removed;
+            // that is NOT a failure — the account and every row are gone — so it is
+            // logged rather than shown to a user who has no action to take.
+            let storageFailures = try await backend.deleteAccount()
+            if !storageFailures.isEmpty {
+                // A developer convenience, and deliberately nothing more. **The durable
+                // record of this lives in the Edge Function's logs**, which `console.error`
+                // a structured line naming the uid and the failed prefixes — because this
+                // client is about to lose its account, so anything it stored locally would
+                // die with the app's data and there is no session left to upload it with.
+                // A device cannot be the record for an event that happens as the device
+                // ceases to be authenticated.
+                print("[account-deletion] deleted, but files remain: \(storageFailures)")
+            }
+            // The auth user no longer exists, so the persisted session is already dead
+            // server-side. This is what clears it from the Keychain — uninstalling would
+            // not — and drops the app back to the auth gate.
+            await auth.signOut()
+            return nil
+        } catch {
+            return (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+}
+
+// MARK: - Delete account sheet
+
+/// Step 2 of 2. SPEC-ACCOUNT-DELETION §3: says plainly what will be deleted and that it
+/// cannot be undone; the destructive action is the second tap and **is not the default
+/// button** — Cancel is, and it is the one that reads as the way out.
+///
+/// `onDelete` returns nil on success, or the message to display on failure. **The sheet
+/// dismisses only on nil.** Dismissing unconditionally would put the user back on a
+/// Settings screen that looks exactly the same whether their account was destroyed or
+/// nothing happened at all.
+private struct DeleteAccountSheet: View {
+    let isOnline: Bool
+    let onDelete: () async -> String?
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
+
+    /// Named individually rather than as "all your data". A user consenting to an
+    /// irreversible deletion should be able to see what they are losing.
+    private let deleted = [
+        "Your saved protocols",
+        "Your dose log and history",
+        "Your cycles",
+        "Your blood tests and uploaded files",
+        "Your preferences and account details",
+    ]
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(deleted, id: \.self) { item in
+                        Label(item, systemImage: "trash")
+                            .foregroundStyle(Theme.label)
+                            // No lineLimit: a long row wraps rather than hiding what
+                            // the user is agreeing to lose.
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } header: {
+                    Text("This deletes")
+                } footer: {
+                    Text("This cannot be undone. Your account is removed permanently and "
+                         + "signing in again will not bring it back.")
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        Task {
+                            isDeleting = true
+                            errorMessage = nil
+                            let failure = await onDelete()
+                            isDeleting = false
+                            if let failure {
+                                errorMessage = failure
+                            } else {
+                                dismiss()
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            if isDeleting { ProgressView().padding(.trailing, Theme.Spacing.xs) }
+                            Text(isDeleting ? "Deleting…" : "Delete my account permanently")
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(minHeight: Theme.minTarget)
+                    }
+                    .disabled(isDeleting || !isOnline)
+                    .accessibilityIdentifier("cta_delete_account_confirm")
+                } footer: {
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                        if let errorMessage {
+                            Text(errorMessage).foregroundStyle(Theme.danger)
+                        }
+                        if !isOnline {
+                            Text("You're offline — deleting an account needs a connection.")
+                        }
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("Delete account")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    // The way out, and the one that is NOT destructive.
+                    Button("Cancel") { dismiss() }.disabled(isDeleting)
+                }
+            }
+            .interactiveDismissDisabled(isDeleting)
+        }
     }
 }
 

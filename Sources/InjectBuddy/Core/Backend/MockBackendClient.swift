@@ -40,6 +40,13 @@ struct MockBackendClient: BackendClient {
     }
     func updateDisplayName(_ name: String, userId: String) async throws { await wait() }
 
+    /// **Deletes nothing, and cannot.** Previews and tests run against this client;
+    /// a mock that "succeeded" at deleting an account would let the deletion flow be
+    /// exercised end to end without ever touching the Edge Function — which is the
+    /// one path in this app that must never be signed off on a simulated green.
+    /// SPEC §4: the evidence is a throwaway account and 26 queried surfaces.
+    func deleteAccount() async throws -> [String] { await wait(); return [] }
+
     // MARK: sample data
 
     static let sampleDosages: [SavedDosage] = {
