@@ -34,7 +34,7 @@ independent, 9 is in the tree and cannot be separated from the build.
 | 2 | `user_id` on the `dose_log` insert, mirroring the `saved_dosages` pattern | A logged dose produces a row |
 | 3 | Client writes **return the row and throw on empty** | A refusal can no longer be discarded silently by any call site |
 | 4 | `status` on the `saved_dosages` insert — parameterised, default `active`, accepts `draft`/`archived`. **Never write the `is_active` mirror.** | Saved protocol appears on the dashboard |
-| 5 | Optimistic-write pattern — both view models + two `SettingsScreen` sites, six in the family | A failed write leaves **no** success state on screen, and the error lands somewhere the current screen renders |
+| 5 | Optimistic-write pattern — both view models + two `SettingsScreen` sites, six in the family | **Look for a tick that STAYS, not a flicker.** `DashboardViewModel.markTaken`'s rollback is conditional on `data.nextDose?.occurrence == occurrence` — if the dashboard reloaded between the tap and the failure, the rollback is skipped entirely and the false "taken" persists. Also: a failed write leaves **no** success state on screen, the error lands somewhere the current screen actually renders, and the press gets visible feedback within 400ms (`DashboardComponents.swift:104` passes no `isLoading`, so there is no spinner across the await) |
 | 6 | `CalendarScreen` gets `.refreshable` | There is a way back from a failure |
 | 7 | Delete-account dialog copy stops promising deletion it does not perform | Copy matches behaviour |
 | 8 | CI repoint off `working-directory: app` + placeholder xcconfig, **no repo secrets** | Lands independently; no device needed |
