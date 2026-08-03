@@ -832,8 +832,51 @@ exactly the shape that decision already covers.
 ---
 
 ### `X-02` — LAUNCH BLOCKER: the app offers account creation and has no working account deletion
-**OPEN. P0. Owner: HUMAN.** Files against **`§6` TASK 12** (submission content / App Review
-readiness), which is where the other review-gating work already lives.
+**CLOSED WITH EVIDENCE 2026-08-03.** Owner-directed and built: *"build the real account deletion,
+that's on the PWA app as well so why not?"* Spec `docs/SPEC-ACCOUNT-DELETION.md`.
+
+> **What closes it.** Supabase Edge Function **`delete-account` v1, ACTIVE, `verify_jwt: true`** —
+> iOS cannot hold a service-role key, so the privileged work is server-side and the caller carries
+> only its own JWT. **`uid` is derived from the verified token and never from the request body**;
+> the function does not read the body at all. `BackendClient` gained
+> `deleteAccount() async throws -> [String]`, and `SettingsScreen` is a two-step row → sheet.
+>
+> **The run** (throwaway `88b9fe93-9e25-4d95-a313-e2c67fdeba38`, uid recorded before deletion, the
+> QA account never touched):
+> - Seeded across **29 surfaces at exactly 1** each, including a real uploaded file in all three
+>   buckets. After deletion: **30 queried surfaces, all zero.**
+> - **`feedback` queried BY EMAIL as well as by uid** — its FK is `SET NULL`, so a uid query reads
+>   zero whether the row was deleted or merely nulled. The email query is the only one that can tell
+>   those apart. Zero.
+> - **Control held to the checksum.** QA `saved_dosages` 5 / `dose_log` 2 / `notifications` 1, id-set
+>   md5s identical before and after. Globals returned exactly: `auth.users` 91 → 92 → **91**,
+>   `saved_dosages` **104**, `dose_log` **16**, `storage/blood-tests` **5**.
+> - **A decoy uid was sent in the body and ignored** — the token's owner died instead. Demonstrated,
+>   not asserted.
+> - Four negative tests 401/405, including **the anon key as the bearer** — a validly-signed JWT with
+>   no `sub`, which is the one that matters. Deleted credentials no longer sign in; the pre-deletion
+>   access token 401s.
+>
+> **Three findings came out of building it, all measured against the live database:**
+> 1. **The web's "no foreign keys to `auth.users`" comment is inverted.** There are **22**; twenty
+>    cascade. Transcribed into the spec rather than measured — §5.1 exactly.
+> 2. **The cascade is what hid the gap.** Web deletions looked correct because twenty tables clear
+>    themselves, so nobody checked the two things a cascade cannot reach.
+> 3. **The web's `USER_ID_TABLES` is 16; the live schema has 19.** Plus `pending_dosages` by email
+>    and **two storage buckets nothing has ever cleared**.
+>
+> **STILL OPEN, and not ticked: the offline failure path has not been run.** The guard is written;
+> exercising it means taking the Mac's network down, which drops the paired session. UI suite, or the
+> last act of a session.
+>
+> ⚠️ **The shipped WEB product still leaks and that is not ours to fix** — `blood-tests` files,
+> `progress-photos` and `feedback` email addresses survive deletion there today. **Five live
+> blood-test documents across three real users.** With the owner. Do not act on it from this repo.
+
+**The original finding, kept for the record:**
+
+Filed against **`§6` TASK 12** (submission content / App Review readiness), which is where the other
+review-gating work already lives.
 
 `Features/Settings/SettingsScreen.swift:49` tells the user, in a destructive confirmation dialog:
 *"This permanently removes your account and saved protocols. This can't be undone."*

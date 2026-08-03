@@ -36,7 +36,7 @@ independent, 9 is in the tree and cannot be separated from the build.
 | 4 | `status` on the `saved_dosages` insert — parameterised, default `active`, accepts `draft`/`archived`. **Never write the `is_active` mirror.** | Saved protocol appears on the dashboard |
 | 5 | Optimistic-write pattern — both view models + two `SettingsScreen` sites, six in the family | **Look for a tick that STAYS, not a flicker.** `DashboardViewModel.markTaken`'s rollback is conditional on `data.nextDose?.occurrence == occurrence` — if the dashboard reloaded between the tap and the failure, the rollback is skipped entirely and the false "taken" persists. Also: a failed write leaves **no** success state on screen, the error lands somewhere the current screen actually renders, and the press gets visible feedback within 400ms (`DashboardComponents.swift:104` passes no `isLoading`, so there is no spinner across the await) |
 | 6 | `CalendarScreen` gets `.refreshable` | There is a way back from a failure |
-| 7 | Delete-account dialog copy stops promising deletion it does not perform | Copy matches behaviour |
+| 7 | ~~Delete-account dialog copy stops promising deletion it does not perform~~ **SUPERSEDED 2026-08-03 — real deletion shipped.** | ~~Copy matches behaviour~~ Copy promises deletion **and the promise is true**. `TASKS.md` `X-02`, verified across 30 surfaces. |
 | 8 | CI repoint off `working-directory: app` + placeholder xcconfig, **no repo secrets** | Lands independently; no device needed |
 | 9 | Result bar as one shared control + calculator name as content-area header (`DESIGN-PARITY` §9 option **(a)**, never `.principal`) | **Four findings, one sweep** — barrel buttons on `trt` AND `steroid`, F-H, F-I, and the keypad/frequency finding. It either closes four at once or it tells us the ~52%-of-content-area diagnosis was wrong. Verify at default size on `trt` plus at least one screen outside the top five. Barrel labels keep their units (the `SegmentedRow` `lineLimit` removal) |
 
@@ -212,7 +212,11 @@ each other they read exactly like a defect. **The conflict was in the framing, n
 comparison against the pre-sweep ids returning `missing=0, extra=0`**, which is stronger than a
 count; `draw_ml` **0.373** against `149/2/200 = 0.3725`, confirming batch 3 on the dashboard path.
 Item 7 (delete-account copy) **PASS** — **re-check this the moment real deletion lands; it stops
-being true then.** Item 6 **FAIL**. The 400ms clause: **feedback PASS, spinner NOT OBSERVED, and
+being true then.** **→ REAL DELETION LANDED 2026-08-03, so this re-check has been done and item 7 is
+SUPERSEDED.** The copy that passed said deletion was unavailable; that sentence is now false, and it
+has been replaced by copy that promises deletion — which is true, verified across 30 surfaces with
+the QA account as an unchanged control. See `TASKS.md` `X-02` and `docs/SPEC-ACCOUNT-DELETION.md` §5.
+**Do not re-assert the old copy as a pass: the thing it was true about no longer exists.** Item 6 **FAIL**. The 400ms clause: **feedback PASS, spinner NOT OBSERVED, and
 that is where it stops** — `tap()` returns only on quiescence so "button gone" cannot distinguish a
 wired spinner from an unwired one, and `simctl io screenshot` at 856ms/frame cannot see a 400ms
 window. **Not observable with the instruments we have. Do not build a harness to close it** — that
@@ -283,12 +287,35 @@ argument.**
 
 ## PRE-SHIP CHECKLIST — things that can only be checked on the way out
 
-**RELEASE BUILD STILL SHOWS THE SIGN-IN SCREEN.** One launch of a **Release** build before
-submission, confirming `AuthFlow` appears. A DEBUG-only auth bypass is being added so the app boots
-straight past sign-in on this rig; if it ever leaks to Release we ship an app **anyone can open as
-someone else**, and it is exactly the class of defect that looks fine in every test we own —
-because every test we own runs the debug build. Compile-time guard is the fix; this launch is the
-evidence. **Not optional and not delegable to a passing green.**
+**RELEASE BUILD STILL SHOWS THE SIGN-IN SCREEN.** ✅ **DONE 2026-08-03.** One launch of a **Release**
+build before submission, confirming `AuthFlow` appears. A DEBUG-only auth bypass is being added so
+the app boots straight past sign-in on this rig; if it ever leaks to Release we ship an app **anyone
+can open as someone else**, and it is exactly the class of defect that looks fine in every test we
+own — because every test we own runs the debug build. Compile-time guard is the fix; this launch is
+the evidence. **Not optional and not delegable to a passing green.**
+
+> **The run, three independent legs.** Release build, exit 0, launched on an **erased iPhone 16 Pro
+> Max** — a *second* simulator, erased first, so **no Keychain session could exist**. A green from
+> the primary rig would have been indistinguishable from a restored session sending it to
+> `MainShell` legitimately, and erasing the primary rig would have destroyed the evidence the rest of
+> the day rests on.
+> 1. **Screenshot:** the signed-out welcome — wordmark, *"Plan the cycle. Log the dose. Know the
+>    day."*, `Create account`, `Sign in`. That is `realSignInGate`, the only branch Release compiles.
+> 2. **`nm` on the Release binary: ZERO `DebugAuthBypass` symbols.** The guard did not merely not-run
+>    — the code is not in the binary.
+> 3. **The confound was removed, not reasoned away** (the erase, above).
+>
+> **Method disclosed:** `DisclaimerGate` comes up first on a cold install and `simctl` has no tap, so
+> `ib_disclaimer_accepted_v1` was set in the app container's defaults and the app relaunched. Same
+> state the button produces, orthogonal to the gate under test, but performed on the container rather
+> than through the UI. **`DisclaimerGate` at large text remains unobserved** and stays in the
+> cold-start batch.
+
+**~~REAL ACCOUNT DELETION~~ ✅ DONE 2026-08-03 — see `TASKS.md` `X-02` and
+`docs/SPEC-ACCOUNT-DELETION.md` §5.** Edge Function `delete-account` v1, 30 surfaces to zero, QA
+account unchanged to the id-set checksum. **One residual: the offline failure path has not been run**
+— the guard is written, but exercising it takes the Mac's network down. UI suite, or the last act of
+a session.
 
 ---
 
