@@ -17,35 +17,66 @@
 # rig" costs a minute. A run that quietly shares the device costs a finding nobody can
 # close.
 #
-#   scripts/rig-lock.sh acquire "what I am doing"   # exits 1 if held, naming the holder
-#   scripts/rig-lock.sh release
+#   scripts/rig-lock.sh acquire OWNER "what I am doing"   # exits 1 if held, naming the holder
+#   scripts/rig-lock.sh release OWNER
 #   scripts/rig-lock.sh status
 #
+# OWNER is a string YOU choose and reuse across calls — e.g. your agent name. It is NOT
+# a PID, and that is the whole point (see below).
+#
 # ALWAYS pair acquire with a trap so a crash cannot leave the rig locked:
-#   scripts/rig-lock.sh acquire "shear re-measure" || exit 1
-#   trap 'scripts/rig-lock.sh release' EXIT
+#   scripts/rig-lock.sh acquire sweep4 "shear re-measure" || exit 1
+#   trap 'scripts/rig-lock.sh release sweep4' EXIT
+#
+# WHY NOT A PID — THIS SCRIPT HAS NOW BEEN WRONG TWICE, BOTH TIMES BY BELIEVING A PID
+# OUTLIVES THE CALL THAT WROTE IT.
+#   v1 recorded $$   — the script'"'"'s own PID, dead the instant `acquire` returned.
+#   v2 recorded $PPID — correct for an interactive shell, but under the agent harness
+#                       EVERY command runs in its own short-lived shell, so $PPID is a
+#                       different dead process on every call. A sweep acquired the lock
+#                       and it was stale before the next command ran.
+# Both versions provided NO mutual exclusion while printing that they had. So the lease
+# is now TIME-based with a caller-chosen owner string: it expires on its own, it does not
+# depend on any process still existing, and a stale lease is loud rather than invisible.
 
 set -uo pipefail
 
 LOCK="${TMPDIR:-/tmp}/injectbuddy-rig.lock"
+# A device task that has done nothing for this long is assumed dead. Long enough for a
+# cold build (258s) plus a real signed-in UI run (159s) with room to spare.
+LEASE_SECONDS="${RIG_LEASE_SECONDS:-900}"
 
 case "${1:-status}" in
   acquire)
-    WHAT="${2:-unnamed task}"
+    OWNER="${2:-}"
+    WHAT="${3:-unnamed task}"
+    if [ -z "$OWNER" ]; then
+      echo "usage: rig-lock.sh acquire OWNER \"what\"  — OWNER is a string you reuse" >&2
+      exit 2
+    fi
     if [ -f "$LOCK" ]; then
-      HOLDER_PID=$(sed -n '1p' "$LOCK" 2>/dev/null)
+      HOLDER=$(sed -n '1p' "$LOCK" 2>/dev/null)
       HOLDER_WHAT=$(sed -n '2p' "$LOCK" 2>/dev/null)
       HOLDER_WHEN=$(sed -n '3p' "$LOCK" 2>/dev/null)
-      if [ -n "$HOLDER_PID" ] && kill -0 "$HOLDER_PID" 2>/dev/null; then
+      HOLDER_EPOCH=$(sed -n '4p' "$LOCK" 2>/dev/null)
+      AGE=$(( $(date +%s) - ${HOLDER_EPOCH:-0} ))
+      if [ "$HOLDER" = "$OWNER" ]; then
+        echo "RIG already held by you ($OWNER) since $HOLDER_WHEN — refreshing lease."
+        { echo "$OWNER"; echo "$WHAT"; date '+%Y-%m-%d %H:%M:%S'; date +%s; } > "$LOCK"
+        exit 0
+      fi
+      if [ "$AGE" -lt "$LEASE_SECONDS" ]; then
         echo "RIG LOCKED — refusing to start." >&2
-        echo "  held by PID $HOLDER_PID: $HOLDER_WHAT" >&2
-        echo "  since $HOLDER_WHEN" >&2
+        echo "  held by '$HOLDER': $HOLDER_WHAT" >&2
+        echo "  since $HOLDER_WHEN (${AGE}s ago, lease ${LEASE_SECONDS}s)" >&2
         echo "  Do NOT proceed and do NOT kill it. Report this and wait." >&2
         exit 1
       fi
-      # Holder is gone — a crash left this behind. Say so; a silent steal is how a
-      # stale lock becomes invisible.
-      echo "STALE LOCK from dead PID ${HOLDER_PID:-?} ($HOLDER_WHAT, $HOLDER_WHEN) — reclaiming." >&2
+      # Lease expired. Say so loudly — a silent steal is how a stale lock becomes
+      # invisible, and an expired lease may mean the holder DIED MID-RUN with the
+      # simulator in an unknown state.
+      echo "EXPIRED LEASE from '$HOLDER' ($HOLDER_WHAT, ${AGE}s old) — reclaiming." >&2
+      echo "  If that task is still running, YOU ARE ABOUT TO SHARE THE DEVICE. Check first." >&2
       rm -f "$LOCK"
     fi
     # RECORD THE CALLER'S PID ($PPID), NOT OUR OWN.
@@ -53,8 +84,8 @@ case "${1:-status}" in
     # before the caller has run anything — it would provide NO mutual exclusion at all.
     # Found by self-test on 2026-08-03: a second acquire happily reclaimed a "stale"
     # lock two seconds old. That is why a check is made to fail before it is trusted.
-    { echo "$PPID"; echo "$WHAT"; date '+%Y-%m-%d %H:%M:%S'; } > "$LOCK"
-    echo "RIG ACQUIRED by PID $PPID — $WHAT"
+    { echo "$OWNER"; echo "$WHAT"; date '+%Y-%m-%d %H:%M:%S'; date +%s; } > "$LOCK"
+    echo "RIG ACQUIRED by '$OWNER' — $WHAT (lease ${LEASE_SECONDS}s, re-acquire to refresh)"
     # Report anything already touching the device. This does NOT prove exclusivity —
     # only the lock does — but a pre-existing process means someone bypassed the lock,
     # which is worth knowing loudly.
@@ -65,32 +96,34 @@ case "${1:-status}" in
     fi
     ;;
   release)
+    OWNER="${2:-}"
     if [ -f "$LOCK" ]; then
-      HOLDER_PID=$(sed -n '1p' "$LOCK" 2>/dev/null)
-      if [ "$HOLDER_PID" != "$PPID" ]; then
-        echo "NOT RELEASING — lock is held by PID $HOLDER_PID, not by me ($PPID)." >&2
+      HOLDER=$(sed -n '1p' "$LOCK" 2>/dev/null)
+      if [ "$HOLDER" != "$OWNER" ]; then
+        echo "NOT RELEASING — lock is held by '$HOLDER', not by '$OWNER'." >&2
         exit 1
       fi
       rm -f "$LOCK"
-      echo "RIG RELEASED by PID $PPID"
+      echo "RIG RELEASED by '$OWNER'"
     else
       echo "RIG was not locked."
     fi
     ;;
   status)
     if [ -f "$LOCK" ]; then
-      HOLDER_PID=$(sed -n '1p' "$LOCK" 2>/dev/null)
-      if kill -0 "$HOLDER_PID" 2>/dev/null; then
-        echo "LOCKED by PID $HOLDER_PID: $(sed -n '2p' "$LOCK") since $(sed -n '3p' "$LOCK")"
+      HOLDER=$(sed -n '1p' "$LOCK" 2>/dev/null)
+      AGE=$(( $(date +%s) - $(sed -n '4p' "$LOCK" 2>/dev/null || echo 0) ))
+      if [ "$AGE" -lt "$LEASE_SECONDS" ]; then
+        echo "LOCKED by '$HOLDER': $(sed -n '2p' "$LOCK") since $(sed -n '3p' "$LOCK") (${AGE}s ago)"
       else
-        echo "STALE lock from dead PID $HOLDER_PID: $(sed -n '2p' "$LOCK")"
+        echo "EXPIRED lease from '$HOLDER': $(sed -n '2p' "$LOCK") (${AGE}s old)"
       fi
     else
       echo "FREE"
     fi
     ;;
   *)
-    echo "usage: rig-lock.sh {acquire \"what\"|release|status}" >&2
+    echo "usage: rig-lock.sh {acquire OWNER \"what\"|release OWNER|status}" >&2
     exit 2
     ;;
 esac
