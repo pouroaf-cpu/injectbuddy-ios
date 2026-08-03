@@ -66,6 +66,25 @@ If a check needs a logged dose, create it and read it back — never toggle one.
 Strike this section when item 1 lands. A rig hazard that outlives its cause is the `content_size`
 trap again.
 
+---
+
+## Batch-after-next — the cold-start batch. ONE erase, ONE run.
+
+**Ordering is deliberate and not negotiable: this happens AFTER the batch-1 sweep**, because
+`simctl erase` destroys the Keychain session that sweep needs, and a first run is the only state in
+which a first-run gate can be observed. There is no cheaper substitute and no way to interleave it.
+
+Everything that has never been seen cold goes in this one run:
+
+| Look at | Why it has never been observed |
+|---|---|
+| `DisclaimerGate` at **default AND large text** | First-run only. **`Theme.swift:106` names it FIRST in a list of ten screens with frozen sizes** — a gate whose text does not scale is a real criterion 3 finding. This is the specific thing to look at. |
+| Sign-up | Reached only from a signed-out first run |
+| The empty dashboard | Only exists before any protocol is saved |
+
+**This is the last pre-ship check.** If the gate turns up a scaling defect we deal with it then —
+no speculating now, and nothing is built against it in advance.
+
 ### Known state
 
 The tree does **not** compile while item 9 is mid-rewrite (`cannot find 'ResultSheet' in scope`,

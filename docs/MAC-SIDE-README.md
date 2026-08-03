@@ -70,9 +70,16 @@ iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
   indistinguishable from having no credentials at all.
   Proved by paired run, same test, same build: **without** the prefix — `Executed 1 test, with 1
   test skipped`, **RC=0, TEST SUCCEEDED**, 42s. **With** it — `Executed 1 test, with 0 failures`,
-  126s of real execution. A skip and a pass are the same exit code, so **every past UI run made
-  without the prefix proved nothing while appearing green.** Anything closed on such a run is
-  suspect until re-checked.
+  126s of real execution. A skip and a pass are the same exit code, so **a UI run made without the
+  prefix proves nothing while appearing green.**
+  **Audited 2026-08-03 — there is NO broad suspect window, so do not launch a re-verification
+  sweep on the strength of this note.** The read side (`env["QA_EMAIL"]`) has been byte-identical
+  since the credential gate was introduced, and the first gated run produced output only an
+  executing run can emit. What was corrected here was the *doc's explanation* of the mechanism, not
+  the practice. Two sub-claims are genuinely undecidable — both are "and nothing else broke"
+  regression clauses recorded as a bare `Executed N tests, with 0 failures` — which is the lesson:
+  **record the invocation and per-test output, not the summary line.** A summary line differs from
+  a skip by one word in a transcription nobody can re-check.
 - **`simctl ui content_size` is device state, not run state.** Set it and reset it *in the same
   command*. A left-over accessibility size has already read as "the app broke" once when nothing was
   wrong.
