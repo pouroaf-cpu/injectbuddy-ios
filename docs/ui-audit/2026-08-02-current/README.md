@@ -30,7 +30,7 @@ tapping `TRT Dose`. All 27 files in this folder are distinct by md5.
 The five AX5 frames (`09`, `10`, `12`, `13`, `14`) are **not** superseded by this
 pass — they are a different type size and are the only large-text evidence there is.
 
-## ⛔️ TWO FRAMES IN THIS FOLDER ARE PHOTOGRAPHS OF THE WRONG SCREEN
+## ⛔️ THREE FRAMES IN THIS FOLDER ARE PHOTOGRAPHS OF THE WRONG SCREEN
 
 **Recorded 2026-08-03. Kept, not deleted** — deleting them would lose the record that the harness had
 this defect, which is now the more useful thing.
@@ -39,14 +39,30 @@ this defect, which is now the more useful thing.
 |---|---|---|
 | `03-calendar-IB2245755.png` | Calendar | **The DASHBOARD, mid-fade.** `Hello, devtools.` ghosted under the arriving `Calendar` title, the Next dose card with `Mark taken`, the `PROTOCOLS` list, and a `Loading…` spinner. **There is no calendar grid in the frame.** |
 | `04-tools-IB2245756.png` | Tools | **The CALENDAR, mid-fade**, with the Tools list ghosting in behind it. ⚠️ **That ghost is a PRE-H6 Tools list — `BMI` and `Free T Ind…` are legible in it.** A reader checking the H6 withdrawal against this frame would conclude it never happened. It is a ghost bleeding through a transition, not a photograph of Tools. |
+| `05-add-IB2245757.png` | Add | **TOOLS, mid-fade**, with the Add screen ghosting in (`…ARE YOU ADDING?`, the four category rows, the footer sentence). |
 
-**Neither is evidence about the screen it is named for.** Nothing in this folder has ever shown the
-Calendar, and nothing has ever shown Tools at default size.
+**None of the three is evidence about the screen it is named for.** Nothing in this folder has ever
+shown the Calendar, and nothing named `04-tools` has ever shown Tools.
 
-**The cause.** `shot()` fires during the cross-fade after `tab()`, so every shell frame lands one
-screen behind. It reproduces — the same defect is in a run on 2026-08-03. The `04-tools` half was
-already filed at `BATCH.md:162` ("the `04-tools.png` Calendar-under-a-Tools-label frame"); **the
-`03-calendar` half was not, until now.**
+**The cause, and it is why the set reads as coherent.** `shot()` fires during the cross-fade after
+`tab()`, so every shell frame lands one screen behind — **the outgoing screen is SHARP and the
+destination ghosts in.** So each frame is a good, well-rendered photograph of a real screen, filed
+under the next screen's name.
+
+> ***It is not blurry, it is MISFILED*** — and misfiled evidence is the harder failure, because
+> nothing about the image looks wrong. That is why three frames survived two capture cycles and only
+> one of them was ever noticed.
+
+It reproduces — the same defect is in a run on 2026-08-03. The `04-tools` case was already filed at
+`BATCH.md:162` ("the `04-tools.png` Calendar-under-a-Tools-label frame"); **`03-calendar` and
+`05-add` were not, until now.**
+
+> **One accidental use, stated because it is load-bearing elsewhere.** `05-add`'s *foreground* is a
+> sharp, complete photograph of the Tools list — so it is a **better** photograph of Tools than
+> `04-tools` is. **`BMI` and `Free T Index` are absent from it**, in the `TESTOSTERONE & HORMONES`
+> section, which is complete and unscrolled in that frame — the same section the `04-tools` ghost
+> shows them in at 08-02. That is H6's withdrawal, visible. **The frame is cut off after
+> `BPC+TB500`, so it speaks for three sections and not for anything below them.**
 
 > **Why no existing check caught it, and this is the transferable part.** `shot()` fails a frame that
 > is **byte-identical** to a previous one. A mid-transition frame is byte-identical to *nothing* — so
@@ -69,7 +85,7 @@ none, which is a code reading rather than a frame. **Strike the frame, keep the 
 | IB2245754 | `02-dashboard-IB2245754.png` | Dashboard |
 | IB2245755 | `03-calendar-IB2245755.png` | ⛔️ **NOT THE CALENDAR — see the warning below.** |
 | IB2245756 | `04-tools-IB2245756.png` | ⛔️ **NOT TOOLS — see the warning below.** |
-| IB2245757 | `05-add-IB2245757.png` | Add |
+| IB2245757 | `05-add-IB2245757.png` | ⛔️ **NOT ADD — it is TOOLS. See the warning above.** |
 | IB2245758 | `08-logdose-sheet-IB2245758.png` | Log-dose sheet |
 | IB2245759 | `06-calculator-trt-IB2245759.png` | TRT Dose, at rest |
 | IB2245760 | `07-calculator-barrel-row-IB2245760.png` | TRT Dose scrolled to the barrel row |
