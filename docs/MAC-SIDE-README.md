@@ -113,6 +113,16 @@ iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
   read production Postgres over MCP. Windows still owns the **PWA source** — that is not in this
   repo and cannot be inferred from a doc in it; ask, do not guess. What is genuinely serial is the
   **rig**: one simulator, one framebuffer, one `content_size`.
+- **`simctl io screenshot` COSTS ~9.0s ON ITS FIRST CALL OF A SESSION, ~0.7s AFTER. WARM IT UP
+  BEFORE THE MARKER.** Measured 2026-08-03: an unwarmed first call blew an entire capture window and
+  produced **ten byte-identical frames that looked like a result** — a sampling instrument reporting
+  a steady state it never sampled. At ~0.7s warm it still cannot see anything shorter than about a
+  second; a 400ms window is out of reach either way.
+- **SwiftUI's pull-to-refresh control IS NOT IN THE ACCESSIBILITY TREE.** A probe that searches the
+  element tree for it returns zero on a screen that *has* `.refreshable` — so "no refresh control
+  found" measures nothing at all. **Use the framebuffer**: hold the drag and compare frames, with a
+  screen known to have `.refreshable` as the positive control. Found 2026-08-03 when a probe failed
+  its own control and was replaced rather than believed.
 - **"UNCOMMITTED" IS NOT ONE STATE. Work at risk and work in progress are opposite conditions that
   look identical from outside the tree.** Before committing an agent's working tree, **ask the agent
   whether it is done.** If it cannot answer, commit to a **scratch branch**, never to the line of
