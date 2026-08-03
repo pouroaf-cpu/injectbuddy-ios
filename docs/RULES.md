@@ -11,21 +11,32 @@ and no citation anywhere in the repo was repointed to create this file. If you a
 take the next free number by reading to the END of the list — the numbers must stay unique,
 ascending and contiguous, which `BoardRuleCitationTests` asserts.
 
+**NEVER BULK-REPOINT `§5`. Not with `sed`, not with a find-and-replace, not "in one pass",
+not by anyone.** `§5` is not a private namespace: `docs/SPEC-RESULT-SHEET-AND-SYRINGE.md`
+lines 75 and 315 use `§5` to mean **that spec's own section 5** (the over-capacity
+warning), and `docs/TASKS.md` line 275 uses it to mean **`math-spec.md` §5** in another
+repository. Neither has anything to do with these rules. **And nothing would catch it:**
+`BoardRuleCitationTests` deliberately ignores a bare `§5` — it only resolves `§5.NN` — so
+rewriting those three sites corrupts them in total silence and every check stays green.
+Repoint citations one at a time, reading each one, or do not repoint them.
+
 **This copy is additive, and it is NO LONGER a verbatim copy.** Rules **1–39 were lifted
 byte-identical** from `docs/ui-audit/BOARD.md` §5 and are still there too; nothing was
 removed from the board by this pass, and the two copies get reconciled by a human who
-checks the count first. **Rule 40 was authored here and exists ONLY in this file** — it
-was never in BOARD §5, so a diff of the two documents shows one entry the board does not
-have. That is a known, stated difference, not drift. The postscript at the foot of this
-file describes the lifted list as `1…39`; that sentence is part of the lifted text and is
-correct about the lift, not about this file's current length.
+checks the count first. **Rules 40, 41, 42 and 43 were authored here and exist ONLY in
+this file** — none of them was ever in BOARD §5, so a diff of the two documents shows four
+entries the board does not have. That is a known, stated difference, not drift. The
+postscript at the foot of this file describes the lifted list as `1…39`; that sentence is
+part of the lifted text and is correct about the lift, not about this file's current
+length.
 
 **Consequence, until BOARD §5 is struck.** `BoardRuleCitationTests` parses rule
 DEFINITIONS out of `docs/ui-audit/BOARD.md` and resolves every `§5.NN` cited anywhere in
-the repo against them. BOARD §5 stops at 39, so **rule 40 must not be cited in the
+the repo against them. BOARD §5 stops at 39, so **rules 40–43 must not be cited in the
 `§5.` form anywhere in the repo yet** — such a citation would resolve to nothing and the
-suite would go red. Cite it as "RULES.md rule 40" until that test is repointed at this
-file, which is the change this consolidation still owes.
+suite would go red. Cite them as "RULES.md rule 41" and so on until that test is repointed
+at this file, which is the change this consolidation still owes. Two of the four (41 and
+42) are cited that way from `CLAUDE.md` today.
 
 **Two of the four rules `CLAUDE.md` states up front are not numbered rules and are not
 duplicated here:** *never tick a finding on inspection* is the board's own operating rule
@@ -444,6 +455,62 @@ evidence* is §5.1, and *a green indistinguishable from an absence is not eviden
    surface written next week inherits the removal instead of having to remember it. And
    remove the row rather than disabling it: a visible control that does nothing is a defect
    already on this board.
+
+41. **NEVER TICK A FINDING ON INSPECTION. A closed item was closed by a measurement or a
+   frame, or it is not closed.** If it cannot be verified it goes to the not-knowable
+   section, which is an honest record, rather than getting a tick, which is a false one.
+   Ticks land in the same commit as the work — a tick written ahead of the evidence is a
+   promise, and the next reader cannot tell a promise from a result.
+   **Why it is a rule and not a preference.** §5.1 is the reason inspection cannot close
+   anything: code that is correct by inspection has been wrong against reality on this
+   project three times in one session. And a tick is READ ONCE and then trusted forever —
+   §5.33's green tick sat over the surface a finding was actually found on for two days,
+   because a closed item does not get re-examined. The cost of a wrong tick is not the
+   wrong tick, it is that nobody looks again.
+   **Authored here, and it is not new — it is the operating rule at the head of
+   `docs/ui-audit/BOARD.md`, above §0, where it has always been.** It is numbered because a
+   rule that lives only as house prose in one document gets read as that document's house
+   style rather than as project law. The board prose stays where it is; this does not
+   replace it. Not in BOARD §5, so do not cite it in the `§5.` form yet — see the note at
+   the head of this file.
+
+42. **THE UNIT TEST SUITE DOES NOT COVER UI WIRING. A green unit run is evidence about the
+   engine and says NOTHING about what the screen displays.** All **27 unit tests passed
+   while a dose field displayed 100 and the engine computed 300** — every assertion in the
+   suite was true, and the number a user would have dosed from was wrong. That gap is the
+   entire reason the XCUITest target exists, and "the tests pass" is not an answer to a
+   question about a screen unless the UI suite is the one that ran.
+   **§5.12 is the nearest relative and it is a DIFFERENT claim** — that a passing XCUITest
+   *tap* is not evidence of an interaction, only a state change is. §5.12 is about trusting
+   the wrong signal inside the UI suite; this is about the UI suite not having run at all.
+   They compose: a green unit suite plus a green tap assertion can still be silent about
+   the displayed value, which is §5.24's shape one level up.
+   **Numbered rather than filed as "an operating fact".** That split was offered and
+   refused: it is exactly how this repo came to have the same thing tracked in five places
+   and enforced in none. One file, one number, inside the reach of the citation check.
+   Authored here; not in BOARD §5; do not cite it in the `§5.` form yet.
+
+43. **AN INSTRUCTION TO A RUNNING AGENT IS QUEUED BEHIND THAT AGENT'S NEXT TOOL CALL. IF
+   THERE IS NO NEXT CALL, IT EVAPORATES — AND THE AGENT REPORTS SUCCESS.** The delivery
+   mechanism has no way to say "not delivered", so a directive sent to an agent that is
+   already writing its final answer is not late, it is GONE, and what comes back is a
+   confident report about the work as it was scoped before the message existed.
+   **`8342abf` is the instance.** A directive adding one rule was sent mid-run; the agent
+   finished and reported success on a commit that does not contain it. Nothing in the report
+   was false. The report simply could not mention what the process never received, and it
+   was the only artefact anyone was reading.
+   **The operational half, and it is the half that costs nothing to follow: after any
+   mid-run directive, GREP THE ARTEFACT. Never settle it by reading the report.** `git show`
+   the commit, grep the file for the thing you asked for. The report is written by the same
+   process that missed the message, so it is the one observer guaranteed to be blind to
+   exactly this failure — which makes "it says it did it" worthless here specifically.
+   **Family.** This is §5.26 with a different transport: `TEST_RUNNER_` forwarding was set
+   for a whole run, arrived nowhere, and the run reported success — the fix there was to
+   assert ARRIVAL rather than assume delivery, and the fix here is the same one done by
+   hand. Generalised, it is §5.36: the report asserts a condition (the directive was acted
+   on) that nothing in the run can observe. A message system without a delivery receipt is a
+   check that cannot fail. Authored here; not in BOARD §5; do not cite it in the `§5.` form
+   yet.
 
 ---
 

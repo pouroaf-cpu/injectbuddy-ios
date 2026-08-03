@@ -11,14 +11,22 @@ a cosmetic complaint. That is why the bar here is measurement, not review.
 
 ## The four rules that catch the most
 
-- **Never tick a finding on inspection.** Everything closed in `docs/ui-audit/BOARD.md` was closed
-  by a measurement or a screenshot. Unverifiable goes to §4 (not knowable), not to a tick.
+**The rules live in `docs/RULES.md`** — all of them, numbered. These four are the ones that catch
+the most; each line below is a pointer, and the entry is where the evidence is.
+
+- **Never tick a finding on inspection.** A measurement or a screenshot closes it; unverifiable
+  goes to §4 (not knowable), not to a tick. → `RULES.md` rule 41.
 - **Internally consistent code is not evidence.** Bugs here have repeatedly been correct by
-  inspection and wrong against reality. Query the running system.
+  inspection and wrong against reality. Query the running system. → `RULES.md` §5.1.
 - **A green indistinguishable from an absence is not evidence.** Make a check fail on purpose before
-  trusting it green, and ask which layer actually observes the thing being asserted. `BOARD §5.24`.
+  trusting it green, and ask which layer actually observes the thing being asserted.
+  → `RULES.md` §5.24.
 - **The unit test suite does not cover UI wiring.** All 27 passed while a dose field displayed 100
-  and the engine computed 300. That is what the XCUITest target exists for.
+  and the engine computed 300; that gap is what the XCUITest target exists for.
+  → `RULES.md` rule 42.
+
+Rules 41 and 42 have no `§5.` form yet — `BoardRuleCitationTests` still resolves `§5.NN` against
+`BOARD.md`, which stops at 39. Cite them by name until that test is repointed.
 
 And the corollary that keeps paying out: **the least-surveyed screen is the highest-prior defect,
 not the lowest.** The one screen never captured at large text held the worst finding on the board.
@@ -32,7 +40,8 @@ not the lowest.** The one screen never captured at large text held the worst fin
 | `docs/WHERE-WE-ARE-2026-08-03.md` | Current state, plain language, for a cold reader. |
 | `docs/SPEC-2026-08-03-HUMAN-TASKS.md` | The live queue — H1–H12, from the owner. |
 | `docs/DATA-CONTRACT.md` | **What the database accepts. Authoritative for web, iOS and Android.** |
-| `docs/ui-audit/BOARD.md` | Open, closed-with-evidence, not-knowable, and §5's numbered rules. |
+| `docs/RULES.md` | **The numbered rules — project law.** 1–39 lifted from BOARD §5, 40–43 authored since. |
+| `docs/ui-audit/BOARD.md` | Open, closed-with-evidence, not-knowable. Still carries a copy of §5's rules 1–39. |
 | `docs/DESIGN-PARITY.md` | Colour roles, type scale, screen-header rule. §8 is the settled palette. |
 | `docs/ui-audit/2026-08-02-current/` | What the app looks like now. |
 | `docs/ui-audit/archive/` | The 2026-08-01 per-cycle folders. An audit trail, not current state — don't read `cycle3` as now. |
