@@ -117,7 +117,13 @@ first screen (endowed progress) and the values below are exact.
 2. `exp != .adv` → all three benefit screens, each with a ghost **"Skip"** that jumps to `setup`.
 3. `exp == .first` → `setup` shows the extra line: *"Not sure of your exact protocol? Start with what
    you know — you can change everything later."*
-4. `exp == .adv` → `setup` shows **"＋ Add another compound"** up front.
+4. `exp == .adv` → `setup` shows **"＋ Add another compound"** up front. **No other experience
+   level sees it at all** — not lower down, not behind a disclosure. Confirmed against the
+   wireframe and the copy deck 2026-08-03: the row is rendered conditionally on the veteran
+   branch with an empty string as the alternative, and the deck says *"Variant — years deep:
+   shows '＋ Add another compound' up front."* **This sentence used to read only "up front",
+   which did not say whether other levels saw it lower down — the implementer asked, and this
+   is the answer rather than a judgement call.**
 5. `exp == .adv` → `firstDose` body reads *"You know the drill. One tap, and it's on the record."*
    Otherwise *"One tap. That's the whole habit. Everything after this is momentum."*
 6. Paywall opener varies on how much was skipped: fewer than two skips →
@@ -305,6 +311,17 @@ sequence, the separate free calculator app, and the `$X/mo` price — leave the 
 ---
 
 ## 7. Verification — one build, one sweep, no login
+
+> **KNOWN AND FILED, 2026-08-03 — `setup` fails D5's second half at AX5.** The CTA is reachable;
+> **the four inputs it commits are not.** This spec named `setup` as the risk and it is the risk.
+> It does **not** block: onboarding is off the launch path and Dynamic Type is the owner's deferred
+> axis. **But it is the FIRST thing to fix when that axis reopens** — recorded here rather than in a
+> list so whoever reopens Dynamic Type finds it standing next to the screen it is about.
+>
+> **Sample, stated because "onboarding passes" would otherwise read as thirteen screens at both
+> sizes:** only `setup` and `paywall` were measured at AX5. The other eleven were judged at default
+> size only.
+
 
 This is the first thing in this project that can be swept without signing in. Use that.
 
