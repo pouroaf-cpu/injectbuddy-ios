@@ -46,18 +46,97 @@ enum OnboardingCopy {
 
     static let priceToken = "$X/mo"
 
-    // MARK: - 1 · welcome
+    // MARK: - Personalisation
+    //
+    // SPEC §3.2. **FIVE screens carry a name. Eight do not.** A name on every screen
+    // reads as a mail-merge and does the opposite of what was asked for.
+    //
+    // ─── THE NAMELESS FORM IS THE EXISTING OWNER COPY, BYTE-FOR-BYTE ───────────────
+    //
+    // That is the whole design and it is what makes the no-name path safe:
+    //
+    //   • It satisfies "must read correctly with the name absent" BY CONSTRUCTION. The
+    //     fallback is a sentence the owner already wrote and already approved, not a
+    //     degraded version of a new one. ***"Nice work, ." IS NOT REACHABLE***, because
+    //     the nameless string never had a slot in it.
+    //   • The only new writing is the six named variants, each an INSERTION into an
+    //     approved sentence rather than a rewrite of one.
+    //
+    // Both forms are declared as a pair, here. **Nothing is composed at a call site**,
+    // and exactly one function decides which one is used.
+
+    /// The only place the flow decides whether a name is usable.
+    ///
+    /// **Trimmed-empty is ABSENT, not empty** — a name of `"   "` must take the nameless
+    /// path rather than render a gap. SPEC §3.1.
+    static func personalised(_ name: String,
+                             named: (String) -> String,
+                             plain: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? plain : named(trimmed)
+    }
+
+    // MARK: - 1 · welcome (REPLACED 2026-08-03 — the congratulation and the name)
 
     enum Welcome {
-        static let title = "You made it. 🎉"
-        static let body = "Most people wing it and hope for the best. You showed up because you want to **know**. That's the hard part — and look, you're already a quarter of the way there."
+
+        // ⚠️⚠️ ─── PLACEHOLDER. NOT OWNER COPY. NOT FOR SHIP. ─── ⚠️⚠️
+        //
+        // The owner's congratulation line is not written yet (win, 2026-08-03; he has
+        // seen the ask and is content for a placeholder to stand meanwhile).
+        //
+        // **DELIBERATELY NOT A PLAUSIBLE SENTENCE.** It must not be mistaken for his
+        // writing by anyone who opens this file later, which is exactly what a
+        // reasonable-sounding stand-in would invite. It renders inside the same
+        // warning-coloured dashed treatment the missing art uses.
+        static let titlePlaceholder = "⟨PLACEHOLDER — owner's congratulation line goes here⟩"
+
+        /// **From his INSTRUCTION, not from the three source files.** Different
+        /// provenance from the rest of §4 — noted so nobody hunts for it in a wireframe.
+        static let prompt = "What should we address you by?"
+
+        /// **His SHIPPED copy**, verbatim from the web's `PersonalisationForm.tsx`. The
+        /// prompt above is the question; this is the field's placeholder. They are not
+        /// competing — they are different slots and both are his.
+        static let fieldPlaceholder = "What should InjectBuddy call you?"
+
+        /// NOT-VERBATIM as a standalone label. The web renders `Nickname` with a small
+        /// `optional` beside it.
+        static let fieldLabel = "Nickname"
+        static let fieldOptional = "optional"
+
+        /// SPEC §3.1 — **the server 400s above 60** with *"Nickname must be 60 characters
+        /// or fewer"*, so this is enforced here rather than discovered at the last
+        /// possible moment.
+        static let nameMaxLength = 60
+
         static let cta = "Keep going"
+        /// **Optional, with a Skip.** Reversed from "required, no Skip" on evidence:
+        /// across 89 live profiles `display_name` is 89/89 and `nickname` is 1/89, so
+        /// almost every real user already has a usable name before we ask.
+        static let ctaSkip = "Skip for now"
+
+        // ─── THE RETIRED SCREEN-1 COPY ─────────────────────────────────────────────
+        //
+        // ***THIS IS NOT THE CURRENT SCREEN AND MUST NOT BE REINSTATED AS ONE.*** Kept
+        // because the reason it went is not obvious from its absence: the new screen 1 is
+        // also a congratulation, and two congratulation beats in a row was one too many.
+        //
+        //   title: "You made it. 🎉"
+        //   body:  "Most people wing it and hope for the best. You showed up because you
+        //           want to **know**. That's the hard part — and look, you're already a
+        //           quarter of the way there."
+        //   cta:   "Keep going"
     }
 
     // MARK: - 2 · pathway
 
     enum Pathway {
         static let title = "What brings you here?"
+        /// **PLACEMENT 1 of 5 — end of title.** The first screen after the name is given,
+        /// so it lands immediately and on the strongest element on the screen.
+        /// ⚠️ PROPOSED, not yet owner-approved.
+        static func titleNamed(_ name: String) -> String { "What brings you here, \(name)?" }
         static let body = "Everyone's on their own journey. Tell us yours, and everything from here is built around it."
 
         /// The four options, enumerated against the segment they set. Screens
@@ -78,6 +157,17 @@ enum OnboardingCopy {
     enum Experience {
         static let title = "Where are you on the road?"
         static let body = "So we talk to you like a mate — not a manual."
+        /// **PLACEMENT 2 of 5 — mid-sentence, body.**
+        ///
+        /// **This beat was moved here from `benefit1` deliberately.** `benefit1`'s copy is
+        /// entirely segment-varied, so personalising it costs FOUR strings, each a rewrite
+        /// of an owner sentence on the screen where the copy *is* the product. Whereas
+        /// this line is already a sentence **about how we address the user**, so putting
+        /// the name in it is the line doing what it says. One insertion, not four rewrites.
+        /// ⚠️ PROPOSED, not yet owner-approved.
+        static func bodyNamed(_ name: String) -> String {
+            "So we talk to you like a mate, \(name) — not a manual."
+        }
 
         static func option(_ exp: OnboardingExperience) -> String {
             switch exp {
@@ -171,6 +261,12 @@ enum OnboardingCopy {
         static let title = "Make it yours"
         static let note = "Required · why we ask: powers your charts + reminders"
         static let body = "Two minutes here, and every chart, reminder and forecast is built around **you** — not some average person who doesn't exist."
+        /// **PLACEMENT 3 of 5 — late-sentence.** Sits directly after his existing **you**
+        /// emphasis, which is what the sentence is already doing.
+        /// ⚠️ PROPOSED, not yet owner-approved.
+        static func bodyNamed(_ name: String) -> String {
+            "Two minutes here, and every chart, reminder and forecast is built around **you**, \(name) — not some average person who doesn't exist."
+        }
         static let cta = "This is my protocol"
 
         /// SPEC §3 rule 3 — shown only when `exp == .first`.
@@ -249,6 +345,15 @@ enum OnboardingCopy {
         /// SPEC §3 rule 5. Which one is chosen is `OnboardingBranch`'s business.
         static let bodyAdvanced = "You know the drill. One tap, and it's on the record."
         static let bodyDefault = "One tap. That's the whole habit. Everything after this is momentum."
+
+        /// **PLACEMENT 4 of 5 — opening.** Two strings, because rule 5 already branches
+        /// this body on `exp`. ⚠️ PROPOSED, not yet owner-approved.
+        static func bodyDefaultNamed(_ name: String) -> String {
+            "\(name), one tap. That's the whole habit. Everything after this is momentum."
+        }
+        static func bodyAdvancedNamed(_ name: String) -> String {
+            "You know the drill, \(name). One tap, and it's on the record."
+        }
     }
 
     // MARK: - 9 · paywall
@@ -274,6 +379,17 @@ enum OnboardingCopy {
         /// the sentence exists in one piece and a view never concatenates copy.
         static func body(opener: String) -> String {
             "Look what you just did" + opener + ". Here's the honest deal:"
+        }
+
+        /// **PLACEMENT 5 of 5 — mid-sentence.** One string; **both rule-6 openers are
+        /// reused unmodified**, so the variant logic is untouched.
+        /// Renders as: `Look what you just did, Pou — protocol set, reminders on. Here's the honest deal:`
+        ///
+        /// **The HEADLINE is deliberately NOT personalised** — it is segment-varied (four
+        /// more strings) and it is the one line on that screen doing commercial work.
+        /// ⚠️ PROPOSED, not yet owner-approved.
+        static func bodyNamed(_ name: String, opener: String) -> String {
+            "Look what you just did, " + name + opener + ". Here's the honest deal:"
         }
 
         /// SPEC §3 rule 6 — fewer than two skips.

@@ -27,7 +27,7 @@ struct OnboardingSetupScreen: View {
         OnboardingScreenScaffold(flow: flow) {
             OnboardingEyebrow(text: OnboardingCopy.Setup.note)
             OnboardingTitle(text: OnboardingCopy.Setup.title)
-            OnboardingBody(text: OnboardingCopy.Setup.body)
+            OnboardingBody(text: flow.setupBody)   // PLACEMENT 3 of 5 — late-sentence
 
             // SPEC §3 rule 3 — `.first` only.
             if let extraLine = flow.branch.setupExtraLine {

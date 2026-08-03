@@ -23,6 +23,81 @@ import SwiftUI
 //         the teal that is legal as text; `accentSoft` is the selected tint.
 //   DESIGN-PARITY §11 — every spacing value comes from `Theme.Spacing`.
 
+// MARK: - Entrance motion (SPEC §3.3)
+//
+// Owner: *"the text should feel animated and personal, not another form or buttons to
+// pick."* Text ARRIVES, it does not appear: opacity 0→1 with a small upward offset,
+// staggered per line, headline → body → action.
+//
+// **~350ms and ~60ms are not invented.** `injectbuddy-design-refs/ANIMATIONS.md` §8 lists
+// `0.35s` under "Transitions / reveals"; the stagger is a delay, not a duration token.
+//
+// ─── ONE PASS ON ENTRY ONLY ────────────────────────────────────────────────────────
+//
+// Keyed on the STEP, so a back-navigation re-renders at the settled state rather than
+// replaying. Re-animating on `back()` would punish the user for going back, and it would
+// make the "two frames per screen, early and settled" verification meaningless.
+//
+// ─── REDUCE MOTION: NO OFFSET, NO STAGGER, AND NO FADE ──────────────────────────────
+//
+// **`ANIMATIONS.md` §9.1 says Reduce Motion KEEPS opacity changes — and that is not a
+// conflict with removing the fade here.** §9.1 keeps opacity *because it carries state*:
+// a control that changes colour is telling you something. **Here the opacity carries
+// nothing** — it is pure entrance decoration — so removing it is the rule APPLIED, not
+// broken. Written down because a later reader comparing the two documents will otherwise
+// file it as a contradiction.
+//
+// A motion-heavy onboarding is exactly the surface that makes people ill. This is the one
+// modifier in the flow that must never be "just for a moment".
+
+/// Reveals its content on entry: fade up from a small offset, after `index × 60ms`.
+struct OnboardingReveal: ViewModifier {
+    let index: Int
+    /// The step this reveal belongs to. Changing it re-arms the animation; that is what
+    /// makes it once-per-screen rather than once-per-app.
+    let step: OnboardingStep
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+
+    private static let stagger: Double = 0.06
+    private static let duration: Double = 0.35
+    private static let offset: CGFloat = 12
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(reduceMotion || shown ? 1 : 0)
+            .offset(y: reduceMotion || shown ? 0 : Self.offset)
+            .onAppear { arm() }
+            // A new step re-arms. `onChange` rather than `onAppear` alone because the
+            // screens share a scaffold and SwiftUI may reuse the view.
+            //
+            // **The iOS 16 single-parameter form, deliberately.** `project.yml` sets the
+            // deployment target to **16.0**, and the two-parameter
+            // `onChange(of:initial:_:)` is 17+. The compiler caught it; the point of
+            // saying so here is that the newer overload will look like the obvious
+            // cleanup to someone reading this on a 17+ machine.
+            .onChange(of: step) { _ in
+                shown = false
+                arm()
+            }
+    }
+
+    private func arm() {
+        guard !reduceMotion else { return shown = true }
+        withAnimation(.easeOut(duration: Self.duration).delay(Double(index) * Self.stagger)) {
+            shown = true
+        }
+    }
+}
+
+extension View {
+    /// `line` is the reveal order: 0 headline, 1 body, 2 action.
+    func onboardingReveal(_ line: Int, step: OnboardingStep) -> some View {
+        modifier(OnboardingReveal(index: line, step: step))
+    }
+}
+
 // MARK: - Press feedback
 
 /// D9's rescued clause: "every press gets visible feedback within 400ms — a
@@ -62,6 +137,12 @@ struct OnboardingProgressBar: View {
                 Capsule()
                     .fill(Theme.accent)          // fill only — never text (§8)
                     .frame(width: max(0, geo.size.width * CGFloat(percent) / 100))
+                    // SPEC §3.3: ***NEVER ANIMATE THE FILL FROM ZERO ON EVERY SCREEN.***
+                    // This is endowed progress — a bar that refills from empty each time
+                    // is a bar that measures nothing, and it would undo the reason the
+                    // 25% start exists. `nil` pins it against any ambient animation the
+                    // entrance reveal or a navigation transition might otherwise donate.
+                    .animation(nil, value: percent)
                     .accessibilityIdentifier("onboarding.progress.fill")
             }
         }
@@ -225,40 +306,160 @@ struct OnboardingGhostButton: View {
 /// A tappable option on a branch screen (`pathway`, `experience`). The option IS
 /// the primary action on those screens — there is no separate CTA — so these are
 /// what D5 is about there.
+/// SPEC §3.3: *"The choice screens stop being button stacks."* Full-width cards with room
+/// to breathe — label, one supporting line where the copy gives one, generous vertical
+/// padding. **They should read as choosing a lane, not as a form control.**
+///
+/// **Selected state is a FILL, not a checkmark**, per the brief. The chevron is gone: it
+/// promised navigation on a control that commits a choice.
+///
+/// **Every spacing value is from `Theme.Spacing`** (`DESIGN-PARITY` §11, the
+/// `4 · 8 · 16 · 24 · 32` grid). "Generous vertical padding" is `lg` = 24 — **on the
+/// scale, so it is not a finding.** Verified against `Theme.swift`: nothing here needed a
+/// value the token scale does not have.
 struct OnboardingChoiceRow: View {
     let title: String
+    /// One supporting line, only where the copy gives one. `nil` on screens whose options
+    /// are bare labels — this control does not invent a subtitle to fill the space.
+    var subtitle: String? = nil
+    var isSelected: Bool = false
     let identifier: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.md) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                 Text(title)
                     .font(.headline)
-                    .foregroundStyle(Theme.inkNavy)
+                    .foregroundStyle(isSelected ? Theme.tealTextStrong : Theme.inkNavy)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.right")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.navy)
-                    .accessibilityHidden(true)          // D3 — decorative
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.navy)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            .padding(Theme.Spacing.md)
-            .frame(minHeight: Theme.minTarget)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.lg)      // room to breathe — on the scale
+            .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                    .fill(Color.white))
+                    // THE SELECTED STATE, AND IT IS A FILL. `accentSoft` is the selected
+                    // tint (DESIGN-PARITY §8); teal is fill-only and never text, which is
+                    // why the label above uses `tealTextStrong` and not `accent`.
+                    .fill(isSelected ? Theme.accentSoft : Color.white))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                    .strokeBorder(Theme.line, lineWidth: 1))
+                    .strokeBorder(isSelected ? Theme.tealTextStrong : Theme.line,
+                                  lineWidth: isSelected ? 2 : 1))
         }
         .buttonStyle(OnboardingPressStyle())
         .accessibilityIdentifier(identifier)
+        // The fill carries the state visually; this is the same state in the tree, for
+        // anyone who cannot see a fill. Colour is reinforcement, never the only channel.
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+
+// MARK: - Placeholder copy
+
+/// **A PLACEHOLDER FOR A LINE THE OWNER HAS NOT WRITTEN. MUST NOT SHIP.**
+///
+/// Drawn like `OnboardingIllustrationPlaceholder` — warning-coloured, dashed — because it
+/// is the same kind of hole. A missing sentence rendered in ordinary type reads as
+/// finished copy; a later reader would have no way to tell it from the owner's writing,
+/// which is exactly what the instruction to keep it visibly a placeholder is about.
+struct OnboardingPlaceholderLine: View {
+    let text: String
+
+    private static let warningLabel = "PLACEHOLDER — NOT OWNER COPY, NOT FOR SHIP"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            Text(Self.warningLabel)
+                .font(.caption2.weight(.bold))
+            Text(text)
+                .font(.headline)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(Theme.warning)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .fill(Theme.warning.opacity(0.08)))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .strokeBorder(Theme.warning,
+                              style: StrokeStyle(lineWidth: 2, dash: [8, 6])))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("onboarding.placeholder.copy")
     }
 }
 
 // MARK: - Fields
+
+/// Screen 1's name field. SPEC §3.1.
+///
+/// **`maxLength` is enforced HERE, at the keyboard**, not discovered at a sink: the server
+/// rejects a nickname over 60 characters with a 400, and the last possible moment is the
+/// worst place to find that out.
+///
+/// **No `lineLimit` on the label or the note** — and the name itself lands in a screen
+/// title downstream, where the ban applies (`CLAUDE.md`, `DESIGN-PARITY` §9): a long name
+/// wraps, it does not truncate.
+struct OnboardingNameField: View {
+    let label: String
+    let optionalNote: String
+    let placeholder: String
+    let maxLength: Int
+    @Binding var text: String
+    var isFocused: FocusState<Bool>.Binding
+    let onSubmit: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.xs) {
+                Text(label)
+                    .font(Theme.Typeface.cardMeta)
+                    .foregroundStyle(Theme.navy)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(optionalNote)
+                    .font(.caption)
+                    .foregroundStyle(Theme.secondaryLabel)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            TextField(placeholder, text: $text)
+                .font(.body)
+                .foregroundStyle(Theme.ink)
+                .textContentType(.nickname)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .submitLabel(.next)
+                .focused(isFocused)
+                .onSubmit(onSubmit)
+                // iOS 16 single-parameter form — see the note on `OnboardingReveal`.
+                .onChange(of: text) { new in
+                    if new.count > maxLength { text = String(new.prefix(maxLength)) }
+                }
+                .padding(Theme.Spacing.sm)
+                .frame(minHeight: Theme.minTarget)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+                        .fill(Color.white))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous)
+                        .strokeBorder(Theme.fieldBorder, lineWidth: 1))
+                .accessibilityLabel(label)
+                .accessibilityIdentifier("onboarding.welcome.name")
+        }
+    }
+}
 
 /// A labelled text entry. The border is `Theme.fieldBorder` — 3.26:1, the token
 /// that exists precisely so a field boundary satisfies WCAG 1.4.11, where

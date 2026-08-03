@@ -45,6 +45,56 @@ final class OnboardingFlow: ObservableObject {
     var barPercent: Int? { step.barPercent }
     var barFraction: Double? { step.barFraction }
 
+    // MARK: - Personalisation (SPEC §3.2) — the five, resolved here and nowhere else
+    //
+    // **A screen asks this object for its line; it never picks between two strings and
+    // it never concatenates a name onto one.** Every one of these goes through
+    // `OnboardingCopy.personalised`, which is the single place that decides whether the
+    // name is usable — trimmed-empty is absent, and the nameless form is the owner's
+    // existing copy byte-for-byte.
+
+    /// 1 · `pathway` — end of title.
+    var pathwayTitle: String {
+        OnboardingCopy.personalised(state.name,
+                                    named: OnboardingCopy.Pathway.titleNamed,
+                                    plain: OnboardingCopy.Pathway.title)
+    }
+
+    /// 2 · `experience` — mid-sentence, body.
+    var experienceBody: String {
+        OnboardingCopy.personalised(state.name,
+                                    named: OnboardingCopy.Experience.bodyNamed,
+                                    plain: OnboardingCopy.Experience.body)
+    }
+
+    /// 3 · `setup` — late-sentence, body.
+    var setupBody: String {
+        OnboardingCopy.personalised(state.name,
+                                    named: OnboardingCopy.Setup.bodyNamed,
+                                    plain: OnboardingCopy.Setup.body)
+    }
+
+    /// 4 · `firstDose` — opening, body. Composes with SPEC §3 rule 5's `exp` branch, so
+    /// the nameless form is whichever of the two `OnboardingBranch` already chose.
+    var firstDoseBody: String {
+        let plain = branch.firstDoseBody
+        let isAdvanced = plain == OnboardingCopy.FirstDose.bodyAdvanced
+        return OnboardingCopy.personalised(
+            state.name,
+            named: isAdvanced ? OnboardingCopy.FirstDose.bodyAdvancedNamed
+                              : OnboardingCopy.FirstDose.bodyDefaultNamed,
+            plain: plain)
+    }
+
+    /// 5 · `paywall` — mid-sentence. **Both rule-6 openers are reused unmodified.**
+    var paywallBody: String {
+        let opener = OnboardingBranch.paywallOpener(skipped: state.skipped)
+        return OnboardingCopy.personalised(
+            state.name,
+            named: { OnboardingCopy.Paywall.bodyNamed($0, opener: opener) },
+            plain: OnboardingCopy.Paywall.body(opener: opener))
+    }
+
     /// SPEC §3: "Back must work from every screen." False only on `welcome`,
     /// where there is nothing behind.
     var canGoBack: Bool { !history.isEmpty }

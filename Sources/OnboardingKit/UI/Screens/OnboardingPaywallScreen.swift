@@ -27,7 +27,7 @@ struct OnboardingPaywallScreen: View {
             if let segment = flow.state.segment {
                 OnboardingTitle(text: OnboardingCopy.Paywall.headline(segment))
             }
-            OnboardingBody(text: OnboardingBranch.paywallBody(skipped: flow.state.skipped))
+            OnboardingBody(text: flow.paywallBody)   // PLACEMENT 5 of 5 — mid-sentence; both rule-6 openers reused unmodified
 
             founderNote
             splitRows

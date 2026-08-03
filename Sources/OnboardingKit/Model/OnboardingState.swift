@@ -98,6 +98,22 @@ enum OnboardingUnitPreference: String, CaseIterable, Hashable {
 /// parsing.
 struct OnboardingState: Equatable {
 
+    /// Screen 1's name. SPEC §3.1.
+    ///
+    /// **The personalisation key for everything after it**, and it is **optional** — the
+    /// screen has a Skip and this may legitimately be empty. `OnboardingCopy.personalised`
+    /// is the only thing that reads it, and it treats trimmed-empty as *absent*.
+    ///
+    /// **Destined for `profiles.nickname` — the SAME column `WELCOME-AND-ONBOARDING.md`
+    /// §3 step 1 owns, not a new one.** That is what dissolves the two-flows-both-asking
+    /// collision rather than managing it. Still a no-op sink in this pass.
+    ///
+    /// **In the `OnboardingPreview` target there is no session**, so the `display_name`
+    /// rung of §3.1's three (`nickname` → `display_name` → nameless copy) is unavailable
+    /// and an empty name always falls to the nameless copy. **That is correct behaviour,
+    /// not a bug** — it is written here because it will look like one.
+    var name: String = ""
+
     // Branch dimensions
     var segment: OnboardingSegment? = nil
     var exp: OnboardingExperience? = nil

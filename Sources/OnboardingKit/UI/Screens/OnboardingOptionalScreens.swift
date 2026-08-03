@@ -119,7 +119,7 @@ struct OnboardingFirstDoseScreen: View {
                 OnboardingIllustrationPlaceholder(illustration: art)
             }
             OnboardingTitle(text: OnboardingCopy.FirstDose.title)
-            OnboardingBody(text: flow.branch.firstDoseBody)   // SPEC §3 rule 5
+            OnboardingBody(text: flow.firstDoseBody)   // PLACEMENT 4 of 5 — opening; composes with SPEC §3 rule 5's exp branch
         } actions: {
             OnboardingPrimaryButton(title: OnboardingCopy.FirstDose.ctaAccept) {
                 flow.advance()
