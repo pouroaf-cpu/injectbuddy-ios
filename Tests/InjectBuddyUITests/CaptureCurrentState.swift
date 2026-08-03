@@ -1044,6 +1044,167 @@ final class CaptureCurrentState: XCTestCase {
         return (name, hit.1.width * hit.1.height, hit.1)
     }
 
+    // MARK: - App Review: where account deletion lives
+
+    /// Two frames for `launch/APP-REVIEW-NOTES.md`: the Settings row, and the confirm
+    /// sheet it opens.
+    ///
+    /// **WHY THIS EXISTS AND WHY IT IS SEPARATE FROM THE SWEEP.** App Review rejects apps
+    /// whose reviewer cannot find the deletion path (Guideline 5.1.1(v)), so the notes
+    /// have to show *where it is*, not merely claim it exists. The sweep deliberately
+    /// never visits Settings — it renders the account's real email and avatar — and that
+    /// standing decision is not being widened. This is a separate, deliberate act.
+    ///
+    /// ─── THE EMAIL IS SCROLLED OFF, NOT REDACTED — AND THE ABSENCE IS ASSERTED ──────
+    ///
+    /// The profile header is the first section of `SettingsScreen`. Rather than draw a
+    /// box over it afterwards — which edits the image in order to label it, the same
+    /// objection the serial-stamping rule makes — the list is scrolled until the header
+    /// is off screen and **the frame is a genuine unmodified photograph.**
+    ///
+    /// **And the absence is CHECKED before the shutter, not assumed.** A scroll that did
+    /// not move is indistinguishable from a scroll that worked, right up until the
+    /// account's email is sitting in a file bound for Apple. The email comes from the
+    /// environment and **never appears in an assertion message.**
+    func testCaptureDeletionPathForAppReview() {
+        try? XCTSkipUnless(ProcessInfo.processInfo.environment["CAPTURE"] == "1",
+                           "TEST_RUNNER_CAPTURE=1 not set.")
+
+        // Drawer → the profile row → Settings. The drawer itself shows the email, so it
+        // is passed through and never photographed.
+        let menu = app.buttons["Menu"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 10), "No Menu (hamburger) button.")
+        menu.tap()
+
+        let signOut = app.buttons["Sign out"].firstMatch
+        XCTAssertTrue(signOut.waitForExistence(timeout: 8), "Drawer did not open.")
+
+        // The drawer's profile row carries the display name and routes to Settings.
+        let name = ProcessInfo.processInfo.environment["QA_DISPLAY_NAME"] ?? "devtools"
+        let profileRow = app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", name)).firstMatch
+        XCTAssertTrue(profileRow.waitForExistence(timeout: 8), "No profile row in the drawer.")
+        profileRow.tap()
+
+        // ARRIVAL, ASSERTED — same rule as `tab()`.
+        let deleteRow = app.descendants(matching: .any)
+            .matching(identifier: "cta_delete_account").firstMatch
+        XCTAssertTrue(deleteRow.waitForExistence(timeout: 10),
+                      "Never arrived on Settings: the Delete account row is not on screen.")
+
+        // Scroll the profile header off — **until the email is actually gone**, not a
+        // fixed number of swipes.
+        //
+        // The first version swiped four times and then asserted. It failed, correctly:
+        // the email was still on screen. A fixed count is a guess about how far a list
+        // moves, and "swiped four times" is not the property that matters — "the email
+        // is not in the tree" is. Loop on the condition, then assert it independently so
+        // a loop that gave up cannot pass silently.
+        guard let email = ProcessInfo.processInfo.environment["QA_EMAIL"], !email.isEmpty else {
+            return XCTFail("QA_EMAIL not forwarded — cannot prove the account email is off "
+                           + "screen, so this frame must not be captured.")
+        }
+        // `minX >= 0` excludes the off-canvas drawer at x = −344, which is a scrollable
+        // view in the tree and would otherwise be the thing being swiped.
+        let list = (app.collectionViews.allElementsBoundByIndex
+                    + app.tables.allElementsBoundByIndex)
+            .first(where: { $0.isHittable && $0.frame.minX >= 0 })
+        XCTAssertNotNil(list, "No scrollable Settings list.")
+        let window = app.windows.firstMatch.frame
+        for _ in 0..<12 {
+            let emailVisible = app.staticTexts
+                .matching(NSPredicate(format: "label == %@", email))
+                .allElementsBoundByIndex
+                .contains { !window.intersection($0.frame).isNull }
+            if !emailVisible && deleteRow.isHittable { break }
+            list?.swipeUp(velocity: XCUIGestureVelocity(rawValue: 300))
+        }
+
+        // ─── SCROLLING CANNOT HIDE IT, AND THE MEASUREMENT SAYS SO ─────────────────
+        //
+        // Twelve swipes later the email is still at y≈178 — the top of the list, below
+        // the nav bar. **`SettingsScreen` does not scroll far enough at default size to
+        // put the profile header off the display while leaving the ACCOUNT section on
+        // it.** Both have to be on screen for the frame to be worth anything, and one of
+        // them carries the account's email.
+        //
+        // So the mask happens on the HOST, by cropping, and it is stated in the caption.
+        // That is a deliberate reversal of the plan to avoid editing the image: the
+        // no-edit rule exists for MEASURED frames in `SCREENSHOT-LOG`, and these are
+        // illustrations for a reviewer, not evidence anything is measured off. **A crop
+        // that is declared beats a scroll that silently did not happen.**
+        //
+        // The rect is printed so the host crop can be aimed at a measured number rather
+        // than a guess. The EMAIL ITSELF IS NEVER PRINTED.
+        for element in app.staticTexts.matching(NSPredicate(format: "label == %@", email))
+            .allElementsBoundByIndex {
+            print("REVIEW-CAP account-email-rect \(NSCoder.string(for: element.frame)) "
+                  + "window \(NSCoder.string(for: window))")
+        }
+        XCTAssertTrue(deleteRow.isHittable,
+                      "The Delete account row is not on screen — the frame would not show "
+                      + "a reviewer where the path is.")
+        shot("review-01-settings-delete-row-UNCROPPED.png")
+
+        // Step 2 of 2 — the confirm sheet.
+        //
+        // **IT CARRIES THE EMAIL TOO, AND I ASSUMED IT WOULD NOT.** iOS scales the
+        // presenting screen down behind a sheet rather than hiding it, so `SettingsScreen`
+        // — profile header and all — is still on the display above the sheet card.
+        // Measured: the email lands at `{{111.72, 226.14}, {140.82, 13.19}}`, at
+        // fractional coordinates and a slightly smaller size, which is the scaled parent.
+        // **Both frames need the crop, not just the first.**
+        deleteRow.tap()
+        let confirm = app.descendants(matching: .any)
+            .matching(identifier: "cta_delete_account_confirm").firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 8),
+                      "The delete-account confirm sheet did not present.")
+        for element in app.staticTexts.matching(NSPredicate(format: "label == %@", email))
+            .allElementsBoundByIndex {
+            print("REVIEW-CAP sheet account-email-rect \(NSCoder.string(for: element.frame))")
+        }
+        shot("review-02-delete-confirm-sheet-UNCROPPED.png")
+
+        // Leave without deleting anything. THE QA ACCOUNT IS NOT TO BE DELETED.
+        app.buttons["Cancel"].firstMatch.tap()
+    }
+
+    /// Fails if the signed-in account's email is anywhere in the tree.
+    ///
+    /// **The email is read from the environment and is NEVER interpolated into the
+    /// failure message** — a credential must not reach an assertion, an `.xcresult` or a
+    /// commit, and a failure message is all three.
+    /// ─── `.exists` IS THE WRONG TEST, AND IT FAILED TWICE BEFORE I SAW WHY ──────────
+    ///
+    /// `app.staticTexts[email].exists` is true for elements that are **in the tree but
+    /// not on the display.** The off-canvas drawer lives at **x = −344** and its header
+    /// carries the account email — so the first two runs failed this assertion while the
+    /// email was nowhere in the frame that would have been captured. Twelve swipes could
+    /// never have fixed it: the email was not in the scrolling list.
+    ///
+    /// **The property that matters is "would it be in the photograph", not "is it in the
+    /// tree".** So: intersect the element's frame with the window's.
+    ///
+    /// The diagnostic prints the RECT and never the email — a failure message is an
+    /// assertion, an `.xcresult` and a commit at once.
+    private func assertAccountIdentityIsOffScreen(file: StaticString = #filePath,
+                                                  line: UInt = #line) {
+        guard let email = ProcessInfo.processInfo.environment["QA_EMAIL"], !email.isEmpty else {
+            return XCTFail("QA_EMAIL not forwarded — cannot prove the account email is off "
+                           + "screen, so this frame must not be captured.", file: file, line: line)
+        }
+        let window = app.windows.firstMatch.frame
+        for element in app.staticTexts.matching(NSPredicate(format: "label == %@", email))
+            .allElementsBoundByIndex {
+            let f = element.frame
+            let visible = window.intersection(f)
+            XCTAssertTrue(visible.isNull || visible.width < 1 || visible.height < 1,
+                          "The account email is VISIBLE in this frame at "
+                          + "\(NSCoder.string(for: f)) (window \(NSCoder.string(for: window))). "
+                          + "This frame is bound for Apple and must not carry it.",
+                          file: file, line: line)
+        }
+    }
+
     /// Set the size from the host first:
     ///   xcrun simctl ui booted content_size accessibility-extra-extra-extra-large
     func testCaptureAX5Set() {

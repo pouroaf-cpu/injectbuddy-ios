@@ -48,7 +48,44 @@ The app requires an account. 5.1.1 requires:
 
 **Action items:**
 - [ ] Privacy Policy URL live and set in App Store Connect.
-- [ ] In-app account deletion works and removes server data.
+- [x] **In-app account deletion works and removes server data.** ✅ **2026-08-03.** Edge Function
+      `delete-account` v1; verified on a throwaway account across **30 surfaces to zero** with the QA
+      account unchanged to the id-set checksum as the control. See `docs/SPEC-ACCOUNT-DELETION.md` §5
+      and `docs/TASKS.md` `X-02`. **It deletes server-side data, not just signs out.**
+
+### Where a reviewer finds account deletion
+
+**Two taps from the drawer. No support contact, no survey, no email request** — which is what
+5.1.1(v) is actually about.
+
+![Settings — the ACCOUNT section](screenshots/review-01-settings-delete-row.png)
+
+> **Step 1.** Open the drawer (**☰**, top left) → tap your name → **Settings**. The **Delete account**
+> row is in the **ACCOUNT** section, below *Change password* and *Sign out*.
+>
+> ⚠️ **CROPPED: the top 220pt of a 402×874pt frame (top 660px of 1206×2622) is removed**, taking out
+> the profile header, which renders the account's real name, email and avatar. **Nothing below that
+> line is altered.** The crop clears the email — measured at **y 178.33–192.67** — **by 27.33pt.**
+> `SettingsScreen` at default size fits on one display and does not scroll, so there is no scroll
+> position that hides the header while leaving the ACCOUNT section visible. The uncropped original is
+> deliberately not in this repo.
+
+![The delete-account confirmation sheet](screenshots/review-02-delete-confirm-sheet.png)
+
+> **Step 2.** Tapping the row opens a confirmation sheet naming exactly what is removed — saved
+> protocols, dose log and history, cycles, blood tests and uploaded files, preferences and account
+> details — and stating that it cannot be undone. **The destructive action is the second tap and is
+> not the default button; Cancel is.**
+>
+> **NOT cropped, and that is a measurement rather than an assumption.** The accessibility tree
+> reports the account email at `{{111.72, 226.14}, {140.82, 13.19}}` in this frame — **the presenting
+> screen, scaled down behind the sheet** (the tell is the fractional coordinates and the glyph at
+> 140.82pt where the real one is 153pt). **The pixels show it covered: the sheet card is opaque and
+> the area above it is black.** The frame is the arbiter, so no crop was needed. *A sheet inheriting
+> its presenter's content in the tree while hiding it on screen is a property of sheets on this
+> platform, not of this screen — it will be true of every sheet anyone photographs.*
+
+Captured 2026-08-03 on iPhone 16 Pro, iOS 18.3.1, default text size, from `Sources/` at `3fe7302`.
 - [ ] Sign-in with Discord (OAuth) offers an email-based path too (see demo account, below) so the
       reviewer is not forced into a third-party login they can't complete. Apple also expects that if
       you offer a third-party login, account creation isn't blocked behind it.
