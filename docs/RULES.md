@@ -111,6 +111,18 @@ defect without the frame.
 *(rescued clause)* Compare **leaves, not siblings** — the bottom-most drawn elements. A sibling
 comparison misses a child colliding with its parent's sibling, and goes green on the exact bug it
 was written for.
+*(extended 2026-08-03)* **IT IS WRONG IN BOTH DIRECTIONS, and as previously written this rule only
+warned about one of them.** Both were measured on the same day:
+- **Tree says clear, pixels say hidden.** The disclaimer probe reported `overlap=none` on four
+  calculators while the string was absent from every one of those frames — it sits fully behind the
+  result-bar plate and the tab bar (`TASKS.md` `B1-11`).
+- **Tree says present, pixels say covered.** The account email was reported at
+  `{{111.72, 226.14}}` in the delete-confirm sheet — the presenting screen scaled behind it — while
+  the sheet card is opaque and the area above it is black. Nothing of it reaches the photograph
+  (`launch/APP-REVIEW-NOTES.md`). **A sheet inherits its presenter's content in the tree while
+  hiding it on screen: that is a property of sheets on this platform, not of any one screen.**
+> **THE SPLIT THAT RESOLVES IT: for anything that will be LOOKED AT, the frame is the arbiter; for
+> anything that will be TAPPED, the tree is.** Hit-testing follows the tree; visibility does not.
 
 **D7** — Enumerate exemptions, never predicate them; ask what could join the set tomorrow.
 *(rescued clause)* When an assertion is unsatisfiable, **name what makes it unsatisfiable — never

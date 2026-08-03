@@ -168,6 +168,16 @@ iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
   off.
 - **Never put credentials in an assertion, a failure message, an `.xcresult`, a screenshot or a
   commit.**
+- **⚠️⚠️ AN EXIT CODE IS NOT A RESULT. ASSERT THAT THE ARTEFACT CHANGED.** Three instruments on
+  2026-08-03 reported success while doing nothing, and the general form of the check that caught the
+  third is *compare the output to the input*:
+  1. `xcodebuild … | tail` — **exit 0 on a run whose log said `** TEST FAILED **`** (below).
+  2. The F-F disclaimer probe — `overlap=none` because it measured one occluder of three, on screens
+     where the string was invisible.
+  3. **`sips --cropOffset … -c …` — exit 0, no error, and a byte-identical uncropped file.** Caught
+     only by comparing the output's pixel dimensions to the input's. Without that check, two frames
+     carrying a real account's email would have been committed *as cropped*. Cropping is done with
+     CoreGraphics now (`scratchpad/crop.swift`), which prints `in WxH -> out WxH`.
 - **⚠️ NEVER PIPE A RUN THROUGH `tail`, `head` OR ANYTHING ELSE. Capture the full output to a file
   and read the file.** A pipeline exits with the status of its **last** command, so
   `xcodebuild … | tail -40` reports **exit 0 for a run that FAILED** — and it discards the
