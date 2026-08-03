@@ -6,9 +6,60 @@ import Supabase
 // row to the signed-in user, so we never pass user_id in selects (the policies do it).
 // This mirrors what the web does server-side — same tables, same row shapes — so a
 // protocol/cycle created on either platform shows on the other.
+//
+// READS and WRITES are not symmetric, and assuming they were has now cost us twice.
+// A select without user_id is correct — the policy's USING clause filters it. A write
+// without user_id is REJECTED, because the same policy's WITH CHECK compares
+// auth.uid() to the user_id in the row being written, and there is nothing to compare
+// to. Two rules follow, and both are enforced in this file so no call site can skip
+// them:
+//   1. Every INSERT/UPSERT carries user_id, sourced from the live session by an
+//      Owned* wrapper private to this layer.
+//   2. Every write asks for the representation and throws if it comes back empty.
+//      A statement that changed no row is how a refusal arrives on a FILTERED write
+//      (update/delete): RLS narrows the statement's scope rather than raising, so
+//      PostgREST answers 200 with `[]`. Without this check "refused" and "saved" are
+//      the same thing to a caller that only watches for a thrown error — which, in a
+//      dosing app, is the UI telling someone an injection is recorded when nothing
+//      was written.
+
+/// A write the database accepted and applied to nothing. Conforms to `LocalizedError`
+/// because every call site in the app surfaces failures via
+/// `(error as? LocalizedError)?.errorDescription`.
+enum BackendWriteError: LocalizedError, Equatable {
+    /// PostgREST returned an empty representation: zero rows written or changed.
+    case wroteNothing(table: String, action: String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .wroteNothing(table, action):
+            return "Nothing was saved. The \(action) changed no row in \(table) — "
+                 + "the row may no longer exist, or it may belong to another account."
+        }
+    }
+}
 
 struct SupabaseBackendClient: BackendClient {
     private var client: SupabaseClient { SupabaseProvider.client }
+
+    /// The owning user for a write, from the live session. Every INSERT/UPSERT in this
+    /// file sources user_id here and nowhere else, so there is exactly one place that
+    /// can get it wrong.
+    private func currentUserId() async throws -> String {
+        try await client.auth.session.user.id.uuidString.lowercased()
+    }
+
+    /// The gate every write in this file passes through. `rows` is the representation
+    /// PostgREST sent back — the rows the statement actually touched. Empty means the
+    /// database did nothing, and the caller must hear about it as a thrown error, not
+    /// as a silent return.
+    @discardableResult
+    private static func requireRow<T>(_ rows: [T], _ table: String, _ action: String) throws -> T {
+        guard let row = rows.first else {
+            throw BackendWriteError.wroteNothing(table: table, action: action)
+        }
+        return row
+    }
 
     // MARK: saved_dosages
 
@@ -43,12 +94,21 @@ struct SupabaseBackendClient: BackendClient {
     /// actually began three weeks ago gets projected from the wrong day and every
     /// occurrence DoseProjection places on the calendar is shifted. Confirming the day
     /// is the fix; this is the write behind it. Nil clears it, matching the web PATCH.
+    ///
+    /// Reads back the row it changed. `ConfirmStartScreen.confirm` returns true — and
+    /// navigates the user away as though their start day is stored — on this call
+    /// merely not throwing. An RLS-refused or id-missed PATCH answers 200 with an
+    /// empty representation, so "not throwing" was true of both outcomes until the
+    /// requireRow below made them different.
     func updateStartDate(id: String, startDate: String?) async throws {
-        _ = try await client
+        let rows: [InsertedID] = try await client
             .from("saved_dosages")
-            .update(["start_date": startDate])
+            .update(["start_date": startDate], returning: .representation)
             .eq("id", value: id)
+            .select("id")
             .execute()
+            .value
+        try Self.requireRow(rows, "saved_dosages", "start-day update")
     }
 
     /// Save a protocol, returning the id — the EXISTING id when this config has
@@ -77,17 +137,15 @@ struct SupabaseBackendClient: BackendClient {
         //   "new row violates row-level security policy for table saved_dosages"
         // Sourced from the live session rather than threaded down from the view, so
         // there is exactly one place that can get it wrong.
-        let userId = try await client.auth.session.user.id.uuidString.lowercased()
-        let owned = OwnedSavedDosage(dosage, userId: userId)
+        let owned = try await OwnedSavedDosage(dosage, userId: currentUserId())
         do {
-            let row: InsertedID = try await client
+            let rows: [InsertedID] = try await client
                 .from("saved_dosages")
                 .insert(owned, returning: .representation)
                 .select("id")
-                .single()
                 .execute()
                 .value
-            return row.id
+            return try Self.requireRow(rows, "saved_dosages", "protocol insert").id
         } catch {
             guard Self.isUniqueViolation(error),
                   let existing = try await existingDosageId(for: dosage) else { throw error }
@@ -147,8 +205,18 @@ struct SupabaseBackendClient: BackendClient {
         return text.contains("23505") || text.contains("saved_dosages_user_calc_config_key")
     }
 
+    /// Reads back the deleted row. A DELETE the policy refuses, or one whose id is not
+    /// there, deletes zero rows and returns 200 — so "the protocol is gone" and "the
+    /// protocol is still there and still on your calendar" looked identical.
     func deleteDosage(id: String) async throws {
-        _ = try await client.from("saved_dosages").delete().eq("id", value: id).execute()
+        let rows: [InsertedID] = try await client
+            .from("saved_dosages")
+            .delete(returning: .representation)
+            .eq("id", value: id)
+            .select("id")
+            .execute()
+            .value
+        try Self.requireRow(rows, "saved_dosages", "protocol delete")
     }
 
     // MARK: cycles + cycle_items (two queries, grouped client-side like lib/cycles.ts)
@@ -187,23 +255,75 @@ struct SupabaseBackendClient: BackendClient {
         return try await query.order("dosed_on", ascending: false).execute().value
     }
 
+    /// Log a dose as taken. Idempotent on (protocol_id, dosed_on), which is a unique
+    /// index — tapping the same day twice updates that day's pin rather than making a
+    /// second one.
+    ///
+    /// user_id must be on this write, exactly as on saveDosage and for the same
+    /// reason. `dose_log.user_id` is `uuid NOT NULL` with no default and there are no
+    /// triggers on the table, and `dose_log_owner_all` is an ALL policy whose
+    /// WITH CHECK is `auth.uid() = user_id`. `NewDoseLogPin` describes the dose and
+    /// nothing about ownership, so — like NewSavedDosage — it is wrapped here with the
+    /// session's user. Until this was added, every log-dose tap in the app was
+    /// rejected and no iOS-written row had ever landed in dose_log.
+    ///
+    /// Nil `drawMl`/`site` encode as ABSENT keys, not nulls (synthesized Encodable
+    /// uses encodeIfPresent), and PostgREST's upsert only writes the keys present. So
+    /// a calendar toggle, which sends neither, cannot blank the draw volume or site on
+    /// a pin that already has them.
     func logDose(_ pin: NewDoseLogPin) async throws -> DoseLogPin {
-        try await client
+        let owned = try await OwnedDoseLogPin(pin, userId: currentUserId())
+        let rows: [DoseLogPin] = try await client
             .from("dose_log")
-            .upsert(pin, onConflict: "protocol_id,dosed_on", returning: .representation)
+            .upsert(owned, onConflict: "protocol_id,dosed_on", returning: .representation)
             .select("id, protocol_id, dosed_on, draw_ml, site")
-            .single()
             .execute()
             .value
+        return try Self.requireRow(rows, "dose_log", "dose log")
     }
 
+    /// `NewDoseLogPin` plus the owning user. Mirrors `OwnedSavedDosage` deliberately —
+    /// same shape, same naming, same place in the file relative to its write. A second
+    /// idiom for the same job is how the missing user_id survived on this table while
+    /// saved_dosages was fixed.
+    private struct OwnedDoseLogPin: Encodable {
+        let protocolId: String
+        let dosedOn: String
+        let drawMl: Double?
+        let site: String?
+        let userId: String
+
+        init(_ p: NewDoseLogPin, userId: String) {
+            protocolId = p.protocolId
+            dosedOn = p.dosedOn
+            drawMl = p.drawMl
+            site = p.site
+            self.userId = userId
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case site
+            case protocolId = "protocol_id"
+            case dosedOn = "dosed_on"
+            case drawMl = "draw_ml"
+            case userId = "user_id"
+        }
+    }
+
+    /// Un-log a dose. Reads back the row it removed: the calendar toggle only calls
+    /// this for a day it believes is pinned, so nothing deleted means the pin was not
+    /// ours to delete or was never written — and the optimistic un-tick must roll back
+    /// rather than stand.
     func unlogDose(protocolId: String, dosedOn: String) async throws {
-        _ = try await client
+        let rows: [InsertedID] = try await client
             .from("dose_log")
-            .delete()
+            .delete(returning: .representation)
             .eq("protocol_id", value: protocolId)
             .eq("dosed_on", value: dosedOn)
+            .select("id")
             .execute()
+            .value
+        try Self.requireRow(rows, "dose_log", "dose un-log")
     }
 
     // MARK: profiles
@@ -219,12 +339,21 @@ struct SupabaseBackendClient: BackendClient {
         return rows.first
     }
 
+    /// `profiles` keys on `id` = the user's id — there is no separate user_id column,
+    /// and `profiles_self_update` is a USING/WITH CHECK on `auth.uid() = id`, which the
+    /// `.eq("id", …)` filter already satisfies. So this write is not missing an owner.
+    /// It was missing the read-back: a user with no `profiles` row (the row is not
+    /// created by any iOS path) updates nothing, and Settings reported "saved" on the
+    /// call not throwing — the same false green DATA-CONTRACT §4.1 records on the web.
     func updateDisplayName(_ name: String, userId: String) async throws {
-        _ = try await client
+        let rows: [InsertedID] = try await client
             .from("profiles")
-            .update(["display_name": name])
+            .update(["display_name": name], returning: .representation)
             .eq("id", value: userId)
+            .select("id")
             .execute()
+            .value
+        try Self.requireRow(rows, "profiles", "display-name update")
     }
 
     private struct InsertedID: Decodable { let id: String }
