@@ -322,7 +322,20 @@ enum OnboardingCopy {
         // SPEC §4 also specifies what this screen SHOWS — "active levels chart
         // (alive with their first dose) · next dose card · cycle plotter
         // pre-loaded". That is composition, not copy, and belongs to the screens
-        // pass.
+        // pass — which is where the three labels below come from.
+        //
+        // NOT-VERBATIM as labels. They are §4's own words for the three things
+        // this screen shows, capitalised as headings.
+        //
+        // ***THESE THREE ARE MOCKS OF REAL UI AND ARE NOT ILLUSTRATIONS.***
+        // SPEC §5: they "are NOT part of the fifteen and must never reach the art
+        // list." They are drawn with `OnboardingUIMock`, never with
+        // `OnboardingIllustrationPlaceholder`, and that difference is deliberate.
+        static let mockActiveLevelsChart = "Active levels chart"
+        static let mockActiveLevelsDetail = "alive with their first dose"
+        static let mockNextDoseCard = "Next dose"
+        static let mockCyclePlotter = "Cycle plotter"
+        static let mockCyclePlotterDetail = "pre-loaded"
     }
 
     // MARK: - 10b · locked (end state, declined)
@@ -344,8 +357,37 @@ enum OnboardingCopy {
     // rule.
 
     enum Debug {
-        static let back = "Back"
         static let restart = "Restart"
         static let finishAndLoop = "Finish → back to screen 1"
+        /// Marks a mock of real UI on the `dashboard` end state. See the note on
+        /// `Dashboard.mock…` — a mock is NOT an illustration and must never join
+        /// the art list.
+        static let uiMock = "MOCK OF REAL UI — NOT ART"
+    }
+
+    // MARK: - Navigation
+    //
+    // NOT-VERBATIM. SPEC §3 requires the affordance ("Back must work from every
+    // screen") without giving it a word. This is the word.
+
+    enum Navigation {
+        static let back = "Back"
+    }
+
+    // MARK: - Accessibility
+    //
+    // ***NOT-VERBATIM, AND STILL COPY.*** A VoiceOver label is text a user
+    // receives, so it lives here under the same rule as everything else — no
+    // string literals in views, including the ones only some users hear.
+
+    enum Accessibility {
+        static let progressLabel = "Setup progress"
+        static func progressValue(_ percent: Int) -> String { "\(percent)%" }
+        /// The paywall's founder note carries a photo of Pou — the placeholder
+        /// announces itself as one.
+        static let founderNote = "Founder note"
+        /// The timeline's separator is a drawn glyph, not copy; it is hidden
+        /// from the accessibility tree rather than read as an arrow (D3).
+        static let timeline = "Trial timeline"
     }
 }
