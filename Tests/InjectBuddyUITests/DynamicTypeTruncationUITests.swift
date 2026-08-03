@@ -122,13 +122,30 @@ final class DynamicTypeTruncationUITests: XCTestCase {
         let fields = app.textFields.allElementsBoundByIndex
             .filter { $0.identifier.hasPrefix("field_") }
 
-        // Not a failure. The GLP-1 calculators are pickers and segmented controls
-        // with no `NumberField` on them, so there is nothing here to measure. Said
-        // out loud rather than silently skipped: a suite that quietly covers eight
-        // of fourteen screens while reporting green is the thing this file exists
-        // to stop.
+        // A FAILURE, not a print. It used to be a print, and a print appears in no
+        // summary line a human reads: if every screen took this branch the test
+        // executed ZERO assertions and reported `passed` — not skipped, PASSED, so it
+        // did not even show up in the skipped count. That is the exact shape this file
+        // exists to stop, quoted from its own doc comment: "a suite that quietly covers
+        // eight of fourteen screens while reporting green".
+        //
+        // Not an `XCTSkip` either. When the instrument sees nothing, the correct
+        // outcome is red, not absent — a skip is a green with a footnote, and the
+        // footnote is what nobody reads.
+        //
+        // EXPECT THIS TO FIRE, and read it before assuming a regression. The GLP-1
+        // calculators are pickers and segmented controls with no `NumberField` on
+        // them, so they genuinely have nothing to measure here. This guard cannot
+        // tell "the screen has no numeric fields" apart from "the sweep never found
+        // the fields" — and those two have opposite meanings. Making it loud is how
+        // that distinction gets made by a human once, instead of being assumed away
+        // silently on every run. If a screen is confirmed field-less, take it out of
+        // `Self.calculators` with the reason; do not soften this back to a print.
+        //
+        // Note also that `checkRendererProbes` is called BELOW this guard, so a screen
+        // that returns here is measured by neither half of the sweep.
         guard !fields.isEmpty else {
-            print("TRUNCATION-SWEEP: \(screen) has no numeric fields — nothing measured.")
+            XCTFail("TRUNCATION-SWEEP: \(screen) has no numeric fields — nothing measured.")
             return
         }
 
@@ -168,11 +185,20 @@ final class DynamicTypeTruncationUITests: XCTestCase {
             .filter { $0.identifier.hasPrefix("trunc_") }
 
         guard !probes.isEmpty else {
-            // Said out loud. A sweep that silently measures nothing is the failure this
-            // whole file exists to stop, and these probes are DEBUG-only — a Release
-            // build would find none and must not read as "nothing truncated".
-            print("TRUNCATION-SWEEP: \(screen) published NO renderer probes — "
-                  + "DEBUG build? Nothing was measured by T19 here.")
+            // A FAILURE, not a print, and this one is the more dangerous of the two.
+            // `TruncationProbe` wraps its whole body in `#if DEBUG` and its own header
+            // says it "degrades to nothing in Release" — so a Release run finds no
+            // probes on any of the fourteen calculators and the entire T19 half of this
+            // sweep disappears while the test reports `passed`. "Nothing was measured"
+            // and "nothing truncated" were the same green.
+            //
+            // Reaching this in a DEBUG build means something else broke: `NumberField`
+            // applies `.truncationProbe("field_\(key)")` to every field
+            // (CalculatorScreen.swift), and we only get here having already found
+            // fields — so fields-without-probes is a real defect in the probe, not a
+            // property of the screen.
+            XCTFail("TRUNCATION-SWEEP: \(screen) published NO renderer probes — "
+                    + "DEBUG build? Nothing was measured by T19 here.")
             return
         }
 
