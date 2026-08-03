@@ -224,6 +224,25 @@ sentence is a true statement about our evidence and it is worth more than a gree
 | 2 | **Calendar `.refreshable` fires nothing. ONE BOUNDED ATTEMPT — 30 minutes — THEN REMOVE THE AFFORDANCE.** Measured: Calendar parked, a production label change 56s before the pull never appeared, Supabase's API log shows **zero requests** after the initial read. Discriminator, same gesture one minute apart on identically-shaped ScrollViews: **dashboard pull → re-read in 3s; calendar pull → nothing.** The gesture arms `.refreshable` — proven on the dashboard in the same run — and the two screens' source shape is identical, so the cause is **not visible from a source read.** **A pull gesture that silently does nothing is worse than no pull gesture: the user believes they have refreshed and they have not — the same lie as the optimistic tick.** `.task` re-runs on tab re-appearance, so the data path survives removal and only the affordance is lost. **File the mystery with the discriminator either way.** | Either a pull re-reads, or there is no pull to make |
 | 3 | **The Calendar's taken-tick is unreadable to accessibility — cheapest item on the board.** `AgendaRow` conveys "logged" by SF Symbol + colour + strikethrough, **none of which reaches the label**: rows read `"TRT Dose, TRT"` taken or not. **A VoiceOver user cannot tell a taken dose from an untaken one in a dosing app**, and the sweep had to use the database as its observer for exactly this reason. Two lines of `accessibilityValue` at one control. **This is not the deferred accessibility work** — it buys correctness for the user and observability for every future run, at one site. | A run can read the tick without querying the database |
 
+### Batch 4 residual risk — KNOWN, BOUNDED, ACCEPTED. Not an oversight to re-open.
+
+**Confirmed on the device:** the `.loading`-blanking half. **26 real drags across 13 double-pulls,
+299 screen samples, zero with the card missing, zero error banners** — and refresh proven by an
+external database write, not by "Loading…". Under the old code `load()` set `.loading` on every
+call, so the card would have vanished on **every** pull. It vanished on none.
+
+**NOT OBSERVED:** the cancellation classifier itself. XCUITest brackets every interaction with
+*"wait for the app to idle"* and `.refreshable` holds its control until the async closure returns,
+so **the harness cannot issue pull 2 while load 1 is in flight** — measured gap 5.76s–7.02s, every
+time. Two loads were never concurrent, so no cancellation was proven to occur.
+
+**The residual risk, stated so nobody has to re-derive it:** if the classifier is wrong, **the
+symptom that returns is the error banner, not the vanished card** — a smaller defect than the one we
+started with, on a path a user can still reach by pulling faster than the harness can.
+
+**Do not build a harness to close it.** This is the 400ms clause again: not observable with the
+instruments we have, and a true statement about our evidence is worth more than a green.
+
 ### Two things batch 4 leaves behind — read both before the next sweep or the next `RouteContent` edit
 
 **1. `Loading…` IS NOW A BLIND INSTRUMENT, BY DESIGN. Its absence is NOT evidence a refresh did not
