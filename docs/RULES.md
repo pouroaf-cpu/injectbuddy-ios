@@ -11,10 +11,21 @@ and no citation anywhere in the repo was repointed to create this file. If you a
 take the next free number by reading to the END of the list — the numbers must stay unique,
 ascending and contiguous, which `BoardRuleCitationTests` asserts.
 
-**This copy is additive.** The identical 39 rules are still in `docs/ui-audit/BOARD.md` §5
-at the time of writing, and that is where `BoardRuleCitationTests` parses definitions from.
-Nothing was removed from the board by this pass; the two copies get reconciled by a human
-who checks the count first.
+**This copy is additive, and it is NO LONGER a verbatim copy.** Rules **1–39 were lifted
+byte-identical** from `docs/ui-audit/BOARD.md` §5 and are still there too; nothing was
+removed from the board by this pass, and the two copies get reconciled by a human who
+checks the count first. **Rule 40 was authored here and exists ONLY in this file** — it
+was never in BOARD §5, so a diff of the two documents shows one entry the board does not
+have. That is a known, stated difference, not drift. The postscript at the foot of this
+file describes the lifted list as `1…39`; that sentence is part of the lifted text and is
+correct about the lift, not about this file's current length.
+
+**Consequence, until BOARD §5 is struck.** `BoardRuleCitationTests` parses rule
+DEFINITIONS out of `docs/ui-audit/BOARD.md` and resolves every `§5.NN` cited anywhere in
+the repo against them. BOARD §5 stops at 39, so **rule 40 must not be cited in the
+`§5.` form anywhere in the repo yet** — such a citation would resolve to nothing and the
+suite would go red. Cite it as "RULES.md rule 40" until that test is repointed at this
+file, which is the change this consolidation still owes.
 
 **Two of the four rules `CLAUDE.md` states up front are not numbered rules and are not
 duplicated here:** *never tick a finding on inspection* is the board's own operating rule
@@ -406,6 +417,33 @@ evidence* is §5.1, and *a green indistinguishable from an absence is not eviden
    version that got this right by accident (`Color.clear` at 0×0), and it is worth being
    explicit that it was luck: prefer `.background`, size zero where you can, and when a
    probe must span a region, ask what it is now standing in front of.
+
+40. **A REMOVAL IS SCOPED BY WHAT THE CODE REACHES, NOT BY WHAT THE SPEC ENUMERATES — and
+   the set being removed is ENUMERATED, never derived from an adjacent predicate.** One
+   lesson, two directions: the first says the scope is wider than you were told, the second
+   says the membership is narrower than a convenient predicate makes it. Both landed in
+   `bf52ecc`, the H6 withdrawal of BMI and Free T Index.
+   **The spec is the weaker source, every time.** H6 was specced as THREE browse surfaces,
+   written from a source read. There were **four**. The fourth was `NavItems.calculators` —
+   the drawer, live on iPhone — still listing all fifteen calculators, both withdrawn ones
+   included, and a withdrawal that shipped to the spec would have left a route straight into
+   a screen the owner had asked to be unreachable. It was found by **grepping for the slugs**,
+   not by reading the spec, and that is the method: the list of surfaces is whatever the
+   symbol search returns, and the spec is a hypothesis about it. An enumeration written by a
+   human reading code is a sample, and a sample nobody sized is read as "all of it" (§5.37).
+   **Enumerate the withdrawal, do not derive it.** `CalculatorSlug.isListed` is written
+   `case .bmi, .freeTestIndex: return false` — the two members, literally. Deriving it from
+   `canSaveProtocol` would have been shorter, would have read as principled, and would have
+   swept in `cyclePlotter`, hiding a working calculator from Tools on the eve of the work
+   that builds on it. **A convenient predicate that happens to fit is not the same set**; it
+   is a different set that agrees with yours today, and it changes membership whenever the
+   thing it actually measures changes. This is §5.32 pointed at product behaviour rather than
+   at a test exemption, and the failure mode is the mirror image: §5.32's derived set grows
+   silently LATER, this one is already wrong NOW.
+   Filter at the source once — `CalculatorCategory.members` filters on `isListed` — so a
+   surface written next week inherits the removal instead of having to remember it. And
+   remove the row rather than disabling it: a visible control that does nothing is a defect
+   already on this board.
 
 ---
 
