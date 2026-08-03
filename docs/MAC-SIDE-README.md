@@ -168,16 +168,34 @@ iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
   off.
 - **Never put credentials in an assertion, a failure message, an `.xcresult`, a screenshot or a
   commit.**
-- **⚠️⚠️ AN EXIT CODE IS NOT A RESULT. ASSERT THAT THE ARTEFACT CHANGED.** Three instruments on
-  2026-08-03 reported success while doing nothing, and the general form of the check that caught the
-  third is *compare the output to the input*:
-  1. `xcodebuild … | tail` — **exit 0 on a run whose log said `** TEST FAILED **`** (below).
-  2. The F-F disclaimer probe — `overlap=none` because it measured one occluder of three, on screens
-     where the string was invisible.
+- **⚠️⚠️ AN EXIT CODE IS NOT A RESULT. ASSERT THAT THE ARTEFACT CHANGED.**
+  **FOUR instruments on 2026-08-03 reported success while doing nothing.** They are one rule with
+  four faces, so they are listed under it rather than as four separate notes.
+  **The artefact differs by tool — and naming it is the whole technique:**
+  for a build it is the **binary**; for a crop, the **dimensions**; for a probe, **the thing it
+  claims to measure**; for a test run, **the NAMED test in the executed list**.
+  1. `xcodebuild … | tail` — **exit 0 on a run whose log said `** TEST FAILED **`** (next bullet).
+  2. The F-F disclaimer probe — `overlap=none` because it measured **one occluder of three**, on
+     screens where the string was invisible in the pixels.
   3. **`sips --cropOffset … -c …` — exit 0, no error, and a byte-identical uncropped file.** Caught
      only by comparing the output's pixel dimensions to the input's. Without that check, two frames
      carrying a real account's email would have been committed *as cropped*. Cropping is done with
      CoreGraphics now (`scratchpad/crop.swift`), which prints `in WxH -> out WxH`.
+  4. **`-only-testing:` on a file that is not in the target — `** TEST BUILD SUCCEEDED **`,
+     `** TEST EXECUTE SUCCEEDED **`, and `Executed 0 tests`.** See the `xcodegen` bullet below.
+     > **A NON-ZERO COUNT IS NOT ENOUGH EITHER.** `-only-testing:` matching *something else* — a
+     > typo'd class, a filter that widens to the whole target — gives a healthy number and a green
+     > while the test you care about still never ran. **`Executed 14 tests` is exactly as reassuring
+     > as `Executed 0` was.** Grep the executed output for the **test's name**:
+     > `grep -cE "Test Case.*<Class>.*<method>"`. The count is a property of the run; the name is a
+     > property of the thing you asked for.
+- **⚠️ `xcodegen generate` IS A PREREQUISITE FOR ADDING A FILE, not only a hazard of editing a
+  generated one.** `CLAUDE.md` records that `project.yml` generates `Info.plist` and that hand edits
+  die at `xcodegen generate` — **that is the same fact from the other side, and only one side was
+  written down.** A **new** source file is not in any target until the project is regenerated, and
+  **a file that is not in a target is not a compile error — it is absent, and absence compiles.**
+  Bit on 2026-08-03: `OnboardingCaptureTests.swift` built clean, ran zero tests, and reported
+  success twice. Check with `grep -c <ClassName> InjectBuddy.xcodeproj/project.pbxproj`.
 - **⚠️ NEVER PIPE A RUN THROUGH `tail`, `head` OR ANYTHING ELSE. Capture the full output to a file
   and read the file.** A pipeline exits with the status of its **last** command, so
   `xcodebuild … | tail -40` reports **exit 0 for a run that FAILED** — and it discards the
