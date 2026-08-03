@@ -22,6 +22,30 @@ things get done, not that the done ones are unproven.** A finding that is deferr
 filed, not ticked — the one thing an MVP posture must never buy is a green that was not
 earned.
 
+### Only the owner orders an audit
+
+**Neither side starts a retrospective sweep on its own initiative.**
+
+**An audit is:** any sweep over already-closed, already-shipped or already-verified work —
+re-checking closed findings, re-surveying screens, repo-wide quality or citation sweeps,
+"let's confirm nothing else is affected". **Ordering one via subagents counts.**
+
+**Not an audit, and still yours to do without asking:** verifying a change currently in
+flight; following a defect found while doing assigned work — **file it, do not sweep from
+it**; and reading whatever is needed to answer a question you were asked.
+
+**If a sweep looks warranted, say so in one line with what it would cost, and wait.**
+
+*The occasion, recorded because a rule reads differently when you know who it was written
+about: the Windows side ordered a skip-audit off the back of the `TEST_RUNNER_` finding,
+put it on the stop list when this posture landed, then let it run to completion anyway.
+Twenty-six closed findings re-examined while the app's primary write path had never
+produced a usable row. The rule binds the side that wrote it first.*
+
+**Where this bites first:** a batch sweep passes through screens and will reveal things.
+**Those get filed, not chased.** A sweep that starts finding its own follow-up work is an
+audit nobody ordered.
+
 ---
 
 **Project law.** These are the rules the rest of the repo cites, and they are cited from
