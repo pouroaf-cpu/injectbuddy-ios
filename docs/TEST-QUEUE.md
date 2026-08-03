@@ -51,3 +51,73 @@ Runner rules:
   row is the one shape that has never existed.
 - Report to: mac
 - Result:
+
+### Q2 — result bar as one control + content-area screen title   [filed by: calc-screen] [status: QUEUED]
+- Changed: `Sources/InjectBuddy/Features/Calculators/CalculatorScreen.swift` only.
+  **B** — `SPEC-RESULT-SHEET-AND-SYRINGE §1/§2` build steps 1–2. The five-rung pinning
+  gate, its hidden candidates and its 0.40 cap are DELETED. The pinned bar is now one
+  definition: `See your result` (`cta_see_result`, opens a `.sheet` with `.medium`/`.large`
+  detents carrying the numbers) beside `Add` (`cta_add`, unchanged), with `ViewThatFits`
+  choosing row-vs-stacked by layout rather than by type size. No result card is pinned.
+  The in-scroll `ResultCard` stays and now renders EVERY row, so `result_<label>` is one
+  element on one surface again; the sheet's copy uses `sheet_result_`.
+  Also `SegmentedRow` (the syringe barrel, **11 calculators**): `.lineLimit(2)` REMOVED —
+  the labels are value+unit pairs (`0.3 mL (30u)` …) and the ban is absolute — replaced
+  with a `ViewThatFits` row/column fallback; each option now carries
+  `control_syringeMl_<label>`, so the barrel enters `inputControls()` in the existing
+  reachability sweep with no change to that suite. `.minimumScaleFactor(0.8)` deliberately
+  LEFT in place (H1, deferred).
+  **C** — H5 built as `DESIGN-PARITY §9` OPTION (a): a content-area `ScreenHeader`
+  (`screen_title`, mark + title, no `lineLimit`, wraps freely). **Not `.principal`** —
+  §9's addendum measured `.principal` clipping a third line silently. The inherited
+  `RouteContent` large title is demoted with `.navigationBarTitleDisplayMode(.inline)`
+  as an interim; the shared fix belongs in `RouteContent` and is reported, not written.
+- Must answer:
+  1. **Bar proportion at DEFAULT size on `trt`.** Read `bar_gate` — it now publishes
+     `area=`, `bar=` and `share=` from the renderer. Expected: `share` well under the
+     0.5240 the finding recorded and under the retired 0.40 cap. Report the number, and
+     cross-check `bar_plate.frame` against it (the two must agree).
+  2. **Are the barrel buttons reachable?** `control_syringeMl_*` are new and are picked up
+     by `PinnedBarReachabilityUITests.inputControls()` automatically. Expected: none
+     straddles the plate, all four scroll fully into view.
+  3. **Do the barrel labels show their units at large text?** Same control, at AX5 — the
+     full string (`0.3 mL (30u)`, not `0.3 mL (…`) must be visible on a calculator using
+     `syringeMl`. Screenshot; the accessibility layer returns model text and cannot
+     answer this.
+  4. **Is the calculator name shown as a content-area header, and does it wrap?**
+     `screen_title` exists, is `.isHeader`, and at AX5 on `Steroid Dosage` the whole
+     string is visible — the open `Steroid Dos…` finding is what this closes. Confirm
+     there is exactly ONE title on screen (the interim `.inline` demotion is what makes
+     that true; if two are visible, say so — that is the `RouteContent` change).
+  5. **Same four on ONE calculator outside the top five: `Retatrutide`.** Deliberately not
+     TRT/Reconstitution/Steroid — those are the three screens every prior sweep aimed at,
+     and the least-surveyed screen is the highest-prior defect.
+  6. **RED FIRST, then green.** `TEST_RUNNER_BAR_SHARE_CAP=0.55` no longer drives a gate;
+     it is honoured as a legacy alias for `FORCE_PINNED_RESULT=1`, which restores the
+     pinned result card and reproduces the 52% panel. The reachability sweep must go RED
+     with it set (sheared `Frequency` on TRT at default) and GREEN without it. A green
+     with no prior red proves nothing here — `SPEC §8` names this as a pass condition.
+  7. Known expected-failure entry `Steroid Dosage / field_mgWeek / AX5` — report whether it
+     still shears. If it has stopped, the suite says to delete the entry; if the stacked
+     branch of the bar made AX5 taller than the old Add-only floor, say so, because that
+     is the one place this change could regress.
+- Invocation:
+    xcodegen generate   # NOT needed — no files added to or removed from the project
+    # red first
+    TEST_RUNNER_QA_EMAIL=… TEST_RUNNER_QA_PASSWORD=… TEST_RUNNER_BAR_SHARE_CAP=0.55 \
+      xcodebuild test -project InjectBuddy.xcodeproj -scheme InjectBuddy \
+      -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+      -only-testing:InjectBuddyUITests/PinnedBarReachabilityUITests
+    # then green, plus the frames
+    xcrun simctl ui booted content_size large
+    TEST_RUNNER_QA_EMAIL=… TEST_RUNNER_QA_PASSWORD=… \
+      xcodebuild test -project InjectBuddy.xcodeproj -scheme InjectBuddy \
+      -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+      -only-testing:InjectBuddyUITests/PinnedBarReachabilityUITests \
+      -only-testing:InjectBuddyUITests/ProbeAttachmentUITests \
+      -only-testing:InjectBuddyUITests/CalculatorWiringUITests
+    xcrun simctl ui booted content_size accessibility-extra-extra-extra-large
+    # …re-run for the AX5 frames on Steroid Dosage and Retatrutide, then RESET:
+    xcrun simctl ui booted content_size large
+- Report to: calc-screen (via the directing side)
+- Result:

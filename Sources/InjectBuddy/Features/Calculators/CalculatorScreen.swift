@@ -2,9 +2,29 @@ import SwiftUI
 
 // ─── CalculatorScreen ────────────────────────────────────────────────────────
 // Generic calculator form driven entirely by a CalculatorSpec. Renders each field
-// from the spec, shows a pinned live ResultCard via .safeAreaInset(edge: .bottom),
-// and saves the inputs as a protocol. The cycle-plotter slug routes to its bespoke
+// from the spec, pins a ONE-ROW action bar via .safeAreaInset(edge: .bottom), and
+// saves the inputs as a protocol. The cycle-plotter slug routes to its bespoke
 // screen instead.
+//
+// `SPEC-RESULT-SHEET-AND-SYRINGE.md §1`, the owner's decision of 2026-08-03, and it
+// reverses `RESULT-PANEL-SPEC.md §4`. What used to be pinned here was the whole
+// `ResultCard`, behind a five-rung measured gate that chose how much of it to show.
+// The gate was right about its own arithmetic and wrong about the shape of the
+// problem: a panel whose FLOOR is a result card is still a panel, and it measured
+// 52.40% of the content area at default type size on TRT. That single fact was the
+// cause of six findings — F-H, the four buried barrel buttons, F-I, and the
+// frequency control unreachable with the keypad up, where the occluder was never the
+// keyboard.
+//
+// So the bar no longer carries the result at all. It carries `See your result`,
+// which opens the sheet, and the committing action D5 requires. The ladder, its
+// candidate measurement and its cap are gone with it — there is nothing left to
+// choose between, which is the point: ONE control, fifteen calculators.
+//
+// SCOPE OF THIS PASS: §8 build steps 1 and 2 — the bar, and the sheet with numbers.
+// The syringe drawing (§3), its motion (§3.3), over-capacity colouring (§5) and zoom
+// (§4) are the next stage and are sequenced that way by the spec itself, because
+// each needs photographs at four barrels × two text sizes to pass.
 
 struct CalculatorScreen: View {
     let slug: CalculatorSlug
@@ -29,6 +49,11 @@ struct CalculatorScreen: View {
     /// into it — the opposite of what this is for. The content area is a property of
     /// the screen, not of the keypad, so it is measured when the keypad is down.
     @State private var contentAreaAtRest: CGFloat = 0
+
+    /// The result sheet. `SPEC-RESULT-SHEET-AND-SYRINGE §2` — a `.sheet` with detents
+    /// rather than a full-screen cover, because the user is comparing the sheet
+    /// against the inputs behind it and the inputs must not vanish.
+    @State private var showsResult = false
 
     /// Which field is being edited, keyed by `CalculatorInput.key`.
     ///
@@ -61,25 +86,27 @@ struct CalculatorScreen: View {
         GeometryReader { geo in
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                ScreenHeader(title: slug.title)
+
                 ForEach(vm.spec.fields) { field in
                     if shouldShow(field) {
                         FieldRow(field: field, vm: vm, focusedKey: $focusedKey)
                     }
                 }
 
-                // AUDIT FINDING F12: at AX sizes the pinned result bar took ~60%
-                // of the screen and hid the field being edited. Above AX1 the bar
-                // collapses to the primary row + CTA and the full breakdown is
-                // rendered here instead, inside the scroll, so no row is lost.
+                // The in-scroll card, which renders EVERY row unconditionally and is
+                // now the only card on the screen at rest. The pinned copy is gone
+                // (see the header comment), so `result_<label>` addresses exactly one
+                // element again without the surface-following rule the gate forced —
+                // there is only one surface.
+                //
+                // NOT DELETED in favour of the sheet, deliberately. The sheet is a
+                // second reading surface, not a replacement: `result.isValid` here is
+                // what the user sees while typing, and removing it would make the live
+                // result — the reason this is not the PWA's "Show result" flow —
+                // reachable only through a modal.
                 if vm.result.isValid {
-                    // This card takes the bare `result_` identifiers for every row the
-                    // pinned bar is NOT showing — which, once the gate can choose
-                    // between four rungs, is most of them at most sizes. An identifier
-                    // names the surface the user is reading, and which view that is
-                    // now depends on a measurement. See `ResultCard.identifier(for:)`.
-                    ResultCard(result: vm.result,
-                               barrelMl: barrelMl,
-                               pinnedLabels: pinnedLabels)
+                    ResultCard(result: vm.result, barrelMl: barrelMl)
                 }
 
                 Spacer(minLength: Theme.Spacing.md)
@@ -106,10 +133,7 @@ struct CalculatorScreen: View {
         .safeAreaInset(edge: .bottom) { resultBar }
         }
         .background(Theme.canvas)
-        // The candidate bars are measured HERE — inside the form, before the inset
-        // that pins the real one. See `barCandidates`.
-        .background(alignment: .bottom) { barCandidates }
-        // ...and the content area is measured OUT HERE, outside the inset, because
+        // The content area is measured OUT HERE, outside the inset, because
         // this is the only position whose height is the region between the fixed
         // header and the tab bar. Verified against the framebuffer rather than read
         // off the modifier chain: this proxy reports 638.67pt while a band profile of
@@ -121,6 +145,32 @@ struct CalculatorScreen: View {
         .background { measure(BarMetrics.contentArea) }
         .onPreferenceChange(BarMetricsKey.self) { metrics = $0 }
         .overlay { gateProbe }
+        // H5, built as `DESIGN-PARITY §9` OPTION (a) — the branded header lives in the
+        // CONTENT AREA (see `ScreenHeader`), never in `.principal`.
+        //
+        // THIS LINE IS AN INTERIM, and it is the only thing in this file that touches
+        // navigation chrome. `RouteContent.swift:21-22` applies `.navigationTitle` to
+        // every route and gives calculators `.automatic`, i.e. a LARGE title — that
+        // title is the element measured truncating to `Steroid Dos…` at AX5 on
+        // `IB2245752`, and with a content-area header now present it is also a SECOND
+        // title on the same screen. `.inline` demotes it so there is one screen title
+        // and the truncating element is gone.
+        //
+        // The title itself is NOT cleared, because `.navigationTitle` is also the back
+        // control's label for anything pushed from here.
+        //
+        // THE REAL FIX IS SHARED AND IS NOT IN THIS FILE: `RouteContent` should decide
+        // the display mode from whether the route carries its own header, one site for
+        // all fifteen calculators, rather than each screen overriding it. Reported, not
+        // written — that file is not this pass's.
+        .navigationBarTitleDisplayMode(.inline)
+        // `SPEC-RESULT-SHEET-AND-SYRINGE §2`. Detents, not a full-screen cover: the
+        // user is reading the sheet AGAINST the inputs behind it.
+        .sheet(isPresented: $showsResult) {
+            ResultSheet(result: vm.result,
+                        barrelMl: barrelMl,
+                        title: slug.title)
+        }
         .toolbar { ToolbarItemGroup(placement: .keyboard) { keyboardAccessory } }
         .onAppear { vm.scale = settings.syringeScale }
         .onChange(of: settings.syringeScale) { vm.scale = $0 }
@@ -128,122 +178,6 @@ struct CalculatorScreen: View {
             guard !keyboard.isVisible, let area = latest[BarMetrics.contentArea], area > 0 else { return }
             contentAreaAtRest = area
         }
-    }
-
-    // MARK: - The pinning gate
-    //
-    // T20. The bar took 52.3% of the content area at DEFAULT type size — measured off
-    // IB2245749, not inferred: plate top pt 456.33, tab bar top pt 790.67, content
-    // area 638.34pt between the header and the bar. It sheared the `Frequency` picker
-    // through the middle of its control and left two of five inputs usable on a
-    // standard phone at standard text.
-    //
-    // The previous gate was `typeSize >= .accessibility1`. That is a GUESS at where
-    // the problem starts, and it guessed wrong in the direction that matters: the
-    // screen it declared healthy was the one in the finding. A Dynamic Type category
-    // is not the thing going wrong — the share of the screen the overlay owns is —
-    // and the same category means different things on the fourteen calculators,
-    // which carry between one and four result rows.
-    //
-    // So the bar measures what it would occupy and stands down when that is too much.
-    // Three states rather than two, because "pinned or not" throws away the live
-    // result on a screen where watching a dose change as you type it is the reason
-    // this is not the web's "Show result" flow:
-    //
-    //   full      primary values + the weekly-total cross-check
-    //   compact   the primary row alone — the form already used while the keypad is up
-    //   unpinned  CTA only; the full breakdown is in the scroll, where it already is
-    //
-    // MEASURED, NOT CURRENT. Each candidate is laid out hidden and measured at its own
-    // ideal height, so the decision does not depend on which state is showing. Gating
-    // on the height of the bar as currently rendered would oscillate: full is too tall
-    // -> drop to compact -> compact fits -> promote to full -> too tall, every frame.
-    static let maxPinnedShare: CGFloat = {
-        #if DEBUG
-        // DEBUG-ONLY override, same purpose as FORCE_INLINE_FIELD: it lets a test
-        // DRIVE the gate to each rung and assert what actually renders there, rather
-        // than trusting a gate that has only ever been observed choosing one of them.
-        // A gate whose other three branches have never been seen is three untested
-        // branches on the screen that writes a protocol (BOARD §5.24).
-        if let raw = ProcessInfo.processInfo.environment["BAR_SHARE_CAP"],
-           let v = Double(raw), v > 0, v <= 1 {
-            return CGFloat(v)
-        }
-        #endif
-        // 0.40, and the reasoning is worth keeping because the number looks arbitrary
-        // and the alternatives are worse.
-        //
-        // There is an IRREDUCIBLE FLOOR. `Add` plus the hero clearance plus padding
-        // measures 18.79% of the content area at default and 22.56% at AX5, and D5
-        // makes it mandatory, so no cap can reach below it. The gate is choosing
-        // inside [18.79%, 52.40%], not [0%, 100%].
-        //
-        // Measured rungs at default size (TRT): full 52.40%, lead 35.44%,
-        // compact 29.12%, unpinned 18.79%. A one-third cap leaves 14.54 points of
-        // real budget and the `lead` rung needs 16.65 — it misses by 2.11 points, and
-        // what pays is the dose: `compact` renders it as a small ink-coloured
-        // secondary row instead of the 7.65:1 teal display face.
-        //
-        // Any cap in (35.44%, 52.40%) selects `lead` here. 0.40 is chosen for MARGIN
-        // rather than fit — 0.36 would sit 0.6 points from a measured value and would
-        // change rung on a font-metric revision. At AX5 `lead` measures 59.20%, so
-        // 0.40 still stands the bar down there and T24's outcome is preserved by
-        // measurement rather than by the Dynamic Type category that produced it.
-        return 0.40
-    }()
-
-    /// The ladder, tallest first. The gate takes the tallest rung that fits.
-    ///
-    /// `lead` exists because the first cut of this gate went straight from `full` to
-    /// `compact` and the frame said no. `compact` renders the dose as a small ink-
-    /// coloured secondary row — which is right for the two seconds the keypad is up
-    /// and the user is typing, and wrong as the RESTING presentation of the number
-    /// they act on. It took `0.250 mL` from the 7.65:1 teal display face to the same
-    /// weight as its own label. A gate that fixes a layout finding by shrinking the
-    /// dose is trading one defect for a quieter one.
-    enum PinnedMode: String, CaseIterable {
-        /// Primary values plus the weekly-total cross-check.
-        case full
-        /// The lead figure at full treatment, KEEPING the weekly-total cross-check as a
-        /// single secondary line. Added after `lead` shipped and the trade it makes was
-        /// measured rather than assumed — see `maxPinnedShare`.
-        case leadPlusTotal
-        /// The lead figure alone, at full treatment — label above, display face, teal.
-        case lead
-        /// One small line. The keypad-up form.
-        case compact
-        /// CTA only.
-        case unpinned
-    }
-
-    /// What the measurement says, ignoring the keypad.
-    private var measuredMode: PinnedMode {
-        // Before the first measurement lands, show what shipped. A screen that
-        // flashes its result bar away on appear is worse than one frame of the old
-        // layout.
-        guard contentAreaAtRest > 0 else { return .full }
-        return PinnedMode.allCases.first { mode in
-            guard let h = metrics[mode.rawValue], h > 0 else { return false }
-            return h / contentAreaAtRest <= Self.maxPinnedShare
-        } ?? .unpinned
-    }
-
-    /// What actually renders. The keypad can only ever make the bar SMALLER —
-    /// it never promotes a bar the measurement stood down.
-    private var pinnedMode: PinnedMode {
-        guard keyboard.isVisible else { return measuredMode }
-        return measuredMode == .unpinned ? .unpinned : .compact
-    }
-
-    /// The labels the pinned bar is showing right now, derived from the SAME rule the
-    /// bar itself renders from rather than restated here.
-    private var pinnedLabels: Set<String> {
-        guard pinnedMode != .unpinned else { return [] }
-        return Set(ResultCard.rows(for: vm.result,
-                                   isPinned: true,
-                                   leadOnly: pinnedMode == .lead || pinnedMode == .leadPlusTotal,
-                                   withTotal: pinnedMode == .leadPlusTotal,
-                                   isCompact: pinnedMode == .compact).map(\.label))
     }
 
     // MARK: - Keyboard accessory
@@ -336,7 +270,13 @@ struct CalculatorScreen: View {
     }
 
     private var resultBar: some View {
-        barBody(mode: pinnedMode)
+        barBody
+            // The bar's own RENDERED height, published so the pass condition in
+            // `SPEC-RESULT-SHEET-AND-SYRINGE §8` — "no more than one row, reported as a
+            // percentage of the content area" — is a number the app produces rather
+            // than one the harness infers from a screenshot. Paired with
+            // `BarMetrics.contentArea` in `gateProbeLabel`.
+            .background { measure(BarMetrics.bar) }
             // Clears the raised hero, which otherwise rests ON this CTA.
             //
             // MainShell.heroOverhang cannot do this. An outer safeAreaInset reaches
@@ -428,42 +368,122 @@ struct CalculatorScreen: View {
             .accessibilityHidden(true)
     }
 
-    /// The bar in a given state. One definition, used by the pinned instance and by
-    /// all three hidden candidates, so a candidate cannot measure a layout that
-    /// differs from the one it is predicting.
+    /// THE BAR. One definition, no states to choose between, fifteen calculators —
+    /// which is the whole of `SPEC-RESULT-SHEET-AND-SYRINGE §1`.
+    ///
+    /// Two controls, and they are not the same kind of thing. `See your result` opens a
+    /// reading surface and commits nothing. `Add` writes a protocol. The spec puts the
+    /// first in the bar and says the second "stays where the app already puts it" —
+    /// here — because D5 makes the committing action mandatory and wholly visible (so
+    /// it cannot move into the scroll) and the spec explicitly refuses to move it into
+    /// the sheet: *"the sheet is for reading, not committing. One commit path, not
+    /// two."*
+    ///
+    /// `ViewThatFits` chooses the axis, and it chooses by LAYOUT rather than by a
+    /// Dynamic Type category. That is not tidiness: `if isAccessibilitySize` is the
+    /// exact guess the retired gate was retired for, and it guessed wrong in the
+    /// direction that mattered. Here the fit test is real because a
+    /// `.frame(maxWidth: .infinity)` reports its CHILD's ideal width when proposed
+    /// `nil` — so the row branch's ideal is the sum of two actual strings, while the
+    /// pills still expand to equal widths when the row is chosen. Reverse that (put a
+    /// `.fixedSize` around the pill, or an `idealWidth: .infinity` anywhere in the
+    /// chain) and the ideal becomes unbounded, the fit test can never succeed, and the
+    /// stacked branch renders at every size — silently, which is the failure mode this
+    /// project keeps finding.
+    ///
+    /// NEITHER CONTROL IS EVER HIDDEN OR RESIZED BY VALIDITY. A bar that changes height
+    /// when the result becomes valid re-introduces the shear it was built to remove:
+    /// the plate edge would move under the user's finger as they finish typing a dose.
+    /// `See your result` is therefore always enabled and the sheet carries the
+    /// "Enter values to calculate" state itself.
     @ViewBuilder
-    private func barBody(mode: PinnedMode) -> some View {
+    private var barBody: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            switch mode {
-            case .full:
-                // The primary values plus the weekly-total cross-check.
-                ResultCard(result: vm.result, isPinned: true, barrelMl: barrelMl)
-            case .leadPlusTotal:
-                // The lead figure at full treatment WITH the weekly total under it.
-                // This rung exists because the rung below gives up the cross-check, and
-                // whether that was necessary turned out to be a measurement nobody had
-                // taken.
-                ResultCard(result: vm.result, isPinned: true,
-                           leadOnly: true, withTotal: true, barrelMl: barrelMl)
-            case .lead:
-                // The lead figure alone. What is given up is the weekly total — the
-                // cross-check that confirms the app understood the dose you typed — and
-                // the secondary values. Both are one scroll away in the in-scroll card,
-                // which renders every row unconditionally.
-                ResultCard(result: vm.result, isPinned: true, leadOnly: true, barrelMl: barrelMl)
-            case .compact:
-                // One line — label + value + unit, still unable to truncate. This is
-                // the form the bar already took while the keypad was up (finding F11,
-                // where bar + keyboard covered 65% of the screen and cut the field
-                // being edited in half); the gate can now also choose it at rest.
-                ResultCard(result: vm.result, isCompact: true, isPinned: true, barrelMl: barrelMl)
-            case .unpinned:
-                // Nothing. The full breakdown renders in the scroll, where it already
-                // renders today — the user scrolls to the result instead of the
-                // result covering the inputs.
-                EmptyView()
+            // DEBUG-ONLY, and it exists so the reachability sweep can still be SHOWN to
+            // fail (BOARD §5.24). That suite's documented red-proof was
+            // `TEST_RUNNER_BAR_SHARE_CAP=0.55`, which forced the retired gate to approve
+            // the full-height bar and went red on the sheared `Frequency` picker. The
+            // gate is gone, so that hook would now do NOTHING and the suite would be
+            // green either way — a green indistinguishable from an absence, on the one
+            // check that observes the defect this change removes.
+            //
+            // So the hook is re-pointed rather than deleted: it restores the pinned
+            // result card and reproduces the 52% panel. `BAR_SHARE_CAP` is honoured as a
+            // legacy alias at any value, so the invocation printed in
+            // `PinnedBarReachabilityUITests` keeps working without editing that suite.
+            if Self.forcedPinnedResultForRegressionTest, vm.result.isValid {
+                // Its own identifier namespace, and out of the accessibility tree: this
+                // is a reproduction of a defect, not a second place to read a dose.
+                ResultCard(result: vm.result, barrelMl: barrelMl, idPrefix: "pinned_result_")
+                    .accessibilityHidden(true)
             }
 
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Theme.Spacing.sm) {
+                    seeResultButton
+                    addButton
+                }
+                VStack(spacing: Theme.Spacing.sm) {
+                    seeResultButton
+                    addButton
+                }
+            }
+
+            if !network.isOnline {
+                Text("You're offline — the calculator still works, but adding this as a protocol needs a connection.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.secondaryLabel)
+                    .multilineTextAlignment(.center)
+            }
+
+            if case let .failed(msg) = vm.saveState {
+                Text(msg).font(.caption).foregroundStyle(Theme.danger)
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .padding(.bottom, Self.heroClearance)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// The control the owner asked for by name: *"we need somewhere where it says click
+    /// here to see your result, page slides out."*
+    ///
+    /// Deliberately NOT the primary treatment — navy is the committing colour app-wide
+    /// (`PrimaryButton`, the hero), and a reading action wearing the writing colour on a
+    /// dosing screen is a category error that costs a wrong tap. Teal on `accentSoft`
+    /// at 7.65:1.
+    private var seeResultButton: some View {
+        Button {
+            showsResult = true
+        } label: {
+            HStack(spacing: Theme.Spacing.xs) {
+                // No frozen size. The Tools-at-AX5 finding is partly "icons that stayed
+                // small while the text went huge" — inheriting the label's font is what
+                // stops that being reintroduced here.
+                Image(systemName: "syringe")
+                    .accessibilityHidden(true)
+                Text("See your result")
+                    // Wraps rather than truncating, in either branch of the fit test.
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.headline)
+            .foregroundStyle(Theme.tealTextStrong)
+            .frame(maxWidth: .infinity, minHeight: Theme.minTarget)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.control)
+                    .fill(Theme.accentSoft)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("cta_see_result")
+        .accessibilityLabel("See your result")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var addButton: some View {
             // Titled "Add" to match the web, where the bottom nav's Add slot owns
             // saving. Kept ON the calculator for now rather than moved to the tab bar:
             // that needs the calculator to publish its readiness up to the shell (the
@@ -511,53 +531,25 @@ struct CalculatorScreen: View {
             // so tests resolve it through `unique(_:)` and fail loudly rather than
             // quietly picking one of four.
             .accessibilityIdentifier("cta_add")
-
-            if !network.isOnline {
-                Text("You're offline — the calculator still works, but adding this as a protocol needs a connection.")
-                    .font(.caption)
-                    .foregroundStyle(Theme.secondaryLabel)
-                    .multilineTextAlignment(.center)
-            }
-
-            if case let .failed(msg) = vm.saveState {
-                Text(msg).font(.caption).foregroundStyle(Theme.danger)
-            }
-        }
-        .padding(Theme.Spacing.md)
-        .padding(.bottom, Self.heroClearance)
-        .frame(maxWidth: .infinity)
     }
 
     /// Daylight between this pinned bar and MainShell's hero circle.
     private static let heroClearance: CGFloat = 16
 
-    // MARK: - Candidate measurement
-
-    /// All three bar states, laid out hidden at their own ideal heights and measured.
+    /// DEBUG-ONLY. Restores the pinned result card, reproducing the 52%-of-content-area
+    /// panel this change removes, so `PinnedBarReachabilityUITests` can still be shown
+    /// red before it is trusted green. `BAR_SHARE_CAP` is accepted at ANY value as a
+    /// legacy alias, because that is the variable the suite already forwards and the
+    /// invocation printed in its own doc comment must keep working.
     ///
-    /// `fixedSize(vertical:)` is load-bearing, not tidiness. A `.background` is
-    /// proposed the modified view's size, so without it a candidate taller than the
-    /// form — which is the AX5 case, and the case the gate exists for — would be
-    /// COMPRESSED to fit and measure smaller than it renders. The gate would then
-    /// approve exactly the bar it was built to stand down, and it would do so
-    /// silently.
-    ///
-    /// Hidden three ways on purpose. `.hidden()` alone leaves an element in the
-    /// ACCESSIBILITY TREE (BOARD §5.6 — fourteen calculator rows sat swipeable at
-    /// x = -290 on exactly that mistake), and these copies contain a second `Add`
-    /// button. A VoiceOver user finding four Add buttons on a dosing screen, three of
-    /// which write nothing, is the same class of defect as the one this task is
-    /// fixing.
-    private var barCandidates: some View {
-        VStack(spacing: 0) {
-            ForEach(PinnedMode.allCases, id: \.self) { mode in
-                barBody(mode: mode).background { measure(mode.rawValue) }
-            }
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .hidden()
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+    /// Not compiled into Release.
+    static var forcedPinnedResultForRegressionTest: Bool {
+        #if DEBUG
+        let env = ProcessInfo.processInfo.environment
+        return env["FORCE_PINNED_RESULT"] == "1" || env["BAR_SHARE_CAP"] != nil
+        #else
+        return false
+        #endif
     }
 
     private func measure(_ key: String) -> some View {
@@ -566,15 +558,24 @@ struct CalculatorScreen: View {
         }
     }
 
-    /// DEBUG-ONLY. Publishes the numbers the gate decided on, so a test asserts what
-    /// the LAYOUT computed rather than a proxy the harness inferred.
+    /// DEBUG-ONLY. Publishes what the LAYOUT actually produced, so a test asserts the
+    /// rendered numbers rather than a proxy the harness inferred.
     ///
-    /// This is the shape BOARD §5.23 asks for. "Assert the bar looks about right" is
-    /// the same class of check as "assert the displayed string contains no ellipsis" —
-    /// it reads a layer that does not observe the thing being asserted. Here the test
-    /// can compare the gate's own denominator and candidate heights against a band
-    /// profile of the same frame, so the two disagree loudly if the proxy the gate
-    /// reads ever stops being the content area.
+    /// The identifier and the `ax=` / `size=` / `cap=` keys are UNCHANGED, and that is
+    /// deliberate: three suites read this element (`PinnedBarReachabilityUITests` for
+    /// the type size, `LeafOverlapUITests` for the same, `CaptureCurrentState` to prove
+    /// the rig is at default before it files a frame under a name claiming default).
+    /// Renaming the keys with the gate would have silently broken all three.
+    ///
+    /// `cap=` now reports the LEGACY `BAR_SHARE_CAP` value, or 0 when it is unset. It no
+    /// longer gates anything — see `forcedPinnedResultForRegressionTest` — but
+    /// `CaptureCurrentState` asserts the override ARRIVED, and that assertion is still
+    /// the right one: it is what stops a frame being filed under a setting the app never
+    /// saw.
+    ///
+    /// `bar=` and `share=` are new, and they are the evidence for the pass condition in
+    /// `SPEC-RESULT-SHEET-AND-SYRINGE §8`: the bar's rendered height, and that height as
+    /// a share of the content area. Both come from the renderer.
     ///
     /// Zero-sized and out of the accessibility tree's way; not compiled into Release.
     @ViewBuilder
@@ -593,8 +594,6 @@ struct CalculatorScreen: View {
     /// checker gave up on it outright.
     private var gateProbeLabel: String {
         var parts: [String] = []
-        parts.append("mode=\(pinnedMode.rawValue)")
-        parts.append("measured=\(measuredMode.rawValue)")
         parts.append("ax=\(isAccessibilitySize)")
         // The CATEGORY, not just the accessibility flag. `ax=false` is true at `large`,
         // `xLarge` and `xxxLarge` alike, so nothing in the harness could tell the default
@@ -603,14 +602,17 @@ struct CalculatorScreen: View {
         // assert a rig setting it cannot observe is the §5.24 shape: it reports success
         // either way.
         parts.append("size=\(typeSize)")
-        // The cap is published because it can be overridden from the environment, and an
-        // override that silently fails to arrive is a run that reports success while
-        // testing the default. That happened on the first attempt at driving this gate.
-        parts.append(String(format: "cap=%.4f", Self.maxPinnedShare))
-        parts.append(String(format: "area=%.2f", contentAreaAtRest))
-        for mode in PinnedMode.allCases {
-            parts.append(String(format: "%@=%.2f", mode.rawValue, metrics[mode.rawValue] ?? -1))
-        }
+        let legacyCap = ProcessInfo.processInfo.environment["BAR_SHARE_CAP"]
+            .flatMap(Double.init) ?? 0
+        parts.append(String(format: "cap=%.4f", legacyCap))
+        parts.append("forcedPinned=\(Self.forcedPinnedResultForRegressionTest)")
+        let area = contentAreaAtRest
+        let bar = metrics[BarMetrics.bar] ?? -1
+        parts.append(String(format: "area=%.2f", area))
+        parts.append(String(format: "bar=%.2f", bar))
+        // -1 rather than a plausible-looking 0: a share computed from an unmeasured bar
+        // must not read as "the bar takes none of the screen".
+        parts.append(String(format: "share=%.4f", area > 0 && bar > 0 ? bar / area : -1))
         return parts.joined(separator: " ")
     }
     #endif
@@ -619,9 +621,10 @@ struct CalculatorScreen: View {
 // MARK: - Measured layout plumbing
 
 enum BarMetrics {
-    /// Candidate heights are keyed by `PinnedMode.rawValue`, so a rung added to the
-    /// ladder cannot be forgotten here.
     static let contentArea = "contentArea"
+    /// The pinned bar's RENDERED height. There is one bar now, so there is one height —
+    /// the ladder of hidden candidates that used to be measured here is gone.
+    static let bar = "bar"
 }
 
 private struct BarMetricsKey: PreferenceKey {
@@ -634,90 +637,82 @@ private struct BarMetricsKey: PreferenceKey {
     }
 }
 
+// MARK: - Screen header
+//
+// H5, and it is `DESIGN-PARITY §9` OPTION (a) rather than H5's own wording.
+//
+// H5 says the calculator name moves "into the top navigation bar". §9 says it cannot,
+// and it says so FROM A DEVICE MEASUREMENT rather than from a source read: a wrapping
+// `Text` in `.principal` renders two lines and CLIPS THE THIRD AT BOTH ENDS, with no
+// ellipsis and nothing on screen signalling the loss. On a dosing app a title that
+// silently loses characters is worse than one that truncates visibly, because
+// truncation at least announces itself. The measurement outranks the wording.
+//
+// So the header is in the content area, where it can wrap freely to any line count.
+//
+// What §9 requires, and what each line below is for:
+//   1. the syringe mark beside the title, SIZED TO IT — it inherits the title's font
+//      rather than carrying a frozen point size, which is what stops the Tools-at-AX5
+//      failure (icons staying small while the text went huge) arriving here;
+//   2. the wordmark's typeface and weight, in `tealTextStrong` #075E56 at 7.65:1 —
+//      `Theme.Typeface.greeting` is title2/heavy, the same family as `BrandWordmark`
+//      and, unlike `BrandWordmark`'s frozen 17pt, it scales;
+//   3. mark + title centred as ONE unit at any line count;
+//   4. **A LONG TITLE WRAPS. NO `lineLimit`, EVER** — CLAUDE.md names a screen title
+//      as one of the two things that may never carry one;
+//   5. the back control is untouched, because it stays in the navigation bar.
+//
+// One accessibility element with `.isHeader`; the mark is decorative and is not
+// announced separately.
+private struct ScreenHeader: View {
+    let title: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
+            Image(systemName: "syringe.fill")
+                .foregroundStyle(Theme.accent)
+                .accessibilityHidden(true)
+            Text(title)
+                .foregroundStyle(Theme.tealTextStrong)
+                .multilineTextAlignment(.center)
+                // The whole point of option (a): the title takes the height it needs
+                // instead of losing characters. Vertical only — a horizontal fixedSize
+                // would refuse to wrap and overflow the screen instead.
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(Theme.Typeface.greeting)
+        .tracking(Theme.Typeface.greetingTracking)
+        // Sizes to the content and centres it; at a size where the title wraps, the
+        // pair fills the width and `multilineTextAlignment` keeps the lines centred.
+        .frame(maxWidth: .infinity, alignment: .center)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("screen_title")
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
 // MARK: - Result card
 
 private struct ResultCard: View {
     let result: CalculatorResult
-    var isCompact: Bool = false
-    /// True for the bar pinned above the CTA, false for the full card in the scroll.
-    /// The pinned instance shows the primary values plus the weekly-total
-    /// cross-check; everything else lives in the scroll copy.
-    var isPinned: Bool = false
-    /// Pinned, but reduced to the LEAD figure alone — still label-above-value in the
-    /// display face, so the number the user acts on keeps its size and its 7.65:1
-    /// teal. This is the rung between `full` and the one-line `isCompact` form.
-    var leadOnly: Bool = false
-    /// With `leadOnly`, keeps the weekly-total cross-check as one secondary line.
-    var withTotal: Bool = false
     var barrelMl: Double?
-
-    /// You cannot draw 1.2 mL into a 1 mL barrel. Surfaced as an icon PLUS text —
-    /// WCAG 1.4.1: no state in this app is ever carried by colour alone, and least
-    /// of all one that says the dose does not physically fit the syringe.
-    /// Rows the pinned bar keeps: every emphasised value, plus the weekly total.
-    private var visibleRows: [ResultRow] {
-        Self.rows(for: result, isPinned: isPinned, leadOnly: leadOnly,
-                  withTotal: withTotal, isCompact: isCompact)
-    }
-
-    /// Which rows a given instance shows. STATIC, and used by the screen as well as
-    /// by the view, because the screen has to know which labels the pinned bar is
-    /// currently displaying in order to hand out identifiers (see `identifier(for:)`)
-    /// — and two copies of this rule would drift the moment a rung was added.
-    static func rows(for result: CalculatorResult,
-                     isPinned: Bool, leadOnly: Bool, withTotal: Bool = false,
-                     isCompact: Bool) -> [ResultRow] {
-        guard isPinned else { return result.rows }
-        // The lead and compact rungs keep ONE row: the first emphasised figure. Not
-        // "the first row" — an unemphasised row leading the list would put a
-        // restatement of the inputs where the dose belongs.
-        if leadOnly || isCompact {
-            guard let lead = result.rows.first(where: { $0.emphasis }) else { return [] }
-            guard withTotal else { return [lead] }
-            let total = result.rows.first {
-                !$0.emphasis && $0.label.lowercased().contains("weekly total")
-            }
-            return [lead] + (total.map { [$0] } ?? [])
-        }
-        return result.rows.filter {
-            $0.emphasis || $0.label.lowercased().contains("weekly total")
-        }
-    }
-
-    /// Identifier namespace for THIS instance's rows.
+    /// Identifier namespace. `result_` for the card in the scroll, `sheet_result_` for
+    /// the sheet, `pinned_result_` for the DEBUG defect reproduction.
     ///
-    /// Both cards are on screen at once — the pinned bar and the copy inside the
-    /// scroll — and both used to emit `result_<label>`. Measured: `result_Weekly
-    /// total` resolved to two elements (y=641 hittable, y=896 not), and an ambiguous
-    /// XCUIElement fails at resolution without ever reaching its assertion. That, not
-    /// the ViewThatFits gap, is what killed `testQuickChip_fieldAndResultBothFollow`.
+    /// THIS IS NOT COSMETIC. Two surfaces emitting `result_<label>` is an AMBIGUOUS
+    /// XCUIElement, and an ambiguous element fails at RESOLUTION — before any assertion
+    /// runs, so the failure reads as a broken test rather than as the two copies of a
+    /// dose it actually is. Measured once already: `result_Weekly total` resolved to two
+    /// elements, y=641 and y=896, and killed `testQuickChip_fieldAndResultBothFollow`.
     ///
-    /// `result_` names the PINNED bar deliberately: it is the surface the user always
-    /// sees, so a test written against it is a test written against what is on
-    /// screen. Both cards render the same `CalculatorResult` value, so they cannot
-    /// disagree — the ambiguity was in addressing them, never in the numbers.
-    /// Labels the PINNED bar is currently showing. Set by the screen on the in-scroll
-    /// instance only.
-    ///
-    /// The rule used to be "`result_` names the pinned bar" and it was right while the
-    /// bar always showed the same three rows. The measured gate broke that premise:
-    /// the bar now shows all of them, one of them, or none, depending on a
-    /// measurement — so `result_Weekly total` addressed ZERO elements the moment the
-    /// gate picked the `lead` rung, and two wiring assertions went red on it. They
-    /// were red about something true.
-    ///
-    /// The rule that survives: AN IDENTIFIER
-    /// NAMES THE SURFACE THE USER IS READING. So `result_<label>` follows the row.
-    /// If the pinned bar is showing that row, the pinned bar answers to it; if the
-    /// row only exists in the scroll, the scroll copy does. Still exactly one element
-    /// per label, which is the property that matters — an ambiguous XCUIElement fails
-    /// at resolution before any assertion runs.
-    var pinnedLabels: Set<String> = []
+    /// The rule the gate's removal restores: EXACTLY ONE ELEMENT PER LABEL PER SURFACE,
+    /// and `result_` is the surface on screen at rest. The `detail_result_` /
+    /// surface-following scheme is gone with the pinned copy that forced it — there is
+    /// no longer a second card competing for the bare name.
+    var idPrefix: String = "result_"
 
-    private func identifier(for label: String) -> String {
-        if isPinned { return "result_" + label }
-        return (pinnedLabels.contains(label) ? "detail_result_" : "result_") + label
-    }
+    private func identifier(for label: String) -> String { idPrefix + label }
 
     private var overCapacity: Bool {
         guard let barrelMl, let draw = result.drawMl, result.isValid else { return false }
@@ -749,51 +744,16 @@ private struct ResultCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            if isCompact, result.isValid, let primary = result.rows.first(where: { $0.emphasis }) {
-                // One line, still label + value + unit, still unable to truncate:
-                // ViewThatFits stacks it rather than clipping the unit.
-                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                    SecondaryResultRow(label: primary.label, value: primary.value,
-                                       identifier: identifier(for: primary.label))
-                    if let note = capacityNote { CapacityWarning(text: note) }
-                }
-            } else if result.isValid {
-                // PINNED, `full` rung: the primary values plus the weekly total.
+            if result.isValid {
+                // EVERY row, unconditionally. There is no longer a rung deciding which
+                // of them the user is allowed to see: the panel that made that decision
+                // necessary — by owning 52.40% of the content area — is gone, and the
+                // card now sits in the scroll where vertical space is cheap.
                 //
-                // The total is the CROSS-CHECK, not a derived nicety — the user typed
-                // "400 mg/week" and this is how they confirm the app understood them.
-                //
-                // WHAT THIS COMMENT USED TO SAY, and it was true when written:
-                // *"hiding the figure that closes that loop to save vertical space is
-                // the wrong trade in a dosing app."* That is no longer what the app
-                // does, and leaving the sentence standing would have been finding T18
-                // exactly — a comment asserting the opposite of the code, correct when
-                // written, wrong now, and load-bearing for whoever reads it next.
-                //
-                // What is true now: the pinned bar SURRENDERS the total above the
-                // measured cap. At default size on the TRT calculator the gate selects
-                // `lead`, which carries the draw figure alone, so this branch is not
-                // what renders there.
-                //
-                // The trade was MEASURED, not assumed, because it is the kind of thing
-                // that gets rationalised. Keeping the total as one secondary line —
-                // the `leadPlusTotal` rung — measures 260.33pt against a 638.67pt
-                // content area: **40.76%, over the 0.40 cap by 4.86pt.** So it does not
-                // fit, and the rung exists anyway because on a screen or a device where
-                // it does fit the gate takes it and the cross-check stays pinned. That
-                // is the point of a ladder: the room decides, not a rule about rows.
-                //
-                // Where the total goes when it is surrendered: the in-scroll card,
-                // which renders every row unconditionally, and which is now genuinely
-                // reachable — four of five inputs fit above the bar at default, so the
-                // scroll that reaches it is an ordinary gesture rather than the
-                // theoretical one it was when the bar owned 52% of the screen.
-                //
-                // The rest — dose per injection, injections/week, volume verdict —
-                // moves into the scroll. They restate the inputs, and the verdict
-                // already has a louder channel: the over-capacity warning fires with
-                // icon and text when it actually matters.
-                ForEach(visibleRows) { row in
+                // The weekly total is the CROSS-CHECK, not a derived nicety: the user
+                // typed "400 mg/week" and this is how they confirm the app understood
+                // them. It was surrendered above the old cap. It is not surrendered now.
+                ForEach(result.rows) { row in
                     if row.emphasis {
                         PrimaryResultRow(label: row.label, value: row.value,
                                          identifier: identifier(for: row.label))
@@ -805,10 +765,7 @@ private struct ResultCard: View {
                 // Was an orphaned grey string with no label — at AX sizes it read
                 // as a stray word ("Ideal") floating under the numbers. It is a
                 // verdict on the draw volume, so it gets a label like every other row.
-                // The volume verdict lives in the scroll copy only. It already has
-                // a louder channel when it matters — the over-capacity warning fires
-                // with icon and text — so its quiet "Ideal" earns no pinned space.
-                if let line = result.scheduleLine, !isPinned {
+                if let line = result.scheduleLine {
                     SecondaryResultRow(label: "Volume", value: line,
                                        identifier: identifier(for: "Volume"))
                 }
@@ -825,6 +782,104 @@ private struct ResultCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card()
+    }
+}
+
+// MARK: - Result sheet
+//
+// `SPEC-RESULT-SHEET-AND-SYRINGE §2`. The reading surface the pinned bar now opens.
+//
+// A `.sheet` WITH DETENTS, not a `.fullScreenCover`, and the spec is explicit about
+// why: the user is comparing the sheet against the inputs behind it, so the inputs must
+// not vanish.
+//
+// WHAT THE SPEC ASKED FOR AND WHAT THIS RENDERS — stated because they are not identical
+// and the difference is an architecture finding, not an omission.
+//
+// §2 lists a fixed triple: `Amount to draw` (units, largest), `Volume` (mL, 3 dp),
+// `Dose` (mg, 1 dp). That is the shape of ONE calculator's result. `CalculatorResult`
+// carries `rows` plus a structured `drawMl` and nothing else — there is no `units` and
+// no `doseMg` on it — and fifteen calculators feed it: BMI produces no volume at all,
+// Reconstitution produces `Add bac water`, Free T Index produces a ratio. Hard-coding
+// three named slots here would mean either a per-calculator branch on this screen (the
+// thing this pass exists to remove) or three labels rendering empty on the calculators
+// that do not produce them.
+//
+// So the sheet renders the result AS THE ENGINE PRODUCES IT, in the spec's order of
+// emphasis: the lead emphasised figure largest, the remaining rows under it, then the
+// barrel line and the capacity warning. On TRT that yields exactly §2's list, from the
+// engine's own labels, because the engine already produces those three rows.
+//
+// The structured route — adding `units` and `doseMg` to `CalculatorResult` so the sheet
+// can name them — is the right fix and it belongs in the engine, not here. Reported.
+private struct ResultSheet: View {
+    let result: CalculatorResult
+    var barrelMl: Double?
+    let title: String
+
+    @Environment(\.dismiss) private var dismiss
+    /// VoiceOver lands on the dose figure when the sheet opens (§6), and returns to the
+    /// invoking control when it closes — which the system does for a `.sheet`.
+    @AccessibilityFocusState private var focusOnLead: Bool
+
+    /// `Insulin U-100` or `Standard luer`, from `syringeMl <= 1.0` (§2.5).
+    ///
+    /// DERIVED FROM THE SELECTED BARREL, never hardcoded. That is the whole of the
+    /// answer `RESULT-PANEL-SPEC §4` demanded before a syringe could be drawn, and T27
+    /// is closed by construction only for as long as this stays derived.
+    private var barrelLine: String? {
+        guard let barrelMl else { return nil }
+        return barrelMl <= 1.0 ? "Insulin U-100" : "Standard luer"
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                    if result.isValid {
+                        // The card carries its own identifier namespace, so the sheet
+                        // and the in-scroll copy never answer to the same name.
+                        ResultCard(result: result, barrelMl: barrelMl,
+                                   idPrefix: "sheet_result_")
+                            .accessibilityFocused($focusOnLead)
+
+                        if let barrelLine {
+                            SecondaryResultRow(label: "Syringe", value: barrelLine,
+                                               identifier: "sheet_result_Syringe")
+                                .padding(.horizontal, Theme.Spacing.xs)
+                        }
+                    } else {
+                        Text("Enter values to calculate")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.secondaryLabel)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+
+                    // WHERE THE SYRINGE GOES. §3–§5 — the drawn barrel, the fill front,
+                    // the over-capacity colouring and the zoom — mount here, against
+                    // `barrelMl` and `result.drawMl`, which are the only two inputs that
+                    // geometry needs and both are already in scope. Not built in this
+                    // pass: §8 sequences it after the bar and the numbers because it
+                    // passes on photographs at four barrels × two text sizes.
+                }
+                .padding(Theme.Spacing.md)
+            }
+            .background(Theme.canvas)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("sheet_done")
+                }
+            }
+        }
+        // `.medium` first so the inputs behind stay visible — the reason this is a sheet
+        // and not a cover. `.large` because at AX5 the figures reflow to several times
+        // the height and a fixed medium would clip them.
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .onAppear { focusOnLead = true }
     }
 }
 
@@ -1047,7 +1102,8 @@ private struct FieldRow: View {
             .accessibilityIdentifier("control_\(field.key)")
 
         case let .segmented(options, _):
-            SegmentedRow(options: options, selection: vm.numberBinding(field.key))
+            SegmentedRow(key: field.key, options: options,
+                         selection: vm.numberBinding(field.key))
 
         case let .stringPicker(options, _):
             Picker(field.label, selection: vm.stringBinding(field.key)) {
@@ -1153,33 +1209,86 @@ private struct QuickValueRow: View {
 /// Always-visible options instead of a menu — one tap rather than open-then-pick.
 /// Used for the syringe barrel, where there are four choices and the user changes
 /// them while holding the syringe.
+///
+/// ELEVEN CALCULATORS RENDER THROUGH THIS ONE VIEW — trt, eod, microdose, hcg, peptide,
+/// semaglutide, tirzepatide, retatrutide, bpc157, bpc157blend, steroid — so what is
+/// fixed here is fixed on all of them and what is broken here was broken on all of them.
+///
+/// WHAT WAS BROKEN: `.lineLimit(2)`, on `CalculatorCatalog.barrelOptions` — which are
+/// `0.3 mL (30u)`, `0.5 mL (50u)`, `1 mL (100u)`, `3 mL (IM)`. **Those are value+unit
+/// pairs.** CLAUDE.md bans `lineLimit` on a value+unit pair outright, and this file
+/// restates the ban twice in comments a few hundred lines away — `NOTHING here may carry
+/// .lineLimit(1)` above the result rows, and `F1 banned lineLimit on a value+unit pair`
+/// above `NumberField`. The ban was being violated by the shared control the comments
+/// sit beside. `0.3 mL (…` and `0.5 mL (…` are the same string to a reader choosing a
+/// barrel, and picking the wrong barrel is a dosing error.
+///
+/// WHAT REPLACES IT: a fallback AXIS, not a smaller cap. `ViewThatFits` takes the row
+/// while four labels fit side by side on ONE line each, and stacks them into a column
+/// when they do not — the same pattern `SecondaryResultRow` uses, for the same reason.
+/// The row branch is measurable because `.frame(maxWidth: .infinity)` reports its
+/// CHILD's ideal width when proposed `nil`, so the fit test compares four real strings
+/// while the pills still expand to equal widths.
+///
+/// WHAT IS DELIBERATELY LEFT: `.minimumScaleFactor(0.8)`, which caps Dynamic Type growth
+/// at 80% on this control. It is a real defect of the same family and it is **H1's
+/// territory, and H1 is deferred by the owner** — so it stays, and it stays annotated,
+/// rather than being read by the next person as an oversight nobody noticed. Removing it
+/// in this pass would also change the fit test's inputs on eleven screens in a pass whose
+/// evidence is a single run.
 private struct SegmentedRow: View {
+    /// The field key, so each option can be addressed individually. Without it the
+    /// barrel buttons carry NO identifier and no reachability sweep can name them —
+    /// which is why "the four buried barrel buttons" was a finding read off a
+    /// screenshot rather than a measurement.
+    ///
+    /// `control_` deliberately, matching the menu pickers: that is the prefix
+    /// `PinnedBarReachabilityUITests.inputControls()` already collects, so the barrel
+    /// enters the existing straddle-and-reachability sweep with no change to that
+    /// suite. The per-option suffix is what keeps this safe — BOARD's objection was to
+    /// an identifier on the CONTAINER propagating to every button inside it, which is
+    /// the ambiguity that cost a session; one identifier per button has the opposite
+    /// property.
+    let key: String
     let options: [CalculatorInput.PickerOption]
     @Binding var selection: Double
 
     var body: some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            ForEach(options) { opt in
-                let isOn = abs(selection - opt.value) < 0.0001
-                Button { selection = opt.value } label: {
-                    Text(opt.label)
-                        .font(isOn ? Theme.Typeface.cardMeta.weight(.bold)
-                                   : Theme.Typeface.cardMeta)
-                        .foregroundStyle(isOn ? .white : Theme.tealTextStrong)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .minimumScaleFactor(0.8)
-                        .frame(maxWidth: .infinity, minHeight: Theme.minTarget)
-                        .background(
-                            RoundedRectangle(cornerRadius: Theme.Radius.control)
-                                .fill(isOn ? Theme.navy : Theme.accentSoft)
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Spacing.xs) {
+                ForEach(options) { opt in button(opt) }
+            }
+            VStack(spacing: Theme.Spacing.xs) {
+                ForEach(options) { opt in button(opt) }
             }
         }
+    }
+
+    private func button(_ opt: CalculatorInput.PickerOption) -> some View {
+        let isOn = abs(selection - opt.value) < 0.0001
+        return Button { selection = opt.value } label: {
+            Text(opt.label)
+                .font(isOn ? Theme.Typeface.cardMeta.weight(.bold)
+                           : Theme.Typeface.cardMeta)
+                .foregroundStyle(isOn ? .white : Theme.tealTextStrong)
+                // NO `lineLimit`. The pair wraps rather than losing its unit, and the
+                // column branch above is what it wraps INTO when a row cannot hold it.
+                .multilineTextAlignment(.center)
+                // H1 territory, deferred. See the type comment.
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, Theme.Spacing.xs)
+                .frame(maxWidth: .infinity, minHeight: Theme.minTarget)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.Radius.control)
+                        .fill(isOn ? Theme.navy : Theme.accentSoft)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("control_\(key)_\(opt.label)")
+        .accessibilityLabel(opt.label)
+        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     }
 }
 
