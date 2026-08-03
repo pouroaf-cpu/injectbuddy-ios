@@ -48,6 +48,91 @@ audit nobody ordered.
 
 ---
 
+## The rules — P1–P6 and D1–D9
+
+**These are the live rules.** Owner's set, 2026-08-03, replacing thirty-nine numbered rules with
+fourteen. Three of them carry a clause rescued from the old set during the changeover; those
+clauses are marked and each is there because nothing else in the new set said it.
+
+**A bare `D<n>` means THIS file.** `docs/DECISIONS-2026-08-02.md` holds an older, different
+`D1`–`D10` with the same numbers and different meanings — it is retained for its record and its
+citations, and it is **not** where a `D` citation resolves.
+
+### Operating mode: batch-first
+
+The Simulator build/test cycle is the bottleneck. **Never build to check one change.** Queue a
+batch (3–8 changes, or one feature slice), each with a line in `BATCH.md` saying what changed and
+what to look at. **Build once. Sweep once**, walking every item in one Simulator session.
+Screenshot only what the sweep flags as wrong or uncertain. Fixes found in the sweep go into the
+next batch unless they block it. **A change is not done when coded; it is done when its batch
+sweep passes.** Do not interleave build-check-build-check.
+
+### The six principles
+
+**P1 — Measure the running system.** Code, names, specs and montages describe; only the running app
+is evidence. Never take a number off source, a downscaled composite, or a non-default rig; never
+change a constant on suspicion.
+*(rescued clause)* Work may ship unverified. It may not be **written down** as verified without
+proof — if verification is skipped, the commit says so and the finding stays open.
+
+**P2 — Judge before measuring.** First ask "would I ship this frame?" at the sizes in play. Numbers
+come second, and only for what judgment flags.
+
+**P3 — Assert the consequence, never the action.** A tap, gesture or write "passing" proves nothing.
+Assert the state change it should cause, retrying across transitions.
+
+**P4 — Evidence must be able to fail.** Before trusting a green, know what would turn it red. A pass
+indistinguishable from an absence is not a pass; a probe is a real element and can become the
+defect.
+
+**P5 — Findings state their sample.** Write what you looked at — surface, element, sizes, rig — next
+to what you found. A finding covers only that sample; re-verify when the same component appears in
+a new context, or when the code under it changes.
+
+**P6 — Address by identifier + count.** Resolve every element through a count-first helper. Never
+select by name alone, by a doubled string, or by the predicate under test.
+
+### The domain do/don'ts
+
+**D1** — Contrast is symmetric: don't "fix" it by swapping foreground and background.
+
+**D2** — Give clearance where a thing is pinned; an outer inset can't lift a sibling inset.
+
+**D3** — Hiding is not removing: anything conditionally shown needs `accessibilityHidden` too.
+
+**D4** — Visible truncation over silent clipping: no title, value or unit shears without an
+ellipsis.
+
+**D5** — Primary action reachable without scrolling at every size — binary, and so is the input it
+commits.
+
+**D6** — The accessibility tree has no z-order and no clipping; never read an overlap as a visible
+defect without the frame.
+*(rescued clause)* Compare **leaves, not siblings** — the bottom-most drawn elements. A sibling
+comparison misses a child colliding with its parent's sibling, and goes green on the exact bug it
+was written for.
+
+**D7** — Enumerate exemptions, never predicate them; ask what could join the set tomorrow.
+*(rescued clause)* When an assertion is unsatisfiable, **name what makes it unsatisfiable — never
+narrow the condition until it passes.** Assert an exemption from both ends: a listed case must
+still fail, and the run goes red the moment it starts passing, telling you to delete the entry.
+
+**D8** — Aim attention at risk, not complaints; quiet screens accumulate defects.
+
+**D9** — Move the *user* forward optimistically, never a *number*. Navigate immediately and fill the
+destination in when data arrives; but **a dose, volume or confirmation is never shown as settled
+before the write is confirmed, and a failed write is always surfaced.**
+*(rescued clause)* And every press gets visible feedback within 400ms — a control that looks
+identical for half a second reads as broken and gets pressed twice.
+
+---
+
+**Everything below this line is the OLD numbered set, retained deliberately.** It is what the 186
+`§5.NN` citations across source, tests and docs resolve to. **Nothing has been repointed and nothing
+has been deleted** — that is post-ship work, and doing it now would buy nothing a user can see.
+Read §5.NN when you follow a citation into it; read P1–P6 / D1–D9 when you want to know the
+standard.
+
 **Project law.** These are the rules the rest of the repo cites, and they are cited from
 source comments, test suites, handovers and `CLAUDE.md`. They were written inside
 `docs/ui-audit/BOARD.md` §5, which is an audit board; they outlive any one audit, so they

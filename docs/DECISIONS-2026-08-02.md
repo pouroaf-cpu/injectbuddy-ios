@@ -1,5 +1,20 @@
 # Decisions — 2026-08-02
 
+> ## ⚠ THESE ARE THE **OLD** `D` NUMBERS. A `D<n>` CITATION DOES NOT RESOLVE HERE.
+>
+> **The live rules are `docs/RULES.md` — P1–P6 and D1–D9.** That file has its own `D1`–`D9` with
+> **the same numbers and different meanings**. Do not read a `D` citation written after
+> 2026-08-03 against the series below.
+>
+> Two real examples from the day the sets diverged, both of which resolved to a plausible-looking
+> wrong rule before anyone noticed: *"fix it as clearance, per D2"* meant **`RULES.md` §5.4**
+> (*anything pinned needs clearance where it is pinned*) — the `D2` below is "look at it before you
+> measure it". *"the truncation D4 forbids"* meant **CLAUDE.md's ban on `lineLimit` over a
+> value+unit pair** — the `D4` below is check-observability.
+>
+> This series is **retained, not live**: its citations still resolve and its reasoning is still the
+> record of why. Nothing here has been renumbered or deleted.
+
 The human is away for the day and handed the wheel to the paired sessions
 (Windows directing, Mac building). Everything decided without them is written
 down here so it can be reviewed rather than rediscovered. Anything decided
