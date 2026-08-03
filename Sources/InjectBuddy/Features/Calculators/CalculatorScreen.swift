@@ -116,7 +116,21 @@ struct CalculatorScreen: View {
                     .foregroundStyle(Theme.secondaryLabel)
             }
             .padding(Theme.Spacing.md)
-            .frame(minHeight: geo.size.height, alignment: .top)
+            // MINUS THE PLATE. `geo` is read OUTSIDE the ScrollView, so
+            // `geo.size.height` is the WHOLE content area — including the band the
+            // pinned plate covers. Sizing the stack to that told a short form to fill
+            // space it cannot be seen in: the stack's own bottom, and therefore the
+            // disclaimer the Spacer pushes there, landed BEHIND the plate at rest.
+            // Measured, on Reconstitution, unscrolled: disclaimer y 761.67 against a
+            // plate top of 671.0 and a content area running 152.33…791.0 — i.e. the
+            // stack ended exactly at 791, the bottom of the area the plate occupies
+            // the last ~120pt of. That is also where the hero circle sits (F-F).
+            //
+            // `§5.4` / D2: whatever pins a surface reserves the space it occupies,
+            // where it is pinned. The bar's own RENDERED height is already measured
+            // (`BarMetrics.bar`, published by the `measure` in `resultBar`), so this
+            // is the measured number rather than a constant somebody re-tunes later.
+            .frame(minHeight: max(0, geo.size.height - plateReservation), alignment: .top)
         }
         // ON THE SCROLLVIEW, not on the GeometryReader outside it. This is the
         // difference between the form scrolling UNDER the bar and the form being
@@ -148,22 +162,15 @@ struct CalculatorScreen: View {
         // H5, built as `DESIGN-PARITY §9` OPTION (a) — the branded header lives in the
         // CONTENT AREA (see `ScreenHeader`), never in `.principal`.
         //
-        // THIS LINE IS AN INTERIM, and it is the only thing in this file that touches
-        // navigation chrome. `RouteContent.swift:21-22` applies `.navigationTitle` to
-        // every route and gives calculators `.automatic`, i.e. a LARGE title — that
-        // title is the element measured truncating to `Steroid Dos…` at AX5 on
-        // `IB2245752`, and with a content-area header now present it is also a SECOND
-        // title on the same screen. `.inline` demotes it so there is one screen title
-        // and the truncating element is gone.
+        // NOTHING IN THIS FILE TOUCHES NAVIGATION CHROME ANY MORE, and that is the
+        // point. The interim that stood here — `.navigationBarTitleDisplayMode(.inline)`
+        // — demoted the inherited title so the duplicate was smaller rather than gone,
+        // and its own comment said the real fix was shared and not in this file. It now
+        // is: `RouteContent` decides from `carriesOwnHeader` whether a route draws its
+        // own title, one site for all fourteen calculators, and suppresses the inherited
+        // one there while keeping `.navigationTitle` for the back control. Find it by
+        // the string `carriesOwnHeader`.
         //
-        // The title itself is NOT cleared, because `.navigationTitle` is also the back
-        // control's label for anything pushed from here.
-        //
-        // THE REAL FIX IS SHARED AND IS NOT IN THIS FILE: `RouteContent` should decide
-        // the display mode from whether the route carries its own header, one site for
-        // all fifteen calculators, rather than each screen overriding it. Reported, not
-        // written — that file is not this pass's.
-        .navigationBarTitleDisplayMode(.inline)
         // `SPEC-RESULT-SHEET-AND-SYRINGE §2`. Detents, not a full-screen cover: the
         // user is reading the sheet AGAINST the inputs behind it.
         .sheet(isPresented: $showsResult) {
@@ -268,6 +275,32 @@ struct CalculatorScreen: View {
         default: return true
         }
     }
+
+    /// How much vertical room the pinned plate takes out of the content area, from the
+    /// renderer rather than from arithmetic. 0 until the first measurement lands, which
+    /// is the pre-existing behaviour and settles on the next layout pass.
+    ///
+    /// WHAT THIS IS NOT, stated because the batch-2 item that produced it asked a
+    /// different question and the answer matters more than the change. **The plate is a
+    /// `safeAreaInset`, not an overlay** — `.safeAreaInset(edge: .bottom) { resultBar }`
+    /// on the ScrollView above — and it DOES reserve its space in the scroll: on TRT the
+    /// capture harness walked the form to its scroll end and the disclaimer, the last
+    /// element in the stack, stopped at y 653 against a plate top of 671, i.e. the
+    /// ScrollView's own bottom content inset held the content clear of the plate. So the
+    /// barrel's at-rest straddle (`control_syringeMl_0.5 mL (50u)`, y 642.67…686.67,
+    /// plate top 671.0) is NOT a missing reservation, and no clearance value applied
+    /// here can move it: `syringeMl` is the LAST field of a form whose earlier fields
+    /// already fill the viewport, so at rest it lands across the bottom edge wherever
+    /// that edge is. Shrinking the plate by 28pt moves the straddle from the second of
+    /// the four column rows to the third; it does not remove it.
+    /// The thing that removes it is the row branch being chosen at default size again —
+    /// four 44pt rows becoming one — and `ViewThatFits` refuses it because it compares
+    /// the labels' UNWRAPPED single-line ideal width while the row would render them
+    /// wrapped and tightened. That is a fit-test finding on `SegmentedRow`, filed, not
+    /// fixed here: fixing it by re-adding `lineLimit` reintroduces the truncation D4
+    /// forbids on a value+unit pair, and fixing it by tuning the ideal width until the
+    /// branch flips is tuning a collision.
+    private var plateReservation: CGFloat { metrics[BarMetrics.bar] ?? 0 }
 
     private var resultBar: some View {
         barBody
@@ -461,6 +494,18 @@ struct CalculatorScreen: View {
                 // small while the text went huge" — inheriting the label's font is what
                 // stops that being reintroduced here.
                 Image(systemName: "syringe")
+                    // THE OTHER HALF OF THE SAME COLLISION, and this one is an EXACT
+                    // string match: `Image(systemName: "syringe")`, the same symbol the
+                    // hero draws, added by the same pass that added `ScreenHeader`'s
+                    // mark and present on every calculator too. Which of the two the
+                    // sweep actually resolved is not knowable from here — that is a
+                    // question for the run — so both are named rather than guessing at
+                    // the one, because leaving either unnamed leaves the query
+                    // ambiguous and costs another 22 frames. Same treatment, same
+                    // reasons: see `ScreenHeader`'s mark for why the label goes as well
+                    // as the identifier and why `accessibilityHidden` is not the fix.
+                    .accessibilityIdentifier("mark_see_result")
+                    .accessibilityLabel(Text(verbatim: ""))
                     .accessibilityHidden(true)
                 Text("See your result")
                     // Wraps rather than truncating, in either branch of the fit test.
@@ -671,6 +716,29 @@ private struct ScreenHeader: View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
             Image(systemName: "syringe.fill")
                 .foregroundStyle(Theme.accent)
+                // ITS OWN NAME, BECAUSE `syringe` WAS ALREADY TAKEN — §5.38 in its
+                // plainest form. `MainShell`'s raised hero glyph answers to
+                // `app.images["syringe"]` and `CaptureCurrentState` resolves the hero
+                // through exactly that name; this mark arriving on every calculator
+                // made that query ambiguous, and an ambiguous element fails at
+                // RESOLUTION, before any assertion runs. `testCaptureFullDefaultSweep`
+                // died after one calculator and 22 frames were not taken.
+                //
+                // THE IDENTIFIER ALONE IS NOT ENOUGH, and this is the part worth
+                // reading: XCUITest's `[]` subscript matches an element's LABEL as well
+                // as its identifier — which is how the hero, which carries no
+                // identifier anywhere in `MainShell`, is found by that name at all. So
+                // the label goes too. Empty rather than descriptive: this glyph is
+                // decoration beside a title that says the same thing, and the container
+                // below announces the pair as one `.isHeader` element.
+                //
+                // `accessibilityHidden` is KEPT and is not what fixes this.
+                // `MainShell.heroButton` records the reason from two measurements: the
+                // flag is applied to that Image directly and the element is in the tree
+                // anyway, byte-identical frame both times. A decorative duplicate has to
+                // be NAMED, not hidden, because hiding it here is not observed to work.
+                .accessibilityIdentifier("mark_screen_title")
+                .accessibilityLabel(Text(verbatim: ""))
                 .accessibilityHidden(true)
             Text(title)
                 .foregroundStyle(Theme.tealTextStrong)
@@ -1304,6 +1372,37 @@ private struct NumberField: View {
     let step: Double?
 
     @State private var text: String = ""
+
+    /// THE FIELD'S EMPTY REPRESENTATION, and it is the whole of batch-2 item 1.
+    ///
+    /// `value` is a `Double` and a `Double` has no way to say *the user cleared this
+    /// field* — `0` is a real number the engine can be handed. So emptying the text
+    /// wrote `0` into the binding, the `value` edge below formatted that `0` straight
+    /// back into the text, and the control fought its own input: every
+    /// backspace-to-empty left a literal `0` for the next keystrokes to append to.
+    /// Clearing a weekly dose and typing `137` produced `0137`. MEASURED, not
+    /// inferred: `AddFlowToDoseLogUITests` failed
+    /// `XCTAssertEqual ("Optional("0137")") is not equal to ("Optional("137")")`.
+    /// `Double("0137")` is 137, so this was never a dosing error — it was a leading
+    /// zero the user did not type, on every numeric field in the app.
+    ///
+    /// AN OPTIONAL, NOT A SENTINEL, and the binding is the reason. A sentinel — `-1`,
+    /// `.nan`, `-.greatestFiniteMagnitude` — would have to travel down
+    /// `vm.numberBinding(key)` into `CalculatorViewModel` and from there into the
+    /// engine, where every one of them is a number some calculator will divide by,
+    /// clamp into range or write into `config`. `mgWeek`'s own range starts at 0, so
+    /// there is no spare value in the domain to spend either.
+    ///
+    /// This optional NEVER LEAVES THIS VIEW. The binding still carries `0` while the
+    /// field is empty, which is exactly what the engine has always been given for an
+    /// empty field and is what keeps `result.isValid` behaving as it did; `nil` here
+    /// is only what stops the value edge writing that `0` back into the text. The
+    /// text↔value invariant is unchanged in kind — it is still enforced on BOTH edges,
+    /// which is what its comment below says it has to be after two historical
+    /// breaches — and `""` displays no number at all, so it cannot display a number
+    /// the engine did not use.
+    @State private var entry: Double?
+
     /// Shared with every other field on the screen so the keyboard toolbar knows
     /// which field's quick values to show. `focused` below is the local reading.
     var focusedKey: FocusState<String?>.Binding
@@ -1457,11 +1556,22 @@ private struct NumberField: View {
                 // on one path. So the rule is enforced on BOTH edges below —
                 // text -> value and value -> text — rather than at either call site.
                 .onChange(of: text) { newValue in
-                    guard !newValue.isEmpty else { value = 0; return }
+                    guard !newValue.isEmpty else {
+                        // EMPTY IS NOT ZERO. `entry = nil` is the field's own record
+                        // that there is nothing in it; the binding takes 0 because
+                        // that is what the engine has always been given for an empty
+                        // field and `Double` cannot carry anything else. The value
+                        // edge below reads `entry`, sees the field is empty and leaves
+                        // the text alone — which is the loop this control used to run.
+                        entry = nil
+                        value = 0
+                        return
+                    }
                     // Unparseable is mid-entry ("." on its own). Leave the value
                     // alone; do not guess at what is being typed.
                     guard let typed = Double(newValue) else { return }
                     let clamped = clamp(typed)
+                    entry = clamped
                     value = clamped
                     // Clamping used to be silent. If the engine refused the number,
                     // the field says so — visibly snapping mid-entry is the cost, and
@@ -1480,11 +1590,25 @@ private struct NumberField: View {
                 // value there is nothing to correct, which leaves partial input like
                 // "0." and "0.30" untouched (both parse equal to their value).
                 .onChange(of: value) { newValue in
+                    // EMPTY STAYS EMPTY, and this line is the fix. `entry == nil`
+                    // means the user cleared the field; the binding is carrying 0
+                    // because that is the only thing a `Double` can carry for "nothing
+                    // entered", and formatting it back into the text is what put a `0`
+                    // in front of everything typed next. Anything else written from
+                    // outside — a chip, a stepper, a preset, a restored protocol —
+                    // falls through and is still reflected, which is what this edge
+                    // exists for.
+                    if entry == nil && newValue == 0 { return }
+                    entry = newValue
                     if Double(text) == newValue { return }
                     let formatted = format(newValue)
                     if text != formatted { text = formatted }
                 }
-                .onAppear { text = format(value) }
+                // The field opens on whatever the spec's default is, exactly as before:
+                // a default of 0 still renders "0" rather than empty. Only a field the
+                // USER has cleared is empty, because only that is a state the app knows
+                // is empty rather than zero.
+                .onAppear { entry = value; text = format(value) }
                 // Focusing a populated field selects its contents, so typing
                 // REPLACES rather than appends. Without it, typing 250 into a field
                 // showing 100 gives 100250 — which is how the clamp breach above was
@@ -1526,7 +1650,11 @@ private struct NumberField: View {
         guard let range else { return d }
         return min(max(d, range.lowerBound), range.upperBound)
     }
-    private func format(_ d: Double) -> String {
+    /// The other half of the optional above: EMPTY RENDERS AS `""`, never as `"0"`.
+    /// Every write to `text` in this view goes through here, so there is one place the
+    /// empty state can be turned back into a digit and it does not.
+    private func format(_ d: Double?) -> String {
+        guard let d else { return "" }
         if d == d.rounded() { return String(Int(d)) }
         // Trim to ≤4 decimals and drop trailing zeros so the field never shows
         // float noise like "0.30000000000000004".
