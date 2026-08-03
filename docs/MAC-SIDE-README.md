@@ -168,6 +168,26 @@ iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
   off.
 - **Never put credentials in an assertion, a failure message, an `.xcresult`, a screenshot or a
   commit.**
+- **⚠️ NEVER PIPE A RUN THROUGH `tail`, `head` OR ANYTHING ELSE. Capture the full output to a file
+  and read the file.** A pipeline exits with the status of its **last** command, so
+  `xcodebuild … | tail -40` reports **exit 0 for a run that FAILED** — and it discards the
+  diagnostics the run printed to explain itself. **Both halves bit on 2026-08-03:** a capture sweep
+  was reported as exit 0 while its log said `** TEST FAILED **`, and the `HERO-DISCLAIMER` prints
+  that would have said *which* element the F-F probe could not resolve were thrown away with the
+  first 40 lines — costing a full re-run. If you must pipe, `set -o pipefail` first. **This is the
+  second instrument in one day that reported success while observing nothing** (§5.24).
+- **⚠️ A FRAME THAT DOES NOT RENDER ITS OWN IDENTITY IS ONLY AS GOOD AS THE ASSERTION THAT FIRED THE
+  SHUTTER.** `19-calculator-semaglutide.png` has the word `Semaglutide` in its pixels, so the
+  filename is corroborated by the content and a mistimed capture would be visibly wrong. `03-calendar`
+  has nothing in it that says "calendar" — **which is exactly why a mislabelled frame lived there for
+  two capture cycles.** So an identity assertion before the shutter is **mandatory for shell frames
+  and belt-and-braces for the rest, and that is a property of the SCREEN, not of the harness's mood.**
+  Assert the destination's own content is present — the calendar grid, a Tools row — never a
+  settle-wait, which is a guess that gets tuned until it stops failing.
+  > **And the reason no existing check caught it:** `shot()` fails a frame that is **byte-identical**
+  > to a previous one, but a mid-transition frame is byte-identical to *nothing*. It passes every
+  > check that looks for repetition **while being a photograph of a different screen.**
+  > **Repetition-detection cannot detect wrongness.** See `2026-08-02-current/README.md`.
 
 **RETIRED 2026-08-03 — the Calendar dose-tap hazard is struck, on evidence.**
 It is recorded here only so nobody reinstates it from an older doc. Both conditions the
