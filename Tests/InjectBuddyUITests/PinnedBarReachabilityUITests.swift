@@ -505,6 +505,19 @@ final class PinnedBarReachabilityUITests: XCTestCase {
         var key: String { "\(screen)|\(control)|\(isAccessibilitySize)" }
     }
 
+    /// FILED 2026-08-03, NOT ACTED ON — the one entry below is STALE, and this suite
+    /// says so itself: at AX5 it now fails with "`field_mgWeek` NO LONGER shears …
+    /// delete its entry". Left in place deliberately. It is the marker for a BOARD §1
+    /// finding, and closing a board finding is the owner's, not a passing task's.
+    ///
+    /// ATTRIBUTED, so the next person does not have to guess and does not credit it to
+    /// the wrong change. It is NOT a consequence of the `SegmentedRow` fit-test fix:
+    /// the same AX5 run was taken against `415e6dd`'s `CalculatorScreen.swift` — the
+    /// file as it stood BEFORE that fix — and failed identically. So the shear was
+    /// already gone, and the likeliest cause is `69a674a` standing the pinned result
+    /// card down, which is the change that gave this screen its vertical space back.
+    /// Both runs: iPhone 16 Pro / iOS 18.3.1, `content_size` AX5, signed in.
+    ///
     /// FOUND BY THIS SUITE, on its first run at AX5. The bar is at its floor there —
     /// the result card is stood down entirely and what is left is the committing action
     /// D5 requires — so no pinning gate can lift that edge. The fix belongs to the
