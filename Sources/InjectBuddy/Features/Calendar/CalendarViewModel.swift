@@ -34,6 +34,18 @@ final class CalendarViewModel: ObservableObject {
     @Published var state: LoadState<CalendarData> = .loading
     @Published var selectedDay: Date = Date()
 
+    /// A failed WRITE on an already-loaded calendar. Deliberately NOT `state`:
+    /// CalendarScreen renders `.failed` as a full-screen banner or the offline screen,
+    /// so pushing a toggle failure through it would take the month grid away from a
+    /// user who only tapped one dose. Rendered as an `InlineErrorNote` by the loaded
+    /// branch of CalendarScreen — the branch that is actually on screen when this is set.
+    @Published var actionError: String?
+
+    /// "protocolId@YYYY-MM-DD" of the toggle currently in flight, so the agenda row can
+    /// show a spinner and a second tap on it is ignored. The taken tick no longer moves
+    /// before the database answers, so this is the only in-flight feedback there is.
+    @Published var pendingKey: String?
+
     private var loaded: CalendarData?
     private let windowDays = 30
 
@@ -68,31 +80,46 @@ final class CalendarViewModel: ObservableObject {
         }
     }
 
-    /// Toggle a projected dose between taken / not-taken (optimistic).
+    /// Toggle a projected dose between taken and not-taken. Writes FIRST, then moves the
+    /// tick to match what the database did.
+    ///
+    /// Was optimistic: the tick moved before the await and a silent `catch` moved it
+    /// back. Against a write that could not succeed the row ticked, unticked, and told
+    /// the user nothing — and a tick on this screen is the user's record of having
+    /// injected. `logDose` returns the written row and `unlogDose` throws
+    /// `BackendWriteError.wroteNothing` when the DELETE removed none, so reaching the
+    /// commit below means a row really changed.
     func toggleTaken(_ occ: DoseOccurrence, backend: BackendClient) async {
-        guard var data = loaded else { return }
+        guard let data = loaded, pendingKey == nil else { return }
         let key = "\(occ.protocolId)@\(occ.dayKey)"
         let wasTaken = data.takenKeys.contains(key)
 
-        if wasTaken { data.takenKeys.remove(key) } else { data.takenKeys.insert(key) }
-        loaded = data
-        state = .loaded(data)
+        pendingKey = key
+        actionError = nil
+        defer { pendingKey = nil }
 
         do {
+            let writtenKey: String
             if wasTaken {
                 try await backend.unlogDose(protocolId: occ.protocolId, dosedOn: occ.dayKey)
+                writtenKey = key
             } else {
-                _ = try await backend.logDose(NewDoseLogPin(protocolId: occ.protocolId,
-                                                            dosedOn: occ.dayKey,
-                                                            drawMl: nil, site: nil))
+                let row = try await backend.logDose(NewDoseLogPin(protocolId: occ.protocolId,
+                                                                  dosedOn: occ.dayKey,
+                                                                  drawMl: nil, site: nil))
+                // Key off the row the database returned, not off the tapped occurrence.
+                writtenKey = "\(row.protocolId)@\(row.dosedOn)"
             }
+            // Re-read: a reload may have replaced the model during the await, and
+            // committing into the captured copy would resurrect the stale one.
+            guard var fresh = loaded else { return }
+            if wasTaken { fresh.takenKeys.remove(writtenKey) } else { fresh.takenKeys.insert(writtenKey) }
+            loaded = fresh
+            state = .loaded(fresh)
         } catch {
-            // Roll back.
-            if var rollback = loaded {
-                if wasTaken { rollback.takenKeys.insert(key) } else { rollback.takenKeys.remove(key) }
-                loaded = rollback
-                state = .loaded(rollback)
-            }
+            let verb = wasTaken ? "un-logged" : "logged"
+            actionError = "That dose was not \(verb). "
+                + ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
     }
 

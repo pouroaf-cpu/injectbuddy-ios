@@ -21,6 +21,12 @@ struct CalendarScreen: View {
         content
             .background(Theme.groupedBackground.ignoresSafeArea())
             .task { await reload() }
+            // `.task` alone runs ONCE per appearance and gives a user no way back from
+            // any failure — the ErrorBanner's Retry only exists in the `.failed` branch,
+            // so a stale or half-loaded calendar had no route to a fresh read at all.
+            // DashboardScreen has carried this since it was written; the calendar,
+            // which is the screen that records what has actually been injected, did not.
+            .refreshable { await reload() }
     }
 
     @ViewBuilder
@@ -52,6 +58,14 @@ struct CalendarScreen: View {
     private func loaded(_ data: CalendarData) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                // The loaded branch is the one on screen when a toggle fails, so this is
+                // where the failure has to appear. `vm.state` stays the LOAD channel:
+                // pushing a toggle failure into `.failed` would swap the whole calendar
+                // for a banner (or, offline, for OfflineView) over one tapped dose.
+                if let actionError = vm.actionError {
+                    InlineErrorNote(message: actionError) { vm.actionError = nil }
+                }
+
                 MonthGrid(
                     month: visibleMonth,
                     selectedDay: vm.selectedDay,
@@ -67,6 +81,7 @@ struct CalendarScreen: View {
                     day: vm.selectedDay,
                     occurrences: data.occurrences(on: vm.selectedDay),
                     isTaken: { data.isTaken($0) },
+                    isPending: { vm.pendingKey == "\($0.protocolId)@\($0.dayKey)" },
                     onTap: { occ in Task { await vm.toggleTaken(occ, backend: backend) } }
                 )
             }
@@ -242,6 +257,9 @@ struct DayAgenda: View {
     let day: Date
     let occurrences: [DoseOccurrence]
     let isTaken: (DoseOccurrence) -> Bool
+    /// True for the row whose write is in flight. The tick no longer moves ahead of the
+    /// database, so a row with no spinner and no tick means nothing has been recorded.
+    var isPending: (DoseOccurrence) -> Bool = { _ in false }
     let onTap: (DoseOccurrence) -> Void
 
     private var dayLabel: String {
@@ -264,7 +282,9 @@ struct DayAgenda: View {
                     .padding(.vertical, Theme.Spacing.sm)
             } else {
                 ForEach(occurrences) { occ in
-                    AgendaRow(occurrence: occ, taken: isTaken(occ)) { onTap(occ) }
+                    AgendaRow(occurrence: occ, taken: isTaken(occ), pending: isPending(occ)) {
+                        onTap(occ)
+                    }
                 }
                 Text("Tap a dose to mark it taken")
                     .font(.caption)
@@ -279,13 +299,20 @@ struct DayAgenda: View {
 private struct AgendaRow: View {
     let occurrence: DoseOccurrence
     let taken: Bool
+    var pending: Bool = false
     let onTap: () -> Void
 
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: Theme.Spacing.md) {
-                Image(systemName: taken ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(taken ? Theme.success : Theme.secondaryLabel)
+                if pending {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("Saving")
+                } else {
+                    Image(systemName: taken ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(taken ? Theme.success : Theme.secondaryLabel)
+                }
                 Circle()
                     .fill(DashboardColor.color(for: occurrence.slug))
                     .frame(width: 8, height: 8)

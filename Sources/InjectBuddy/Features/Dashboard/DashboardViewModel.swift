@@ -57,6 +57,17 @@ struct DashboardNextDose: Equatable {
 final class DashboardViewModel: ObservableObject {
     @Published var state: LoadState<DashboardData> = .loading
 
+    /// A failed WRITE on an already-loaded screen. Separate from `state`, which is the
+    /// LOAD channel: `.failed` is only ever set by `load()`, and setting it here would
+    /// replace the dashboard the user is reading with a full-screen error. Rendered by
+    /// DashboardScreen as an `InlineErrorNote` above the content.
+    @Published var actionError: String?
+
+    /// True while a mark-taken write is in flight, so the CTA can show a spinner and
+    /// refuse a second tap. Without it the button sat inert between tap and reply —
+    /// which is exactly the gap the optimistic flip used to paper over.
+    @Published var isMarkingTaken = false
+
     private var loaded: DashboardData?
 
     /// Fetch + derive. `now` is injectable for stable previews/tests.
@@ -86,27 +97,43 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
-    /// Optimistically mark a projected dose as taken, then POST it.
+    /// Log a projected dose as taken. Writes FIRST, then reflects what the database
+    /// actually returned.
+    ///
+    /// This used to flip `alreadyTaken` before the await and roll it back in a silent
+    /// `catch`. On a failing write — which is what iOS did on this table for its whole
+    /// life, RLS refusing every insert — the card ticked "Taken", unticked a moment
+    /// later, and said nothing. On an injection-dosing app that is a user believing a
+    /// dose is recorded when no row exists.
+    ///
+    /// `logDose` now RETURNS the inserted row and throws `BackendWriteError.wroteNothing`
+    /// on an empty representation, so "it didn't throw" and "a row exists" are the same
+    /// statement. Committing off the returned row rather than off the local occurrence
+    /// means the tick cannot outrun the database by construction. Same shape as
+    /// `LogDoseSheet.log()`, which is the house pattern for this.
     func markTaken(_ occurrence: DoseOccurrence, backend: BackendClient) async {
-        // Optimistic flip in the loaded model.
-        if var data = loaded, data.nextDose?.occurrence == occurrence {
-            data.nextDose?.alreadyTaken = true
-            loaded = data
-            state = .loaded(data)
-        }
+        guard !isMarkingTaken else { return }
+        isMarkingTaken = true
+        actionError = nil
         let pin = NewDoseLogPin(protocolId: occurrence.protocolId,
                                 dosedOn: occurrence.dayKey,
                                 drawMl: nil, site: nil)
         do {
-            _ = try await backend.logDose(pin)
-        } catch {
-            // Roll back on failure.
-            if var data = loaded, data.nextDose?.occurrence == occurrence {
-                data.nextDose?.alreadyTaken = false
+            let written = try await backend.logDose(pin)
+            // Re-read `loaded`: a pull-to-refresh may have replaced the model while the
+            // write was in flight, and committing into the stale copy would resurrect it.
+            if var data = loaded,
+               data.nextDose?.occurrence == occurrence,
+               written.protocolId == occurrence.protocolId,
+               written.dosedOn == occurrence.dayKey {
+                data.nextDose?.alreadyTaken = true
                 loaded = data
                 state = .loaded(data)
             }
+        } catch {
+            actionError = "That dose was not logged. \(Self.message(error))"
         }
+        isMarkingTaken = false
     }
 
     // MARK: - Derivation (pure, static for testability)

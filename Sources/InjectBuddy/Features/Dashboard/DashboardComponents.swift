@@ -66,6 +66,11 @@ struct GreetingHeadline: View {
 struct NextDoseCard: View {
     let model: DashboardNextDose
     let now: Date
+    /// True while the log-dose write is in flight. The card no longer ticks "Taken"
+    /// ahead of the database, so this spinner is the ONLY feedback between the tap and
+    /// the reply — without it the button reads as dead. Defaulted so existing previews
+    /// and any other construction site keep compiling unchanged.
+    var isMarking: Bool = false
     let onMarkTaken: () -> Void
 
     var body: some View {
@@ -101,7 +106,7 @@ struct NextDoseCard: View {
                     .font(.footnote)
                     .foregroundStyle(Theme.secondaryLabel)
             } else {
-                PrimaryButton(title: "Mark taken", action: onMarkTaken)
+                PrimaryButton(title: "Mark taken", isLoading: isMarking, action: onMarkTaken)
                     .padding(.top, Theme.Spacing.xs)
             }
         }

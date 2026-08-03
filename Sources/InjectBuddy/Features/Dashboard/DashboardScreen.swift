@@ -65,8 +65,16 @@ struct DashboardScreen: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
                 greeting
 
+                // A dose that did not get logged says so HERE, on the screen the user
+                // pressed the button on. `vm.state` is the load channel and stays the
+                // load channel: routing a write failure through it would blank the
+                // dashboard, and the old code routed it nowhere at all.
+                if let actionError = vm.actionError {
+                    InlineErrorNote(message: actionError) { vm.actionError = nil }
+                }
+
                 if let next = data.nextDose {
-                    NextDoseCard(model: next, now: Date()) {
+                    NextDoseCard(model: next, now: Date(), isMarking: vm.isMarkingTaken) {
                         Task { await vm.markTaken(next.occurrence, backend: backend) }
                     }
                 }

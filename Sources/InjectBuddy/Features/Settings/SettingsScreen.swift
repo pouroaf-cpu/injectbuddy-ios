@@ -40,13 +40,25 @@ struct SettingsScreen: View {
         .sheet(isPresented: $showSafari) {
             SafariView(url: discordLinkURL).ignoresSafeArea()
         }
-        .confirmationDialog("Delete account?",
+        // The dialog describes what the BUTTON DOES, which is sign out. It used to say
+        // "This permanently removes your account and saved protocols. This can't be
+        // undone." while `deleteAccount()` called `auth.signOut()` and nothing else —
+        // no row deleted, no request sent, the account and every saved protocol intact
+        // and waiting at the next sign-in. That is the app telling a user their data is
+        // gone when it is not.
+        //
+        // Deletion itself is filed as launch-blocking (LAUNCH-CHECKLIST — Apple requires
+        // an in-app deletion path for any app that creates accounts); this change is the
+        // copy only, so the screen stops making a claim the code does not keep.
+        .confirmationDialog("Sign out of this device?",
                             isPresented: $showDeleteConfirm,
                             titleVisibility: .visible) {
-            Button("Delete account", role: .destructive) { Task { await deleteAccount() } }
+            Button("Sign out", role: .destructive) { Task { await deleteAccount() } }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This permanently removes your account and saved protocols. This can't be undone.")
+            Text("Account deletion isn't available in the app yet. This signs you out on "
+                 + "this device — your account and saved protocols are kept, and signing "
+                 + "back in restores them. To have your account deleted, contact support.")
         }
     }
 
@@ -151,54 +163,102 @@ struct SettingsScreen: View {
             } label: {
                 Label("Delete account", systemImage: "exclamationmark.triangle")
             }
+            // Says so BEFORE the tap, not only inside the dialog. The row is the thing a
+            // user scans for; leaving it to read as a working delete until they commit to
+            // a destructive confirmation is the same false promise one screen later.
+            Text("Account deletion isn't available in the app yet — contact support to "
+                 + "have your account removed.")
+                .font(.caption)
+                .foregroundStyle(Theme.secondaryLabel)
         } header: {
             Text("Account")
         } footer: {
-            if !network.isOnline {
-                Text("Password changes need a connection. Sign out still works offline.")
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                // `auth.lastError` was written by sendPasswordReset and by signOut and
+                // rendered by NOTHING on this screen — AuthFlowView:63/:119 are the only
+                // readers, and those are signed-out screens this user cannot be on. So a
+                // failed password reset or a failed sign-out was silent here. This is the
+                // render that makes the channel real.
+                if let error = auth.lastError {
+                    Text(error).foregroundStyle(Theme.danger)
+                }
+                if !network.isOnline {
+                    Text("Password changes need a connection. Sign out still works offline.")
+                }
             }
         }
     }
 
     // MARK: actions
 
-    private func saveDisplayName(_ name: String) async {
+    /// Returns nil when the name was written, or the message to show when it was not.
+    ///
+    /// It used to route the failure into `auth.lastError` "for consistency" — a property
+    /// only AuthFlowView renders, and only on screens a signed-in user cannot reach. The
+    /// sheet then dismissed regardless, so a save that changed no row (`profiles` has no
+    /// row for a user who never had one written) looked exactly like a save that worked.
+    /// The message goes back to the caller instead, which keeps the sheet open and shows
+    /// it — the same shape as `LogDoseSheet.log()`.
+    private func saveDisplayName(_ name: String) async -> String? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let userId = auth.currentUserId else { return }
+        guard !trimmed.isEmpty else { return "Enter a name." }
+        guard let userId = auth.currentUserId else {
+            return "You're not signed in. Sign in again and retry."
+        }
         do {
+            // Throws `BackendWriteError.wroteNothing` when the UPDATE matched no row, so
+            // the local identity below is only ever updated behind a write that landed.
             try await backend.updateDisplayName(trimmed, userId: userId)
             auth.setDisplayName(trimmed)
+            return nil
         } catch {
-            // Surface via the auth store's error channel for consistency.
-            auth.lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            return (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 
     private func sendPasswordReset() async {
         guard let email = auth.identity?.email, !email.isEmpty else { return }
+        passwordResetNote = nil
+        auth.lastError = nil
         await auth.sendPasswordReset(email: email)
+        // Only claim the mail went out if it went out. This line used to run
+        // unconditionally after an await that swallows its failure into `lastError`, so
+        // a rate-limited or offline reset still read "Password reset email sent to …"
+        // and the user waited for mail that was never sent. AuthFlowView:213 has always
+        // guarded the identical call this way; this is that guard, copied.
+        guard auth.lastError == nil else { return }
         passwordResetNote = "Password reset email sent to \(email)."
     }
 
     private func deleteAccount() async {
-        // TODO: call a backend account-deletion endpoint once it exists
-        // (BackendClient has no delete-account method yet — SCREENS §4). For now we
-        // sign the user out so the session is cleared client-side.
+        // Account deletion is NOT implemented and this method does not do it. Tracked as
+        // launch-blocking in docs/LAUNCH-CHECKLIST.md — App Store Review Guideline 5.1.1(v)
+        // requires an in-app deletion path for any app that lets users create an account.
+        // Needs a backend endpoint first: BackendClient has no delete-account method, and
+        // PostgREST + RLS cannot remove an auth.users row from the client.
+        //
+        // Until then this signs the user out, and the confirmation copy above says so
+        // rather than promising a deletion that never happens.
         await auth.signOut()
     }
 }
 
 // MARK: - Edit name sheet
 
+/// `onSave` returns nil on success, or the message to display on failure. The sheet
+/// dismisses ONLY on nil — it used to dismiss unconditionally, which meant a save that
+/// silently changed no row closed the sheet and left the old name on the screen behind
+/// it with no explanation. Mirrors `LogDoseSheet`: await, then act on the outcome.
 private struct EditNameSheet: View {
     let currentName: String
-    let onSave: (String) async -> Void
+    let onSave: (String) async -> String?
 
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
     @State private var isSaving = false
+    @State private var errorMessage: String?
 
-    init(currentName: String, onSave: @escaping (String) async -> Void) {
+    init(currentName: String, onSave: @escaping (String) async -> String?) {
         self.currentName = currentName
         self.onSave = onSave
         _name = State(initialValue: currentName)
@@ -211,6 +271,14 @@ private struct EditNameSheet: View {
                     TextField("Your name", text: $name)
                         .textInputAutocapitalization(.words)
                 }
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .font(.callout)
+                            .foregroundStyle(Theme.danger)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
             .navigationTitle("Edit name")
             .navigationBarTitleDisplayMode(.inline)
@@ -219,15 +287,24 @@ private struct EditNameSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            isSaving = true
-                            await onSave(name)
-                            isSaving = false
-                            dismiss()
+                    if isSaving {
+                        ProgressView()
+                    } else {
+                        Button("Save") {
+                            Task {
+                                isSaving = true
+                                errorMessage = nil
+                                let failure = await onSave(name)
+                                isSaving = false
+                                if let failure {
+                                    errorMessage = failure
+                                } else {
+                                    dismiss()
+                                }
+                            }
                         }
+                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-                    .disabled(isSaving || name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }

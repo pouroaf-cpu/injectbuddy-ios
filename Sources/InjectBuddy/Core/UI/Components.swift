@@ -323,6 +323,55 @@ struct ErrorBanner: View {
     }
 }
 
+/// An error from an ACTION taken on an already-loaded screen — a write that failed —
+/// as opposed to `ErrorBanner`, which replaces the whole screen when the LOAD failed.
+///
+/// This exists because the two dose-write view models had nowhere to put a failure:
+/// `LoadState.failed` is the load channel, and setting it would blank a dashboard the
+/// user is still reading. A write that did not happen has to say so without destroying
+/// the screen it happened on, so it renders in place, above the content it concerns.
+///
+/// Dismissible on purpose: the user acknowledges it, they do not retry through it. The
+/// retry is the control they just pressed, which is still there and still armed.
+struct InlineErrorNote: View {
+    let message: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Theme.danger)
+                .accessibilityHidden(true)
+            // No lineLimit: this sentence is the only thing telling a user their dose
+            // was NOT recorded, and it must survive every Dynamic Type size intact.
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(Theme.label)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .frame(width: Theme.minTarget, height: Theme.minTarget)
+                    .contentShape(Rectangle())
+            }
+            .tint(Theme.secondaryLabel)
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(Theme.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.control)
+                .fill(Theme.danger.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.control)
+                .stroke(Theme.danger.opacity(0.35), lineWidth: 1)
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("inline_error_note")
+    }
+}
+
 /// The async load lifecycle a screen's view-model exposes; screens render off it.
 enum LoadState<Value: Equatable>: Equatable {
     case loading
