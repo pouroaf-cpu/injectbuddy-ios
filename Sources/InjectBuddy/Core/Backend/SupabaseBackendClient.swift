@@ -14,7 +14,10 @@ import Supabase
 // to. Two rules follow, and both are enforced in this file so no call site can skip
 // them:
 //   1. Every INSERT/UPSERT carries user_id, sourced from the live session by an
-//      Owned* wrapper private to this layer.
+//      Owned* wrapper private to this layer. The one DELETE that can destroy a row a
+//      user already has — unlogDose — carries it in the PREDICATE for the same reason,
+//      so the statement is scoped by its own terms and RLS is defence in depth rather
+//      than the only defence.
 //   2. Every write asks for the representation and throws if it comes back empty.
 //      A statement that changed no row is how a refusal arrives on a FILTERED write
 //      (update/delete): RLS narrows the statement's scope rather than raising, so
@@ -160,6 +163,11 @@ struct SupabaseBackendClient: BackendClient {
         let label: String?
         let config: JSONValue
         let startDate: String?
+        /// The SOURCE column, not the `is_active` mirror. `is_active` is derived from
+        /// this by a database trigger and carries only two of the three states, so
+        /// writing it from here would put the mirror out of step with the column it
+        /// mirrors. Nothing in this file writes `is_active`, deliberately.
+        let status: ProtocolStatus
         let userId: String
 
         init(_ d: NewSavedDosage, userId: String) {
@@ -167,6 +175,7 @@ struct SupabaseBackendClient: BackendClient {
             label = d.label
             config = d.config
             startDate = d.startDate
+            status = d.status
             self.userId = userId
         }
 
@@ -175,6 +184,7 @@ struct SupabaseBackendClient: BackendClient {
             case label
             case config
             case startDate = "start_date"
+            case status
             case userId = "user_id"
         }
     }
@@ -310,14 +320,32 @@ struct SupabaseBackendClient: BackendClient {
         }
     }
 
-    /// Un-log a dose. Reads back the row it removed: the calendar toggle only calls
-    /// this for a day it believes is pinned, so nothing deleted means the pin was not
-    /// ours to delete or was never written — and the optimistic un-tick must roll back
-    /// rather than stand.
+    /// Un-log a dose.
+    ///
+    /// `user_id` is in the PREDICATE, which is the one write in this file where the
+    /// owner is a filter rather than a column being written. A DELETE is the only
+    /// statement here that can destroy a row that already exists, and its scope was
+    /// `(protocol_id, dosed_on)` alone — leaving RLS's `USING` clause as the sole thing
+    /// standing between this statement and another account's pin. That is a single
+    /// point of failure on the destructive path, and it is the wrong one to leave
+    /// unguarded: `dose_log_owner_all`'s USING is server-side policy this client cannot
+    /// see, cannot version and does not test, and a policy loosened or dropped in a
+    /// migration would turn this into a cross-account delete with nothing in the app
+    /// objecting. Naming the owner here means the statement is correctly scoped by its
+    /// own terms and the policy is defence in depth rather than the only defence.
+    ///
+    /// It also sharpens the read-back below. With the filter, zero rows means "you have
+    /// no such pin" — a fact about this account, which is what the caller wants to hear.
+    ///
+    /// Reads back the row it removed: the calendar toggle only calls this for a day it
+    /// believes is pinned, so nothing deleted means the pin was not ours to delete or
+    /// was never written, and the tick must not move.
     func unlogDose(protocolId: String, dosedOn: String) async throws {
+        let userId = try await currentUserId()
         let rows: [InsertedID] = try await client
             .from("dose_log")
             .delete(returning: .representation)
+            .eq("user_id", value: userId)
             .eq("protocol_id", value: protocolId)
             .eq("dosed_on", value: dosedOn)
             .select("id")

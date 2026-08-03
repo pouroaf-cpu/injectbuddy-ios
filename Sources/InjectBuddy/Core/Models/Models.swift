@@ -70,6 +70,28 @@ struct SavedDosage: Codable, Identifiable, Equatable {
     }
 }
 
+/// The lifecycle of a saved protocol. THIS is the source column — three states.
+///
+/// `saved_dosages.is_active` is a DERIVED MIRROR of it, maintained by a database
+/// trigger, and it only carries two of the three (a draft and an archived row both
+/// mirror to false, and nothing downstream can tell them apart again). So:
+/// **read and write `status`; never write `is_active`.** Writing the mirror directly
+/// would put it out of step with the column the trigger derives it from, and the two
+/// would then disagree about the same row.
+///
+/// Why this matters in production: 71 of 102 saved rows are `draft` and 31 are
+/// `active`, and 24 of 39 users have nothing active at all
+/// (`docs/WHERE-WE-ARE-2026-08-03.md`). A protocol written without a status is not a
+/// protocol the user has started.
+enum ProtocolStatus: String, Codable, CaseIterable, Equatable {
+    /// Running. What the Add flow writes, and what the dashboard and calendar project.
+    case active
+    /// Saved but never started — has no start day the user stood behind.
+    case draft
+    /// Finished or put away. Kept for history, not projected.
+    case archived
+}
+
 /// Insert body for saving a protocol. iOS writes DIRECTLY to saved_dosages via
 /// PostgREST — it never calls the web's /api/dosages (that route authenticates by
 /// cookie and an iOS client holding a JWT cannot reach it). Dedup is a unique index
@@ -80,11 +102,19 @@ struct NewSavedDosage: Encodable {
     var config: JSONValue
     var startDate: String?
 
+    /// Parameterised so a caller that saves a protocol WITHOUT starting it can say so,
+    /// but defaulted to `.active` because the only path that writes this today is the
+    /// Add flow, where the user has just chosen a start day. Left off the insert
+    /// entirely, the row took the column's own default and the protocol did not appear
+    /// as running.
+    var status: ProtocolStatus = .active
+
     enum CodingKeys: String, CodingKey {
         case calculatorType = "calculator_type"
         case label
         case config
         case startDate = "start_date"
+        case status
     }
 }
 
