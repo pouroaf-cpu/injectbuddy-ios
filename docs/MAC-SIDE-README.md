@@ -113,6 +113,20 @@ iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
   read production Postgres over MCP. Windows still owns the **PWA source** — that is not in this
   repo and cannot be inferred from a doc in it; ask, do not guess. What is genuinely serial is the
   **rig**: one simulator, one framebuffer, one `content_size`.
+- **"UNCOMMITTED" IS NOT ONE STATE. Work at risk and work in progress are opposite conditions that
+  look identical from outside the tree.** Before committing an agent's working tree, **ask the agent
+  whether it is done.** If it cannot answer, commit to a **scratch branch**, never to the line of
+  history that reads as a decision.
+  Recorded against `a4e60db`, 2026-08-03: uncommitted lines on a shared control had already been
+  eaten twice that day, so the instruction was to commit them — sound about the risk being looked
+  at. But the author was mid-thought. The commit captured `CalculatorScreen.swift` between two
+  edits — **2 references to types with 0 definitions — and left HEAD unbuildable**, on top of
+  freezing a mechanism its own author had already determined was wrong. **A SHA reads as a
+  decision** whatever the message says.
+- **TAKE THE RIG LOCK: `scripts/rig-lock.sh acquire "what you are doing"`, and `trap … EXIT` to
+  release it.** It refuses loudly and names the PID holding the device. Discipline failed twice
+  before this existed; a point-in-time `pgrep` cannot prove exclusivity because something can start
+  a second later — one did, 28 seconds after a clean check.
 - **NOTHING STARTS A DEVICE-TOUCHING TASK WHILE ANOTHER DEVICE-TOUCHING TASK IS ALIVE — INCLUDING
   ANYTHING *YOU* SPAWN.** The rule used to say "one runner owns the device" and had an unstated
   actor: it bound the workers and exempted the person spawning them. Recorded 2026-08-03, because
