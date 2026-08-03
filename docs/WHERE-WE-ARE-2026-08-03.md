@@ -46,7 +46,9 @@ recorded as defects**, so do not re-file them:
 3. H1 + H2 + H3 as **one pass** — stepper buttons scale, the unit sits at 70% of its
    value's resolved size, controls grow downward instead of spilling. This absorbs the
    picker-overflow item and the default-size shears; they are not separate work.
-4. H5 — put the calculator's name in the navigation bar
+4. H5 — take the calculator's name out of the scrolling content. ~~put it in the
+   navigation bar~~ — struck 2026-08-03 against the `DESIGN-PARITY §9` addendum's
+   on-device measurement; build option (a), the content-area header. See H5.
 5. H4 — strike the disclaimer finding and delete the test entries tracking it
 6. H7–H12 — the Cycle Plotter feature. Staged in the spec; follow the staging, it is
    dependency order.

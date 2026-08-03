@@ -221,7 +221,9 @@ is days of work and would otherwise sit on top of known-broken surfaces.
    enumerates what H1–H3 have to fix instead of leaving it to whichever screen got photographed.
 3. **H1 + H2 + H3 as one pass** — one control, one measurement. Absorbs F-E and the default-size
    shears.
-4. **H5** — nav-bar title, which also closes the truncating-title defect.
+4. **H5** — the title out of the scrolling content, which also closes the truncating-title defect.
+   Built as `DESIGN-PARITY §9` option (a), the content-area header; ~~nav-bar title~~ was struck
+   2026-08-03 against a measurement. See H5.
 5. **H4** — strike the disclaimer finding and its test entries. Housekeeping; do it while the
    suite is already open.
 6. **H7 → H12** — the plotter, staged: selector and render first, then add, then the card and its
