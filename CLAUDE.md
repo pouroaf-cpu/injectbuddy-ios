@@ -34,13 +34,16 @@ not the lowest.** The one screen never captured at large text held the worst fin
 | `docs/DATA-CONTRACT.md` | **What the database accepts. Authoritative for web, iOS and Android.** |
 | `docs/ui-audit/BOARD.md` | Open, closed-with-evidence, not-knowable, and §5's numbered rules. |
 | `docs/DESIGN-PARITY.md` | Colour roles, type scale, screen-header rule. §8 is the settled palette. |
-| `docs/ui-audit/2026-08-02-current/` | What the app looks like now. Per-cycle folders are an audit trail, not current state. |
+| `docs/ui-audit/2026-08-02-current/` | What the app looks like now. |
+| `docs/ui-audit/archive/` | The 2026-08-01 per-cycle folders. An audit trail, not current state — don't read `cycle3` as now. |
 | `docs/WELCOME-AND-ONBOARDING.md` | Welcome screen and onboarding spec. |
 | `docs/START-HERE.md` | The long session log — the story of *why*. Not a startup doc. |
 
-**Retired — do not read, do not follow:** `docs/INSTRUCTIONS.md`, `docs/AGENT-WORKFLOW.md`,
-`docs/ACTIVE.md`. They describe a multi-agent claim-a-row arrangement that no longer exists and a
-greenfield project that has since been built.
+**Retired — do not read, do not follow:** `docs/archive/INSTRUCTIONS.md`,
+`docs/archive/AGENT-WORKFLOW.md`, `docs/archive/ACTIVE.md`. They describe a multi-agent
+claim-a-row arrangement that no longer exists and a greenfield project that has since been built.
+They moved into `docs/archive/` on 2026-08-02 — see `docs/archive/README.md` for what else is in
+there and why.
 
 ## Facts that are not obvious from the code
 

@@ -5,7 +5,8 @@ otherwise cost a fresh session an hour to rediscover. Written at the close of
 2026-08-01.
 
 State lives in `docs/ui-audit/BOARD.md`; the narrative is in
-`docs/SESSION-HANDOVER-2026-08-01.md`. This is the workshop floor.
+`docs/archive/SESSION-HANDOVER-2026-08-01.md` (archived 2026-08-02; the consolidated
+version is `docs/archive/HANDOVER-2026-08-01-FULL.md`). This is the workshop floor.
 
 ---
 

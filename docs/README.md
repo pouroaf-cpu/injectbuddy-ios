@@ -21,10 +21,12 @@ the backend and the calculator math/formulas; build the UI natively.
 |------|---------|
 | `WIREFRAME-PLAN.md` | Shell, navigation (side drawer), nav model, architecture, reuse map. Read first. |
 | `SCREENS.md` | Detailed per-screen wireframes (ASCII + SwiftUI spec): dashboard, calculators, auth, settings, calendar. |
-| `INSTRUCTIONS.md` | How to execute — stack, where the backend is, conventions, what to reuse. |
-| `AGENT-WORKFLOW.md` | Session lifecycle: claim an ACTIVE row at start, remove it at end. Mandatory. |
-| `ACTIVE.md` | The live board. |
 | `TASKS.md` | Build backlog, phased. |
+
+**Retired and moved to `archive/` on 2026-08-02 — do not follow:** `archive/INSTRUCTIONS.md`
+(how to execute, greenfield-era), `archive/AGENT-WORKFLOW.md` (claim-a-row session lifecycle),
+`archive/ACTIVE.md` (the board that protocol used). The arrangement they describe no longer
+exists. See `archive/README.md`.
 
 ## Stack (locked)
 
