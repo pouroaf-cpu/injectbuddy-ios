@@ -224,6 +224,42 @@ sentence is a true statement about our evidence and it is worth more than a gree
 | 2 | **Calendar `.refreshable` fires nothing. ONE BOUNDED ATTEMPT — 30 minutes — THEN REMOVE THE AFFORDANCE.** Measured: Calendar parked, a production label change 56s before the pull never appeared, Supabase's API log shows **zero requests** after the initial read. Discriminator, same gesture one minute apart on identically-shaped ScrollViews: **dashboard pull → re-read in 3s; calendar pull → nothing.** The gesture arms `.refreshable` — proven on the dashboard in the same run — and the two screens' source shape is identical, so the cause is **not visible from a source read.** **A pull gesture that silently does nothing is worse than no pull gesture: the user believes they have refreshed and they have not — the same lie as the optimistic tick.** `.task` re-runs on tab re-appearance, so the data path survives removal and only the affordance is lost. **File the mystery with the discriminator either way.** | Either a pull re-reads, or there is no pull to make |
 | 3 | **The Calendar's taken-tick is unreadable to accessibility — cheapest item on the board.** `AgendaRow` conveys "logged" by SF Symbol + colour + strikethrough, **none of which reaches the label**: rows read `"TRT Dose, TRT"` taken or not. **A VoiceOver user cannot tell a taken dose from an untaken one in a dosing app**, and the sweep had to use the database as its observer for exactly this reason. Two lines of `accessibilityValue` at one control. **This is not the deferred accessibility work** — it buys correctness for the user and observability for every future run, at one site. | A run can read the tick without querying the database |
 
+### Two things batch 4 leaves behind — read both before the next sweep or the next `RouteContent` edit
+
+**1. `Loading…` IS NOW A BLIND INSTRUMENT, BY DESIGN. Its absence is NOT evidence a refresh did not
+fire.** Item 1's fix required a second half: `load()` no longer sets `.loading` when data is already
+loaded, because *"a cancelled load leaves the previous state alone"* is unsatisfiable if the
+preamble has already discarded that state — without it the fix trades a permanent error banner for
+a permanent spinner. `Sweep3UITests`'s `loadingTextShowing()` reached for exactly this signal.
+**Use the database or the API log as the observer. The next sweep will reach for it too.**
+
+**2. FILED CANDIDATE, with its mechanism — why `.refreshable` fired nothing on the Calendar.**
+`RouteContent.titleDisplayMode` is `route == .dashboard || carriesOwnHeader ? .inline : .automatic`,
+so **the dashboard is the only tab root with an inline title and every other gets a LARGE one — and
+a large title owns the pull-down stretch above a plain ScrollView.** That is one level up in shared
+shell code, which is why the two screen files read identical and the cause was invisible to a source
+read. The discriminator is already in the log: same gesture one minute apart, dashboard pull →
+re-read in 3s, calendar pull → zero requests.
+
+> **THE TRAP THAT OUTLIVES THE AFFORDANCE — this is the part worth keeping.** If that mechanism is
+> real, the dashboard's refresh works **because** its title is inline, and **any future screen with
+> a large title will silently not refresh.** Not "might not" — silently, with the gesture arming and
+> nothing happening, which is what took a parked screen, a production edit and an API log to catch
+> the first time.
+
+**Take the measurement when something next touches `RouteContent` for another reason — not before.**
+It is ~10 minutes from here: flip the Calendar to `.inline` and pull once. It stays filed because
+the affordance is already removed, `.task` on tab re-appearance keeps the data path whole, and
+nothing a user can do is broken — so measuring it now is a new front on a closed item.
+
+Weaker candidates, recorded so they are not re-derived: the harness's `scrollContainer()` takes the
+first hittable scroll-ish element and the Calendar has a `LazyVGrid` the dashboard does not (**same
+gesture was established; same target element was not**); and `CalendarScreen.reload()` mutates
+`visibleMonth` before its await where the dashboard awaits immediately. And item 1's `.loading`
+change is itself a candidate fix — the ScrollView owning the refresh control is no longer destroyed
+under it mid-pull. **The affordance returns on a request appearing in the API log, never on that
+argument.**
+
 ---
 
 ## PRE-SHIP CHECKLIST — things that can only be checked on the way out
