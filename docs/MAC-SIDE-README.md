@@ -113,6 +113,20 @@ iPhone 16 Pro simulator, iOS 18.3.1, booted, signed in as the QA account.
   read production Postgres over MCP. Windows still owns the **PWA source** — that is not in this
   repo and cannot be inferred from a doc in it; ask, do not guess. What is genuinely serial is the
   **rig**: one simulator, one framebuffer, one `content_size`.
+- **NOTHING STARTS A DEVICE-TOUCHING TASK WHILE ANOTHER DEVICE-TOUCHING TASK IS ALIVE — INCLUDING
+  ANYTHING *YOU* SPAWN.** The rule used to say "one runner owns the device" and had an unstated
+  actor: it bound the workers and exempted the person spawning them. Recorded 2026-08-03, because
+  that is exactly how it failed — two agents were each told they were sole owner of the rig, ran UI
+  tests against one simulator, and edited one test file with no commit between them. The numbers
+  survived (55 minutes disjoint, same instrument both ends, size read from the app's probe), but
+  **the code that produced them was a mixture nobody could reconstruct**, and a green you cannot
+  attribute is not evidence.
+  **Before spawning anything that touches the device: `pgrep -fl 'xcodebuild|simctl|XCTest'` and
+  `xcrun simctl ui booted content_size`. Observe exclusivity, never assert it** — and check the
+  artefacts, not the roster, because a label is not progress.
+- **A worker can only ever vouch for its OWN invocations.** If you are told the rig is exclusive,
+  **check it yourself first** — that check is the worker's job before it measures anything, and it
+  is what caught the failure above. Being told you are the sole owner is not evidence that you are.
 - **One runner owns the device for a whole session; nobody else touches it.** Everyone else files an
   entry in `docs/TEST-QUEUE.md` and the runner batches them. **Batch by SIGN-IN, not by build** —
   measured 2026-08-03: cold build 258s, **no-op rebuild 11s**, unit suite 45s wall / 1.2s execution,
