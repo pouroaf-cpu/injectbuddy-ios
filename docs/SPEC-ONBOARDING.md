@@ -13,6 +13,25 @@ is done, per the MVP posture.
 
 ## 1. Why a separate target, and what "separate" means
 
+> ### THIS FILE IS THE ROUTE AND THE COPY. IT IS NOT THE WRITE CONTRACT.
+>
+> **`docs/WELCOME-AND-ONBOARDING.md` §3** specs the five-step personalisation flow that writes
+> `public.profiles`. It is open, unbuilt, and **not superseded by this file** — the two are
+> different halves of one surface. **`docs/DATA-CONTRACT.md` is authoritative for what the database
+> accepts**, and **RLS refuses a bad write silently**: no error, no row, and a call site that only
+> checks "did not throw" cannot tell the difference.
+>
+> **Read both before implementing a real sink.** This pass ships a no-op sink, so nothing here can
+> go wrong yet — the risk arrives the day someone writes a real one while holding only this file.
+>
+> The three constraints that are in neither this file nor the wireframes it was written from:
+> - **A skipped step writes the DEFAULT, never a null.** Three `profiles` columns are NOT NULL and
+>   `logging_interests` is a NOT NULL array; steps 2–5 are all skippable.
+> - **`onboarding_completed_at` is set ONLY on completion.** It is the flag that stops the flow
+>   reappearing, so setting it early strands the user and setting it never loops them.
+> - **No rounding on the way in.** A user entering 180 lb must get 180 lb back. Store metric always;
+>   the unit preference is display only. Conversion constants are in `WELCOME-AND-ONBOARDING.md` §3.
+
 The owner's instruction: *"I think we make this as a separate app, its own folder inside the ios, and
 then we can test it without a login. All we need is the onboarding screens."*
 
@@ -234,6 +253,12 @@ build that runs to `dashboard` and to `locked` without a login.
 being requested, writing anything to Supabase, mounting the flow in the real app, the win-back email
 sequence, the separate free calculator app, and the `$X/mo` price — leave the token literally as
 `$X/mo` until the owner sets it.
+
+> **If you are here because you are about to change "writing anything to Supabase" from out-of-scope
+> to in-scope — stop and read `docs/WELCOME-AND-ONBOARDING.md` §3 and `docs/DATA-CONTRACT.md`
+> first.** The write contract is not in this file. A skipped step writes the default and never a
+> null; `onboarding_completed_at` is set only on completion; nothing is rounded on the way in. RLS
+> refuses a bad write **silently**, so a sink built from this file alone will look like it works.
 
 ---
 
