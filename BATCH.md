@@ -40,6 +40,31 @@ independent, 9 is in the tree and cannot be separated from the build.
 | 8 | CI repoint off `working-directory: app` + placeholder xcconfig, **no repo secrets** | Lands independently; no device needed |
 | 9 | Result bar as one shared control + calculator name as content-area header (`DESIGN-PARITY` §9 option **(a)**, never `.principal`) | **Four findings, one sweep** — barrel buttons on `trt` AND `steroid`, F-H, F-I, and the keypad/frequency finding. It either closes four at once or it tells us the ~52%-of-content-area diagnosis was wrong. Verify at default size on `trt` plus at least one screen outside the top five. Barrel labels keep their units (the `SegmentedRow` `lineLimit` removal) |
 
+### State of the nine, 2026-08-03 — CODED AND COMPILING. NOTHING SWEPT.
+
+Every item below is in the tree and the tree builds. **Not one of them is done**, because this
+file's own second line is the standard: *a change is not done when coded, it is done when its batch
+sweep passes*. No test has executed, no row has been read back from the database, and nothing here
+has been observed doing what it was written to do. Read this table as "the code exists and the
+compiler accepted it", which is the weakest true claim, and do not tick anything off it.
+
+| # | In the tree at | State |
+|---|---|---|
+| 1 | `1cf8de0` | Coded, compiles. Unswept. |
+| 2 | `6badb96` | Coded, compiles. Unswept. |
+| 3 | `6badb96` | Coded, compiles. Unswept. |
+| 4 | `1cf8de0` | Coded, compiles. Unswept. |
+| 5 | `cdd2d4a` | Coded, compiles. Unswept. |
+| 6 | `cdd2d4a` | Coded, compiles. Unswept. |
+| 7 | `cdd2d4a` | Coded, compiles. Unswept. |
+| 8 | `edfc2f1` | Committed earlier. CI has not been observed passing on the repoint. |
+| 9 | `69a674a` | Committed earlier. Filed as `TEST-QUEUE` Q2, not run. |
+
+`6badb96`, `cdd2d4a` and `edfc2f1` were committed by an agent a session limit killed mid-task, and
+each of those messages says in its own words that it parses and was never type-checked. That is no
+longer the state — `1cf8de0` closed the two holes they left (items 1 and 4) and the whole thing
+compiles. It is still not evidence about behaviour.
+
 ### The sweep, in one signed-in session
 
 Save a protocol → **see it on the dashboard** → log a dose against it → read the row back → confirm
@@ -49,11 +74,27 @@ Verification requirement for item 4: the row read back must show `status='active
 `is_active=true`. Asserting only what was sent would still pass on a trigger that had been dropped —
 the `is_active` half is what proves the trigger's non-draft branch fired.
 
-### Rig hazard — live until item 1 is in the build
+### Rig hazard — live on the build that is INSTALLED, fixed only in source
 
 **Do not tap a dose cell on the Calendar tab on the QA account.** `logDose` fails on the NOT NULL;
 `unlogDose` succeeds because RLS `USING` scopes it. The two halves of one toggle have opposite
 outcomes, so tapping a ticked dose permanently deletes a real row the app cannot re-create.
+
+**Narrowed again 2026-08-03, and read the distinction carefully — it is the whole of what changed.**
+The hazard's cause is fixed **in source**: the half that removes the asymmetry is item 2 —
+`user_id` on the `dose_log` insert, in the tree since `6badb96` — and item 1's `user_id` in the
+DELETE predicate (`1cf8de0`) hardens the destructive half against another account's row. The
+section heading used to say "live until item 1 is in the build"; item 1 is in the TREE, which is
+not the same sentence, and the NOT NULL was never item 1's to fix anyway.
+
+**Nothing has been built onto the device.** The binary sitting on the simulator predates all of it,
+so on the rig as it stands today the hazard is exactly as live as it was when it was written. It
+does not retire when a commit lands. It retires when (a) a build carrying `1cf8de0` or later is
+installed on that simulator **and** (b) a logged dose has been written and read back — because
+`logDose` failing for some second reason recreates the identical asymmetry, and a fix that has
+never been run is a hypothesis about a write path that has never once produced a row.
+
+Until both of those are true, treat this section as live.
 
 **Narrowed 2026-08-03, measured — the earlier version of this warning was wider than the defect.**
 The destructive path is **only** `CalendarViewModel.toggleTaken`. The **dashboard card is safe**:
@@ -63,8 +104,10 @@ log path is usable for verification; the Calendar tab is not.
 
 If a check needs a logged dose, create it and read it back — never toggle one.
 
-Strike this section when item 1 lands. A rig hazard that outlives its cause is the `content_size`
-trap again.
+Strike this section when the sweep has logged a dose and read the row back on an installed build
+carrying the fix — not when the commit lands. A rig hazard that outlives its cause is the
+`content_size` trap again; a rig hazard struck on a source read is `§5.1`, and this one destroys
+real rows when it is struck early.
 
 ---
 
@@ -87,13 +130,24 @@ no speculating now, and nothing is built against it in advance.
 
 ### Known state
 
-The tree does **not** compile while item 9 is mid-rewrite (`cannot find 'ResultSheet' in scope`,
-`extra argument 'idPrefix'`, type-check timeout). That is expected and is not a regression. **No
-build attempt until every item above is coded** — a failing build that belongs to someone else's
-half-finished file is not information. A batch does not go to the runner until it compiles locally.
+**The tree compiles.** `xcodebuild build-for-testing`, iPhone 16 Pro / iOS 18.3.1, **exit 0**, at
+`1cf8de0`. All three symptoms this paragraph used to list are gone: `ResultSheet` is defined at
+`CalculatorScreen.swift`, `private struct ResultSheet: View` (item 9's rewrite finished), there is
+no `idPrefix` argument left to be extra, and no type-check timeout. Measured wall time, this rig,
+SPM already resolved: **138s** for the build that first went green, **6s** for the no-op rebuild
+straight after it. Those numbers replace the "do not attempt a build" instruction that stood here —
+the reason for it was a half-finished file, and the file is finished.
 
-`xcodegen generate` **is** required for this batch: `Tests/InjectBuddyUITests/AddFlowToDoseLogUITests.swift`
-is a new file in a globbed directory and the generated `pbxproj` does not reference it. That is the
-one case the "only on project-definition adds/removes" rule names — it is not a licence to run it
-routinely. The test addresses `cta_add`, `kb_done` and the calculator's first text field, all of
-which live in `CalculatorScreen.swift`, so its identifiers may need re-aiming once item 9 lands.
+**Compiling is the only thing that has been established.** No test has run, the batch sweep has not
+happened, and no build has been installed on the simulator. The gate this note describes is a
+compile gate — *a batch does not go to the runner until it compiles locally* — and it has been
+passed, which moves the batch to the runner and closes nothing.
+
+`xcodegen generate` **has been run**, at `1cf8de0`, and does not need running again. Reason, so
+nobody repeats it "just in case": `Tests/InjectBuddyUITests/AddFlowToDoseLogUITests.swift` was a new
+file in a globbed directory, so the generated `pbxproj` had **0** references to it while every other
+test file had **4**. After the run it has **4**. That is the one case the "only on project-definition
+adds/removes" rule names, and running it is what made the file part of the target — it is still not
+a licence to run it routinely. The test addresses `cta_add`, `kb_done` and the calculator's first
+text field, all of which live in `CalculatorScreen.swift`, which item 9 rewrote; whether those
+identifiers still resolve is a question for the run, not for a source read.

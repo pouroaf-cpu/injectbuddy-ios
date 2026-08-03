@@ -44,6 +44,22 @@ Runner rules:
   CalendarViewModel. A NOT NULL violation should throw — but every call site discards the result
   with `_ =` and at least one is a tap toggle. **If the tap reads as success, this is a dosing app
   telling a user an injection is recorded when nothing was written.**
+- **UPDATED 2026-08-03 — two sentences above are now false about the SOURCE, and the run still stands.**
+  The fix stopped being the directing side's to decide and was written (BATCH.md items 2, 3 and 5):
+  - "`NewDoseLogPin` … carries **no `user_id`**" — still literally true of that struct, and no longer
+    true of the write. `logDose` wraps it in a private `OwnedDoseLogPin` carrying `currentUserId()`
+    before it sends anything (`SupabaseBackendClient.swift`, `private struct OwnedDoseLogPin`), the
+    same shape `saveDosage` already used. In the tree since `6badb96`.
+  - "every call site discards the result with `_ =`" — now false at two of the three. Writes return
+    the row and throw on empty, and `DashboardViewModel.markTaken` and `CalendarViewModel.toggleTaken`
+    both bind it (`let written = try await backend.logDose(pin)`). `LogDoseSheet` still writes `_ =`,
+    deliberately: it was already the one call site that caught the error and showed a message.
+  - Unchanged and still the point of the run: the production measurement. All 14 live rows came from
+    the web and **no iOS-written row has ever landed in `dose_log`** — that is a fact about rows in a
+    table, and nothing anyone types can change it. Nothing has been built onto the device and no test
+    has run, so this entry stays QUEUED and the question it asks is unanswered.
+  - So the run's question is now the stronger one: does a logged dose **land**, and if it does not,
+    is the user told? A source fix for a NOT NULL is `§5.1` until a row is read back.
 - Do NOT fix it in this run. Observe and report only; the fix is the directing side's call.
 - Invocation: drive the log-dose path on device with the QA account (TEST_RUNNER_ prefix — without
   it the UI suite skips and reports success), watch for an error surface, then query

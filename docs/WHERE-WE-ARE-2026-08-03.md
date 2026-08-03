@@ -167,6 +167,15 @@ is "the button is on screen and NOT enabled"; elsewhere it is "on screen and rea
    which is a mirror of it that only carries two of the three states. And note that
    simply hiding "archived" rows fixes nothing, because no row has ever been archived.
 
+   **Still open, and one thing near it moved — do not read the second as the first.**
+   iOS now WRITES `status` on a new protocol, defaulting to `active` (`BATCH.md` item 4,
+   in the tree at `1cf8de0`). Nothing was changed about what any consumer READS:
+   `DashboardViewModel.load` and `CalendarViewModel.load` both still take
+   `dosages.filter { $0.isActive }`, which is the mirror, and neither has ever seen the
+   `status` column. So the defect in this paragraph is untouched — a user's list is still
+   drafts presented as running protocols — and the write-side change is also unswept, so
+   it is not evidence that even the new rows come out `active`.
+
 4. **Result cards are cut by the bar** on ~~BMI, Free T Index and~~ Semaglutide at normal
    text size. **BMI and Free T Index struck — both screens descoped by the owner's
    decision, 2026-08-03** (`SPEC-2026-08-03-HUMAN-TASKS.md` H6: "No layout work, no
