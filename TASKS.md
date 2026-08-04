@@ -828,7 +828,7 @@ plate.
 `PinnedBarReachabilityUITests`, and either shown to leave every control reachable, or the form's
 bottom inset increased by the drum's own measured height.
 
-## ~~T-31 — The cycle plotter painted two strings in the 2.38:1 accent~~ — **DONE 2026-08-04**
+## ~~T-31 — The cycle plotter painted three strings in the 2.38:1 accent~~ — **DONE 2026-08-04**
 **Priority 4/10** · **Owner:** mac · **Status:** done
 
 **What:** `CyclePlotterScreen` used `Theme.accent` (#0FBCAD) as a FOREGROUND on three things: the
