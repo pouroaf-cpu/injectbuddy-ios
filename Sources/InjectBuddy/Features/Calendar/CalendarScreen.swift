@@ -21,6 +21,32 @@ struct CalendarScreen: View {
         content
             .background(Theme.groupedBackground.ignoresSafeArea())
             .task { await reload() }
+            // ─── T-05, THE EXPERIMENT ────────────────────────────────────────────
+            //
+            // DEBUG-ONLY and OFF unless `T05_EXPERIMENT=1`, so the affordance that was
+            // removed for lying is not quietly restored by the thing measuring it.
+            // With the flag set, the pull is armed again and `t05_reloads` below
+            // publishes how many times `reload()` actually ran.
+            //
+            // The point is to kill candidate (A) one way or the other. The flag
+            // `CALENDAR_INLINE_TITLE=1` (see `RouteContent.titleDisplayMode`) flips
+            // THIS screen's navigation title to `.inline`, which is the dashboard's
+            // setting and the one difference between the two roots. One build, two
+            // conditions, run twice:
+            //
+            //   T05_EXPERIMENT=1                          → pull, expect NO increment
+            //                                               (reproduces the defect)
+            //   T05_EXPERIMENT=1 CALENDAR_INLINE_TITLE=1  → pull, expect +1
+            //                                               (candidate A confirmed)
+            //
+            // Both conditions matter and the RED one matters more. A run that only
+            // shows the fix working cannot tell "inline title fixes it" from "the pull
+            // works now for some other reason" — and batch 4 already changed something
+            // in this area (`load` no longer blanks to `.loading`), so "it just works
+            // now" is a live possibility that this design can distinguish and a
+            // one-condition run cannot.
+            .modifier(T05PullExperiment(isOn: Self.t05Enabled) { await reload() })
+            .overlay { t05Probe }
         // ─── NO `.refreshable` HERE, AND IT IS DELIBERATE. UNSOLVED — filed. ──────
         //
         // `.refreshable { await reload() }` stood on this line and **fired nothing**.
@@ -130,7 +156,42 @@ struct CalendarScreen: View {
 
     private func reload() async {
         visibleMonth = Date()
+        // Counted BEFORE the await, so a reload that starts and never returns is
+        // still visible. The question T-05 asks is whether the closure runs AT ALL —
+        // the previous measurement could only see requests that reached Supabase, so
+        // "the closure never fired" and "it fired and the request was suppressed
+        // downstream" were indistinguishable from outside. This separates them.
+        t05Reloads += 1
         await vm.load(backend: backend)
+    }
+
+    // MARK: - T-05 experiment plumbing (DEBUG only, not compiled into Release)
+
+    @State private var t05Reloads: Int = 0
+
+    static var t05Enabled: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["T05_EXPERIMENT"] == "1"
+        #else
+        return false
+        #endif
+    }
+
+    /// Publishes the reload count, and the two flags it was taken under — so a frame
+    /// or an assertion cannot be filed against a condition the app never saw. The
+    /// same rule `bar_gate` follows, and for the same reason: this project has already
+    /// filed evidence gathered under a setting that never arrived.
+    @ViewBuilder
+    private var t05Probe: some View {
+        #if DEBUG
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityElement()
+            .accessibilityIdentifier("t05_probe")
+            .accessibilityLabel("reloads=\(t05Reloads) "
+                                + "experiment=\(Self.t05Enabled) "
+                                + "inline=\(RouteContent.calendarInlineTitleOverride)")
+        #endif
     }
 
     private func shiftMonth(_ delta: Int) {
@@ -400,3 +461,23 @@ private struct AgendaRow: View {
         .environmentObject(NetworkMonitor())
 }
 #endif
+
+/// Applies `.refreshable` only when the T-05 experiment is on.
+///
+/// A modifier rather than an `if` in the body, and the reason is the experiment's
+/// own validity: `.refreshable` changes the view's identity, so branching the whole
+/// `content` on a flag would swap the ScrollView out from under the refresh control
+/// — which is one of the three mechanisms T-05 lists as a possible cause of the
+/// original defect. An experiment must not contain the thing it is testing for.
+private struct T05PullExperiment: ViewModifier {
+    let isOn: Bool
+    let action: () async -> Void
+
+    func body(content: Content) -> some View {
+        if isOn {
+            content.refreshable { await action() }
+        } else {
+            content
+        }
+    }
+}

@@ -92,7 +92,25 @@ struct RouteContent: View {
     /// The large title on a calculator is the element measured truncating to
     /// `Steroid Dos…` at AX5 on `IB2245752`. It goes with the duplicate.
     private var titleDisplayMode: NavigationBarItem.TitleDisplayMode {
-        route == .dashboard || carriesOwnHeader ? .inline : .automatic
+        // T-05 candidate (A), under test. The dashboard is the ONLY tab root with an
+        // inline title and the ONLY one whose pull-to-refresh fires — a large title
+        // owns the pull-down stretch above a plain ScrollView. This override flips the
+        // calendar to the dashboard's setting so the two roots differ by nothing, and
+        // it is the one variable the experiment moves. DEBUG only.
+        if route == .calendar && Self.calendarInlineTitleOverride { return .inline }
+        return route == .dashboard || carriesOwnHeader ? .inline : .automatic
+    }
+
+    /// DEBUG-only. Read by `CalendarScreen.t05Probe` as well as here, so the assertion
+    /// can confirm the override ARRIVED rather than trusting that it was passed —
+    /// `TEST_RUNNER_` stripping has silently swallowed an env var on this project
+    /// before, and a run under a flag the app never saw reports success either way.
+    static var calendarInlineTitleOverride: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["CALENDAR_INLINE_TITLE"] == "1"
+        #else
+        return false
+        #endif
     }
 
     @ViewBuilder
