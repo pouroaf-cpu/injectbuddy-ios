@@ -165,8 +165,21 @@ final class CaptureCurrentState: XCTestCase {
             case .calendar:
                 return ({ $0.buttons["Today"].firstMatch }, "the calendar's Today button")
             case .tools:
-                return ({ $0.staticTexts["Reconstitution"].firstMatch },
-                        "a calculator row (Reconstitution)")
+                // THE FIRST ROW ON THE SCREEN, and it has to be — this proof was
+                // `Reconstitution` and it is SIZE-FRAGILE. `ToolsScreen` is an
+                // `.insetGrouped` List whose sections run GLP-1 → hormones → peptides →
+                // steroids, so Reconstitution is the seventh row; at AX5 four rows fill
+                // the display and a `List` does not instantiate what it has not
+                // scrolled to. `testCaptureNumericPickerAtSize` failed on
+                // "Tapped Tools but never arrived" at AX5 on a screen it was standing
+                // on, which is an arrival proof reporting the harness's own blind spot
+                // as the app's failure.
+                //
+                // `Semaglutide` is the first member of the first category and is on
+                // screen at every supported size. A proof that only holds at default
+                // size is not a proof.
+                return ({ $0.staticTexts["Semaglutide"].firstMatch },
+                        "the first calculator row (Semaglutide)")
             case .add:
                 // The FOOTER, not the "What are you adding?" header. That header is a
                 // `Section` header under `.insetGrouped`, which SwiftUI UPPERCASES — so
@@ -538,6 +551,185 @@ final class CaptureCurrentState: XCTestCase {
         XCTAssertTrue(ester.exists, "control_esterType never appeared.")
         print("ESTER frame=\(ester.frame) label=\(ester.label)")
         shot("14-calculator-trt-ester-\(size).png")
+    }
+
+    /// T-16 — THE NUMERIC PICKER, AT AX5, WITH ITS VALUE INSIDE ITS OWN CHROME.
+    ///
+    /// The "after" of `13-calculator-steroid-ax5`, and it is deliberately shot on the
+    /// SAME control the defect was measured on:
+    ///
+    ///     Button 'control_compound'            {{15.5, 245.5}, {371.3,  78.3}}
+    ///       StaticText 'Oxandrolone (Anavar)'  {{83.3, 192.7}, {193.0, 183.3}}
+    ///     StaticText 'Compound'                {{15.9, 189.3}, {216.0,  52.7}}
+    ///
+    /// A 193.0 x 183.3 string inside a 78.3pt-tall button, 52.8pt ABOVE that button's
+    /// own top edge and 148.6 x 49.3pt into the label of the field above.
+    ///
+    /// WHAT IS ASSERTED, and the first cut of it was wrong in a way worth keeping.
+    ///
+    /// It asserted that the value no longer appears as a `StaticText` at all, on the
+    /// theory that `accessibilityElement(children: .ignore)` collapses it into the
+    /// control's `accessibilityValue`. **It ran and that was false**: the string was
+    /// still published, at `(16.0, 192.0, 370.0, 60.0)` against a control of
+    /// `(15.5, 191.5, 371.0, 61.0)` — half a point inside its chrome on every edge,
+    /// which is the fix working. The same run showed why the collapse matters
+    /// separately: the magnifier survived as a LEAF inside that husk and
+    /// `LeafOverlapUITests` reported the two as sharing pixels. They do not — the glyph
+    /// sits left of the text — so the face is now hidden at its ROOT and the control is
+    /// genuinely one element.
+    ///
+    /// **AND HIDING THE FACE DID NOT WORK EITHER** — measured, second run. At AX5 the
+    /// control still publishes three elements inside its own frame: the merged
+    /// `StaticText 'Oxandrolone (Anavar)'`, `Image 'Search'` (the magnifier) and
+    /// `Image 'Go Down'` (the chevron), with `accessibilityHidden(true)` on both glyphs
+    /// and on the whole face. The automation snapshot is not the VoiceOver tree, and no
+    /// accessibility modifier available here removes them. That is a harness fact, it
+    /// belongs to `LeafOverlapUITests` and to **T-35**, and it is NOT what this test
+    /// measures. So the assertions are:
+    ///
+    ///   1. the control resolves under the identifier it always had, and its VALUE is
+    ///      the compound — the name is not lost, it moved inside;
+    ///   2. **the value's frame is CONTAINED by the control's frame**, which is the
+    ///      defect stated in the units it was measured in;
+    ///   3. the control's own frame does not intersect `section_Compound` above it —
+    ///      the label the value used to land on, by 148.6 x 49.3pt;
+    ///   4. the control sits wholly inside the window. A control measured off the
+    ///      bottom of the display is not a control whose chrome anyone can see.
+    ///
+    /// AND THE FRAME IS ONLY WRITTEN IF ALL FOUR HOLD, the same rule
+    /// `testCaptureSteroidDosage` applies from the other end. An "after" photograph
+    /// taken on a screen where the fix did not take is worse than none.
+    ///
+    ///     xcrun simctl ui booted content_size accessibility-extra-extra-extra-large \
+    ///       && TEST_RUNNER_CAPTURE=1 TEST_RUNNER_SIZE_LABEL=ax5 xcodebuild test … \
+    ///          -only-testing:InjectBuddyUITests/CaptureCurrentState/testCaptureNumericPickerAtSize ; \
+    ///     xcrun simctl ui booted content_size large
+    func testCaptureNumericPickerAtSize() {
+        openCalculator(named: "Steroid Dosage", expecting: "field_mgWeek")
+        let size = ProcessInfo.processInfo.environment["SIZE_LABEL"] ?? "unknown"
+
+        let control = app.buttons["control_compound"]
+        XCTAssertTrue(control.waitForExistence(timeout: 8),
+                      "`control_compound` did not resolve. The numeric picker publishes "
+                      + "`control_<key>` and always has — if this is gone, the fix changed "
+                      + "the identifier and every sweep that collects `control_*` has "
+                      + "quietly stopped covering it.")
+
+        // 1 — the value is IN the control.
+        let value = control.value as? String ?? ""
+        XCTAssertFalse(value.isEmpty,
+                       "`control_compound` has no accessibilityValue. A numeric field always "
+                       + "holds a number; a control with a value and a blank face is the "
+                       + "same class of defect as a hidden dose.")
+        print("T16 control_compound frame=\(control.frame) value='\(value)'")
+
+        // 2 — INSIDE ITS OWN CHROME, which is the defect in its own terms.
+        //
+        // Measured at AX5: the value is `(16.0, 337.67, 370.0, 265.33)` inside a control
+        // of `(15.5, 337.17, 371.0, 266.33)`. **The chrome grew from 78.3pt to 266.3pt
+        // to hold a 265.3pt value** — §9's "the container grows, the text does not
+        // shrink or clip" — where before, a 183.3pt value sat in a 78.3pt button and
+        // spilled 52.8pt out of the top of it.
+        //
+        // 0.75pt of slack and no more: the measured inset is half a point per edge,
+        // which is the snapshot's rounding. A tolerance wide enough to hide a real
+        // overflow would make this decorative, and the overflow it is written against
+        // was 52.8pt.
+        let strays = app.staticTexts.allElementsBoundByIndex.filter { $0.label == value }
+        XCTAssertFalse(strays.isEmpty,
+                       "`\(value)` is not published as text anywhere. The value has to be "
+                       + "READABLE, not merely stored — this assertion must not be able to pass "
+                       + "by the string having disappeared.")
+        let chrome = control.frame.insetBy(dx: -0.75, dy: -0.75)
+        for stray in strays {
+            XCTAssertTrue(chrome.contains(stray.frame),
+                          "`\(value)` is drawn at \(stray.frame), which is NOT inside "
+                          + "`control_compound` \(control.frame). That is the T-16 defect.")
+        }
+
+        // 3 — and the control does not reach the label above it. `Oxandrolone (Anavar)`
+        // used to overlap `Compound` by 148.6 x 49.3pt.
+        let header = app.staticTexts["section_Compound"]
+        XCTAssertTrue(header.exists,
+                      "No `section_Compound` header on Steroid Dosage. It is the element the "
+                      + "value used to land on — without it this frame proves nothing.")
+        let shared = control.frame.intersection(header.frame)
+        XCTAssertTrue(shared.isNull || shared.width < 0.5 || shared.height < 0.5,
+                      "`control_compound` \(control.frame) and `section_Compound` "
+                      + "\(header.frame) share \(shared).")
+        print("T16 section_Compound frame=\(header.frame)")
+
+        // 4 — on screen.
+        let window = app.windows.firstMatch.frame
+        XCTAssertTrue(window.contains(control.frame),
+                      "`control_compound` \(control.frame) is not wholly inside the window "
+                      + "\(window) — the frame would not show it.")
+
+        shot("15-calculator-steroid-compound-\(size).png")
+    }
+
+    /// T-17 — THE PLOTTER, OPENED ON THE PROTOCOL THE CALCULATOR HELD.
+    ///
+    /// Walks the link the user walks: TRT at its defaults — 100 mg/week, every 3.5
+    /// days, Testosterone Enanthate — then `cta_plot_levels`, and reads what the
+    /// plotter opened on.
+    ///
+    /// THE DOSE IS THE ASSERTION, not the compound. 100 mg a week injected every 3.5
+    /// days is **50 mg an injection**, and `pkBuildEntries` applies the line's dose at
+    /// every injection time — so a plotter seeded with 100 would draw a curve twice as
+    /// high as the protocol the user typed, on a screen whose entire output is a serum
+    /// level. A photograph cannot tell those two curves apart. This can.
+    ///
+    /// `PlotterSeedTests` covers the arithmetic across every calculator without a
+    /// launch; what this adds, and the only thing it adds, is that the seed actually
+    /// travels — through `AppRoute.plotter(seed:)`, into `CyclePlotterViewModel`'s
+    /// initial state, and onto the control the user reads.
+    func testCapturePlotterSeededFromCalculator() {
+        openTRT()
+        let size = ProcessInfo.processInfo.environment["SIZE_LABEL"] ?? "unknown"
+
+        let cta = app.descendants(matching: .any)
+            .matching(identifier: "cta_plot_levels").firstMatch
+        guard let form = onScreenScrollView(retries: 3) else {
+            return XCTFail("No on-screen form scroll view on the TRT calculator.")
+        }
+        for _ in 0..<10 where !(cta.exists && cta.isHittable) {
+            form.swipeUp(velocity: XCUIGestureVelocity(rawValue: 220))
+        }
+        XCTAssertTrue(cta.exists && cta.isHittable,
+                      "`cta_plot_levels` never became hittable on the TRT calculator.")
+        cta.tap()
+
+        // ARRIVAL, ASSERTED — §5.24. A frame taken here without this is a photograph of
+        // the calculator under a filename claiming the plotter.
+        let compound = app.buttons["control_plotCompound_0"]
+        XCTAssertTrue(compound.waitForExistence(timeout: 8),
+                      "Tapped the levels link and never landed on the plotter — "
+                      + "`control_plotCompound_0` is not on screen.")
+
+        XCTAssertEqual(compound.value as? String, "Testosterone Enanthate",
+                       "The plotter did not open on the calculator's ester.")
+
+        let dose = app.textFields["plotDose_0"]
+        XCTAssertTrue(dose.exists, "No `plotDose_0` on the plotter.")
+        let shown = (dose.value as? String ?? "").trimmingCharacters(in: .whitespaces)
+        print("T17 plotter compound='\(compound.value as? String ?? "")' "
+              + "dose='\(shown)' freq='\(app.buttons["control_plotFreq_0"].value as? String ?? "")'")
+        // Grouping separators stripped before parsing — `.number` formats by locale, and
+        // a field that reads `1,000` is not a field that reads nothing.
+        let parsed = Double(shown.filter { $0.isNumber || $0 == "." || $0 == "-" })
+        XCTAssertNotNil(parsed, "`plotDose_0` reads `\(shown)`, which is not a number.")
+        XCTAssertEqual(parsed ?? .nan, 50, accuracy: 0.001,
+                       "The plotter opened on `\(shown)`. TRT's defaults are 100 mg a week "
+                       + "every 3.5 days, which is 50 mg PER INJECTION — 100 here would mean "
+                       + "the weekly total travelled instead of the per-injection dose, and "
+                       + "the curve would be twice the protocol's.")
+
+        XCTAssertEqual(app.buttons["control_plotFreq_0"].value as? String,
+                       "Twice per week (2x/wk)",
+                       "The plotter did not open on the calculator's interval.")
+
+        shot("28-plotter-seeded-from-trt-\(size).png")
     }
 
     // MARK: - The full default-size sweep

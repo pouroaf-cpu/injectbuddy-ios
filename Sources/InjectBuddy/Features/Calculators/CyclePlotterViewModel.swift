@@ -44,7 +44,24 @@ final class CyclePlotterViewModel: ObservableObject {
     @Published private(set) var series: [PlotterSeries] = []
     @Published private(set) var allTesto: Bool = true
 
-    init() { rebuild() }
+    /// T-17 — opened ON something, or opened empty.
+    ///
+    /// The seed replaces the placeholder line rather than being appended to it. A
+    /// user who tapped "See your levels over time" on a 140mg/week enanthate protocol
+    /// and arrived at their compound PLUS an unrelated 100mg test-e line would be
+    /// reading a chart of two protocols, one of which they never entered — on a
+    /// screen whose entire output is a plasma level.
+    ///
+    /// `didSet` does NOT fire for an assignment inside `init`, which is why `rebuild()`
+    /// is called explicitly here and why it must stay after the assignment.
+    init(seed: PlotterSeed? = nil) {
+        if let seed {
+            lines = [PlotterLine(compoundId: seed.compoundId,
+                                 dose: seed.dose,
+                                 freqDays: seed.freqDays)]
+        }
+        rebuild()
+    }
 
     func addLine() {
         lines.append(PlotterLine(compoundId: "test-e", dose: 100, freqDays: 7))

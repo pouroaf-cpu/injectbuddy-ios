@@ -132,6 +132,11 @@ struct RouteContent: View {
             SettingsScreen()
         case .calculator(let slug):
             CalculatorScreen(slug: slug)
+        case .plotter(let seed):
+            // T-17. `.calculator(.cyclePlotter)` above reaches the same screen through
+            // `CalculatorScreen`, which special-cases the slug; this route goes
+            // straight to it, because there is no calculator form to render on the way.
+            CyclePlotterScreen(seed: seed)
         }
     }
 }
