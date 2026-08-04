@@ -60,6 +60,12 @@ struct DoseOccurrence: Equatable, Identifiable {
     /// here is a dose that consumes nothing and a stock reading that never goes down.
     let drawMl: Double?
 
+    /// The dose THIS injection delivers, in the protocol's own unit. Carried for the
+    /// same reason as `drawMl` and beside it: the dashboard and the calendar log doses
+    /// holding only occurrences, and `dose_log.dose_label` is the column the web's
+    /// history renders as "Dose". Nil wherever a single dose cannot be stated.
+    var dose: DoseAmount?
+
     /// Stable identity for diffing/SwiftUI lists: protocol + day.
     var id: String { "\(protocolId)@\(dpFormatDay(date))" }
 
@@ -86,6 +92,20 @@ struct DoseOccurrence: Equatable, Identifiable {
 /// visibly, a wrong number mis-decrements it silently.
 enum DoseVolume {
 
+    /// What one injection of this protocol is — the volume in the barrel and the dose it
+    /// carries. Either half may be nil; both come from the SAME re-evaluation, so a card
+    /// that shows "74.5 mg" and a row that stores "0.373 mL" can never be describing two
+    /// different injections.
+    struct PerInjection: Equatable {
+        /// Millilitres drawn. Nil where the calculator produces no volume.
+        var ml: Double?
+        /// The dose itself, in the calculator's own unit. Nil where a single dose cannot
+        /// be stated — see `CalculatorResult.dosePerInjection`.
+        var dose: DoseAmount?
+
+        static let none = PerInjection(ml: nil, dose: nil)
+    }
+
     /// Millilitres for one injection, or nil when this protocol has no volume that can
     /// be stated honestly.
     ///
@@ -94,16 +114,29 @@ enum DoseVolume {
     /// an invalid config; and a config saved in a dosing MODE this app's `evaluate`
     /// does not run — see `modeIsEvaluatedAsSaved`.
     static func perInjectionMl(for dosage: SavedDosage) -> Double? {
+        perInjection(for: dosage).ml
+    }
+
+    /// The one gated re-evaluation of a saved protocol. `perInjectionMl` and
+    /// `ProtocolSummary.amount` are both this function; neither derives anything itself.
+    ///
+    /// The gate is why they must share: a row saved in a mode `evaluate` does not run
+    /// yields a different volume AND a different dose from the same numbers, so a build
+    /// that refused the volume but published the dose would put a number on a card that
+    /// it had already decided was not safe to store.
+    static func perInjection(for dosage: SavedDosage) -> PerInjection {
         guard let slug = CalculatorSlug(rawValue: dosage.calculatorType),
-              modeIsEvaluatedAsSaved(dosage.config, slug: slug) else { return nil }
+              modeIsEvaluatedAsSaved(dosage.config, slug: slug) else { return .none }
         let values = CalculatorCatalog.values(fromConfig: dosage.config, slug: slug)
         // `.u100` is not a guess and not a default that matters: the syringe scale
         // changes the UNITS row only (`unitsPerInj = mlPerInj × unitsPerML`). Every
         // family's volume — `mgPerInj / strength`, `dose / concentration` — is
         // scale-invariant, so this argument cannot move the number being written.
         let result = CalculatorEngine.evaluate(slug: slug, values: values, scale: .u100)
-        guard result.isValid, let ml = result.drawMl, ml.isFinite, ml > 0 else { return nil }
-        return ml
+        guard result.isValid else { return .none }
+        let ml = result.drawMl.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        let dose = result.dosePerInjection.flatMap { $0.value.isFinite && $0.value > 0 ? $0 : nil }
+        return PerInjection(ml: ml, dose: dose)
     }
 
     /// Whether `evaluate` would run this config under the mode it was SAVED in.
@@ -219,10 +252,10 @@ enum DoseProjection {
 
             let slug = CalculatorSlug(rawValue: proto.calculatorType)
             let label = proto.label ?? slug?.shortTitle ?? proto.calculatorType
-            // Once per protocol, not once per day: the volume is a property of the
-            // protocol, and re-evaluating it inside the day loop would run the engine
-            // thirty times for one answer.
-            let drawMl = DoseVolume.perInjectionMl(for: proto)
+            // Once per protocol, not once per day: what one injection is is a property
+            // of the protocol, and re-evaluating it inside the day loop would run the
+            // engine thirty times for one answer.
+            let perInjection = DoseVolume.perInjection(for: proto)
 
             // Walk dose days from the protocol start. Interval may be fractional
             // (e.g. 3.5 for twice-weekly): accumulate in days and round to the day.
@@ -249,7 +282,8 @@ enum DoseProjection {
                                                  protocolId: proto.id,
                                                  slug: slug,
                                                  label: label,
-                                                 drawMl: drawMl))
+                                                 drawMl: perInjection.ml,
+                                                 dose: perInjection.dose))
                 }
                 step += 1
                 // Safety: never loop forever on a degenerate interval.

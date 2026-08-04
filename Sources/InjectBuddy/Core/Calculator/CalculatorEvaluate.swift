@@ -61,7 +61,11 @@ extension CalculatorEngine {
                 ResultRow(label: "Units (U-100)", value: fmtInt(r.units), emphasis: true),
                 ResultRow(label: "Concentration", value: "\(fmt(r.concentration, 0)) IU/mL"),
                 ResultRow(label: "Doses per vial", value: fmtInt(r.dosesPerVial)),
-            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.drawMl) : nil, drawMl: r.drawMl)
+            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.drawMl) : nil, drawMl: r.drawMl,
+               // hCG is dosed in IU and the field is literally "Dose", so the input IS
+               // the per-injection dose — the engine derives the volume from it, not it
+               // from the volume.
+               dosePerInjection: DoseAmount(value: v.number("dose"), unit: "IU"))
 
         case .peptide:
             let r = peptide(peptideMg: v.number("peptideMg"), bawMl: v.number("bawMl"),
@@ -82,7 +86,13 @@ extension CalculatorEngine {
                // over-capacity check (`ResultCard.overCapacity`) never fired on this
                // calculator, and `DoseVolume.perInjectionMl` had no volume to log.
                // Same omission, two symptoms — the one-of-N-sites shape again.
-               drawMl: r.mlPerInj)
+               drawMl: r.mlPerInj,
+               // The user's OWN unit, not the engine's internal mg. `dosePerInjMg` is
+               // normalised to mg so the concentration maths works; a peptide dosed at
+               // 350 mcg would come back as "0.35 mg", which is the same dose written in
+               // a way its owner never states it and would not recognise on a card.
+               dosePerInjection: DoseAmount(value: v.number("dosePerInj"),
+                                            unit: v.number("doseUnitMcg") == 1 ? "mcg" : "mg"))
 
         case .reconstitution:
             let r = reconstitution(peptideMg: v.number("peptideMg"), targetConc: v.number("targetConc"))
@@ -96,7 +106,8 @@ extension CalculatorEngine {
             return CalculatorResult(rows: [
                 ResultRow(label: "Draw", value: "\(fmt(r.volumeMl, 3)) mL", emphasis: true),
                 ResultRow(label: "Units (U-100)", value: fmtInt(r.units), emphasis: true),
-            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.volumeMl) : nil, drawMl: r.volumeMl)
+            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.volumeMl) : nil, drawMl: r.volumeMl,
+               dosePerInjection: DoseAmount(value: v.number("dose"), unit: "mg"))
 
         case .bpc157:
             // mcg/mL from vial + water, the web's own derivation (mg × 1000 ÷ mL), so
@@ -107,7 +118,8 @@ extension CalculatorEngine {
             return CalculatorResult(rows: [
                 ResultRow(label: "Draw", value: "\(fmt(r.drawMl, 3)) mL", emphasis: true),
                 ResultRow(label: "Units (U-100)", value: fmtInt(r.units), emphasis: true),
-            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.drawMl) : nil, drawMl: r.drawMl)
+            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.drawMl) : nil, drawMl: r.drawMl,
+               dosePerInjection: DoseAmount(value: v.number("dose"), unit: "mcg"))
 
         case .bpc157blend:
             let r = blend(bpcVial: v.number("bpcVial"), bpcWater: v.number("bpcWater"),
@@ -118,7 +130,13 @@ extension CalculatorEngine {
                 ResultRow(label: "Total units", value: fmtInt(r.totalUnits), emphasis: true),
                 ResultRow(label: "BPC-157 draw", value: "\(fmt(r.bpcDraw, 3)) mL · \(fmtInt(r.bpcUnits)) u"),
                 ResultRow(label: "TB-500 draw", value: "\(fmt(r.tbDraw, 3)) mL · \(fmtInt(r.tbUnits)) u"),
-            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.totalMl) : nil, drawMl: r.totalMl)
+            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.totalMl) : nil, drawMl: r.totalMl,
+               // `dosePerInjection` stays nil ON PURPOSE. A blend draws two compounds
+               // into one barrel and delivers two doses; the single number a
+               // per-injection amount promises does not exist here, and picking one of
+               // the two would state a dose the user did not take. The log sheet shows
+               // no amount field for a blend rather than one that is half true.
+               dosePerInjection: nil)
 
         case .bmi:
             let r = v.bool("imperial")
@@ -173,7 +191,11 @@ extension CalculatorEngine {
                 rows.append(ResultRow(label: "Active weekly", value: "\(fmt(r.activeWeek, 1)) mg"))
             }
             return CalculatorResult(rows: rows, isValid: r.isValid,
-                                    scheduleLine: r.isValid ? volumeMeta(r.mlPerInj) : nil, drawMl: r.mlPerInj)
+                                    scheduleLine: r.isValid ? volumeMeta(r.mlPerInj) : nil,
+                                    drawMl: r.mlPerInj,
+                                    // TOTAL mg in the barrel, not `activeWeek`'s ester-adjusted
+                                    // hormone. What is logged is what was injected.
+                                    dosePerInjection: DoseAmount(value: r.mgPerInj, unit: "mg"))
 
         case .cyclePlotter:
             // Handled by the bespoke CyclePlotterScreen, not the generic evaluator.
@@ -190,6 +212,7 @@ extension CalculatorEngine {
             ResultRow(label: "Dose per injection", value: "\(fmt(r.mgPerInj, 2)) mg"),
             ResultRow(label: "Injections / week", value: fmt(r.freqPerWeek, 2)),
             ResultRow(label: "Weekly total", value: "\(fmt(r.weeklyTotal, 1)) mg"),
-        ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.mlPerInj) : nil, drawMl: r.mlPerInj)
+        ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.mlPerInj) : nil, drawMl: r.mlPerInj,
+           dosePerInjection: DoseAmount(value: r.mgPerInj, unit: "mg"))
     }
 }

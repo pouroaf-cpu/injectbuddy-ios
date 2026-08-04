@@ -32,7 +32,8 @@ struct MockBackendClient: BackendClient {
     func logDose(_ pin: NewDoseLogPin) async throws -> DoseLogPin {
         await wait()
         return DoseLogPin(id: UUID().uuidString, protocolId: pin.protocolId,
-                          dosedOn: pin.dosedOn, drawMl: pin.drawMl, site: pin.site)
+                          dosedOn: pin.dosedOn, drawMl: pin.drawMl, site: pin.site,
+                          doseLabel: pin.doseLabel)
     }
     func unlogDose(protocolId: String, dosedOn: String) async throws { await wait() }
     func profile(userId: String) async throws -> Profile? {

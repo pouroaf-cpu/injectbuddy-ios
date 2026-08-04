@@ -258,7 +258,7 @@ struct SupabaseBackendClient: BackendClient {
     func doseLog(since: String?) async throws -> [DoseLogPin] {
         var query = client
             .from("dose_log")
-            .select("id, protocol_id, dosed_on, draw_ml, site")
+            .select("id, protocol_id, dosed_on, draw_ml, site, dose_label")
         if let since {
             query = query.gte("dosed_on", value: since)
         }
@@ -286,7 +286,7 @@ struct SupabaseBackendClient: BackendClient {
         let rows: [DoseLogPin] = try await client
             .from("dose_log")
             .upsert(owned, onConflict: "protocol_id,dosed_on", returning: .representation)
-            .select("id, protocol_id, dosed_on, draw_ml, site")
+            .select("id, protocol_id, dosed_on, draw_ml, site, dose_label")
             .execute()
             .value
         return try Self.requireRow(rows, "dose_log", "dose log")
@@ -301,6 +301,7 @@ struct SupabaseBackendClient: BackendClient {
         let dosedOn: String
         let drawMl: Double?
         let site: String?
+        let doseLabel: String?
         let userId: String
 
         init(_ p: NewDoseLogPin, userId: String) {
@@ -308,6 +309,7 @@ struct SupabaseBackendClient: BackendClient {
             dosedOn = p.dosedOn
             drawMl = p.drawMl
             site = p.site
+            doseLabel = p.doseLabel
             self.userId = userId
         }
 
@@ -316,6 +318,7 @@ struct SupabaseBackendClient: BackendClient {
             case protocolId = "protocol_id"
             case dosedOn = "dosed_on"
             case drawMl = "draw_ml"
+            case doseLabel = "dose_label"
             case userId = "user_id"
         }
     }
