@@ -1,0 +1,255 @@
+{
+  "$comment": "Generated from public/legacy/cycle-plotter/pk.js by spec/generate-vectors.mjs. Do not hand-edit. This file is the single source of truth for compound half-lives across web, iOS and Android.",
+  "specVersion": 1,
+  "compoundCount": 31,
+  "compounds": {
+    "anavar": {
+      "name": "Oxandrolone (Anavar)",
+      "short": "Anavar",
+      "type": "trt",
+      "cat": "Orals",
+      "halfLife": 0.4,
+      "unit": "mg"
+    },
+    "boldenone": {
+      "name": "Boldenone Undecylenate",
+      "short": "EQ",
+      "type": "trt",
+      "cat": "Anabolics",
+      "halfLife": 14,
+      "unit": "mg"
+    },
+    "bpc157": {
+      "name": "BPC-157",
+      "short": "BPC",
+      "type": "peptide",
+      "cat": "Healing",
+      "halfLife": 0.25,
+      "unit": "mcg"
+    },
+    "cjc-dac": {
+      "name": "CJC-1295 + DAC",
+      "short": "CJC/DAC",
+      "type": "peptide",
+      "cat": "Growth",
+      "halfLife": 7,
+      "unit": "mcg"
+    },
+    "cjc-nodac": {
+      "name": "CJC-1295 (no DAC)",
+      "short": "Mod GRF",
+      "type": "peptide",
+      "cat": "Growth",
+      "halfLife": 0.08,
+      "unit": "mcg"
+    },
+    "dianabol": {
+      "name": "Methandrostenolone",
+      "short": "Dbol",
+      "type": "trt",
+      "cat": "Orals",
+      "halfLife": 0.2,
+      "unit": "mg"
+    },
+    "hcg": {
+      "name": "HCG",
+      "short": "HCG",
+      "type": "trt",
+      "cat": "Support",
+      "halfLife": 1.4,
+      "unit": "IU"
+    },
+    "hgh": {
+      "name": "HGH (Somatropin)",
+      "short": "HGH",
+      "type": "peptide",
+      "cat": "Growth",
+      "halfLife": 0.16,
+      "unit": "IU"
+    },
+    "igf1lr3": {
+      "name": "IGF-1 LR3",
+      "short": "IGF-1",
+      "type": "peptide",
+      "cat": "Growth",
+      "halfLife": 0.8,
+      "unit": "mcg"
+    },
+    "ipamorelin": {
+      "name": "Ipamorelin",
+      "short": "Ipam",
+      "type": "peptide",
+      "cat": "Growth",
+      "halfLife": 0.09,
+      "unit": "mcg"
+    },
+    "masteron-e": {
+      "name": "Masteron Enanthate",
+      "short": "Mast E",
+      "type": "trt",
+      "cat": "Anabolics",
+      "halfLife": 4.5,
+      "unit": "mg"
+    },
+    "masteron-p": {
+      "name": "Masteron Propionate",
+      "short": "Mast P",
+      "type": "trt",
+      "cat": "Anabolics",
+      "halfLife": 2,
+      "unit": "mg"
+    },
+    "methenolone-e": {
+      "name": "Methenolone Enanthate",
+      "short": "Primo",
+      "type": "trt",
+      "cat": "Anabolics",
+      "halfLife": 10.5,
+      "unit": "mg"
+    },
+    "mt2": {
+      "name": "Melanotan II",
+      "short": "MT-II",
+      "type": "peptide",
+      "cat": "Other",
+      "halfLife": 1.5,
+      "unit": "mg"
+    },
+    "nandrolone-d": {
+      "name": "Nandrolone Decanoate",
+      "short": "Deca",
+      "type": "trt",
+      "cat": "Anabolics",
+      "halfLife": 7,
+      "unit": "mg"
+    },
+    "npp": {
+      "name": "Nandrolone Phenylprop.",
+      "short": "NPP",
+      "type": "trt",
+      "cat": "Anabolics",
+      "halfLife": 2.7,
+      "unit": "mg"
+    },
+    "pinealon": {
+      "name": "Pinealon",
+      "short": "Pinealon",
+      "type": "peptide",
+      "cat": "Other",
+      "halfLife": 0.1,
+      "unit": "mg"
+    },
+    "pt141": {
+      "name": "PT-141",
+      "short": "PT-141",
+      "type": "peptide",
+      "cat": "Other",
+      "halfLife": 0.5,
+      "unit": "mg"
+    },
+    "retatrutide": {
+      "name": "Retatrutide",
+      "short": "Reta",
+      "type": "glp1",
+      "cat": "GLP-1",
+      "halfLife": 6,
+      "unit": "mg"
+    },
+    "semaglutide": {
+      "name": "Semaglutide",
+      "short": "Sema",
+      "type": "glp1",
+      "cat": "GLP-1",
+      "halfLife": 7,
+      "unit": "mg"
+    },
+    "sustanon": {
+      "name": "Sustanon 250",
+      "short": "Sust",
+      "type": "trt",
+      "cat": "Testosterone",
+      "halfLife": 7,
+      "unit": "mg"
+    },
+    "tb500": {
+      "name": "TB-500",
+      "short": "TB-500",
+      "type": "peptide",
+      "cat": "Healing",
+      "halfLife": 2.5,
+      "unit": "mg"
+    },
+    "test-a": {
+      "name": "Testosterone Acetate",
+      "short": "Test A",
+      "type": "trt",
+      "cat": "Testosterone",
+      "halfLife": 3,
+      "unit": "mg"
+    },
+    "test-c": {
+      "name": "Testosterone Cypionate",
+      "short": "Test C",
+      "type": "trt",
+      "cat": "Testosterone",
+      "halfLife": 6,
+      "unit": "mg"
+    },
+    "test-e": {
+      "name": "Testosterone Enanthate",
+      "short": "Test E",
+      "type": "trt",
+      "cat": "Testosterone",
+      "halfLife": 4.5,
+      "unit": "mg"
+    },
+    "test-p": {
+      "name": "Testosterone Propionate",
+      "short": "Test P",
+      "type": "trt",
+      "cat": "Testosterone",
+      "halfLife": 0.8,
+      "unit": "mg"
+    },
+    "test-u": {
+      "name": "Testosterone Undecanoate",
+      "short": "Test U",
+      "type": "trt",
+      "cat": "Testosterone",
+      "halfLife": 21,
+      "unit": "mg"
+    },
+    "tirzepatide": {
+      "name": "Tirzepatide",
+      "short": "Tirz",
+      "type": "glp1",
+      "cat": "GLP-1",
+      "halfLife": 5,
+      "unit": "mg"
+    },
+    "tren-a": {
+      "name": "Trenbolone Acetate",
+      "short": "Tren A",
+      "type": "trt",
+      "cat": "Anabolics",
+      "halfLife": 3,
+      "unit": "mg"
+    },
+    "tren-e": {
+      "name": "Trenbolone Enanthate",
+      "short": "Tren E",
+      "type": "trt",
+      "cat": "Anabolics",
+      "halfLife": 7,
+      "unit": "mg"
+    },
+    "winstrol-o": {
+      "name": "Stanozolol (oral)",
+      "short": "Winny",
+      "type": "trt",
+      "cat": "Orals",
+      "halfLife": 0.375,
+      "unit": "mg"
+    }
+  }
+}

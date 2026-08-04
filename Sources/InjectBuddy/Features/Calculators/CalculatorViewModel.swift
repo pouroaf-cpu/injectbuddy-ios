@@ -30,7 +30,22 @@ final class CalculatorViewModel: ObservableObject {
     init(slug: CalculatorSlug) {
         let spec = CalculatorCatalog.spec(for: slug)
         self.spec = spec
-        self.values = CalculatorValues.defaults(for: spec.fields)
+        var seed = CalculatorValues.defaults(for: spec.fields)
+        // T-96 — the steroid strengths belong to the COMPOUND, so the form opens on
+        // the opening compound's, not on the spec's. The web seeds them at mount:
+        // `useState(defConc)` / `useState(String(defTab))` (`app.js:8803`, `8811`).
+        //
+        // TODAY THIS IS THE IDENTITY, and that is the point of doing it rather than
+        // trusting it: the form opens on `picks[0]`, Oxandrolone, whose defaults ARE
+        // the spec's 200 mg/mL and 10 mg/tab. If the picker order ever moves to the
+        // web's (`IB_STEROID_ORDER`, `app.js:8762`, starting at Trenbolone) the
+        // opening strengths follow it instead of silently staying behind. Assigning
+        // in `init` does not fire `didSet`, so nothing recomputes twice.
+        if spec.slug == .steroid {
+            seed = SteroidCatalog.seeding(seed, forPickAt: Int(seed.number("compound")),
+                                          includingTablet: true)
+        }
+        self.values = seed
         recompute()
     }
 
@@ -42,26 +57,45 @@ final class CalculatorViewModel: ObservableObject {
     /// fourteen calculators with no unit-scaled field.
     var fields: [CalculatorInput] { spec.resolvedFields(values) }
 
-    /// T-41 — the ONE place a unit flip converts the number it is the unit of.
+    /// T-41 — the ONE place a change to `values` writes `values` back.
     ///
-    /// The spec resolution above is pure and happens on every render; the conversion is
-    /// a TRANSITION and must happen exactly once, which is why it lives on the `didSet`
-    /// edge where the old and new values are both in hand rather than in a view.
+    /// The spec resolution above is pure and happens on every render; a conversion or a
+    /// seed is a TRANSITION and must happen exactly once, which is why both live on the
+    /// `didSet` edge where the old and new bags are both in hand rather than in a view.
     ///
     /// RE-ENTRANCY IS REAL AND IS HANDLED, not hoped about: writing `values` here fires
-    /// this same `didSet` again. `isConverting` makes the second pass do the recompute
-    /// and nothing else, so the value settles in one step and the engine is evaluated
-    /// once, against the converted number.
-    private var isConverting = false
+    /// this same `didSet` again. `isSettling` (T-41's `isConverting`, now covering the
+    /// T-96 seed too) makes the second pass do the recompute and nothing else, so the
+    /// bag settles in one step and the engine is evaluated once, against the settled
+    /// numbers.
+    private var isSettling = false
 
     private func valuesChanged(from old: CalculatorValues) {
-        if !isConverting, let converted = spec.convertingUnits(from: old, to: values) {
-            isConverting = true
-            values = converted
-            isConverting = false
+        if !isSettling, let settled = settling(from: old) {
+            isSettling = true
+            values = settled
+            isSettling = false
             return  // the re-entrant pass above already recomputed, on the right values
         }
         recompute()
+    }
+
+    /// The bag as it must be AFTER a transition the user just made, or nil when the
+    /// change was an ordinary edit — which is nearly every change, and the reason both
+    /// rules take `old` as well as `new` rather than reading the current bag alone.
+    ///
+    /// THE SLUG BRANCH IS DELIBERATE AND IS NOT THE END STATE. T-41 rejected
+    /// `if slug == .peptide` in `CalculatorScreen` because the screen renders fifteen
+    /// calculators from their specs and must not know about any of them; the same
+    /// argument says a seeder should be DECLARED on the spec, the way `UnitScaling` is,
+    /// and dispatched here without naming a calculator. That declaration belongs in
+    /// `CalculatorModels`/`CalculatorCatalog` and is T-47's sweep, not this task's — so
+    /// the RULE lives in `SteroidCatalog` where a unit test can reach it, and this is
+    /// the single line that calls it.
+    private func settling(from old: CalculatorValues) -> CalculatorValues? {
+        if let converted = spec.convertingUnits(from: old, to: values) { return converted }
+        if spec.slug == .steroid { return SteroidCatalog.reseeding(from: old, to: values) }
+        return nil
     }
 
     private func recompute() {

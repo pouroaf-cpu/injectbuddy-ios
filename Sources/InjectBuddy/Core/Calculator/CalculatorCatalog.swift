@@ -98,46 +98,78 @@ enum CalcConst {
     }
 }
 
-// MARK: - Plotter compound list (verbatim from app.js PLOTTER_COMPOUNDS)
+// MARK: - Plotter compound list
+//
+// ─── T-60: THIS TABLE USED TO SAY "verbatim from app.js PLOTTER_COMPOUNDS" ───
+//
+// That comment was ACCURATE, and that was the defect. `PLOTTER_COMPOUNDS`
+// (`public/app.js:10736`) is DEAD: the in-app plotter was removed in favour of
+// the standalone `/cycle-plotter/` page, `App()` redirects `plotter` straight
+// there (`app.js:11300`), and nothing reads that table any more. The LIVE
+// plotter loads `public/legacy/cycle-plotter/pk.js`.
+//
+// So iOS faithfully copied a corpse, and ran **17 wrong half-lives and 4 wrong
+// units** — Tren A 1.5 vs 3.0 (2×), PT-141 0.113 vs 0.5 (4.4×), TB-500 0.58 vs
+// 2.5 (4.3×), Melanotan II 3.7 vs 1.5 (2.5×). Only 6 of 23 comparable rows
+// agreed. A half-life drives the entire accumulation curve, so every one of
+// those drew a confident wrong picture of a real protocol.
+//
+// Nothing detected it because the two tables use different id vocabularies
+// (`eq` vs `boldenone`, `reta` vs `retatrutide`), so a comparison by id found
+// nothing to compare. The ids below are now the spec's.
+//
+// ─── WHERE THE ROWS COME FROM NOW ───────────────────────────────────────────
+//
+// `all` is **generated** — see `PlotterCompoundTable.swift`, emitted by
+// `spec/generate-plotter-compounds.mjs` from `spec/compounds.json` (a
+// byte-identical copy of the web's, verified by git blob hash) plus
+// `spec/plotter-ios-fields.json` for the two fields the spec has no counterpart
+// for. It is generated rather than re-typed because a second faithful hand-copy
+// — of the right table this time — sits exactly one refactor away from the
+// position this task had to dig out of. `PlotterCompoundSpecTests` re-reads the
+// spec at test time and asserts the shipped table against it row for row.
+//
+// ─── `tmax` AND `defaultDose` ARE NOT SPEC-BACKED ───────────────────────────
+//
+// `spec/compounds.json` has no `tmax` field at all; the live `pk.js` never names
+// one, deriving `ka = ln2 / max(0.01, halfLife × 0.25)` analytically instead.
+// Both fields are still the dead table's numbers. They were deliberately left
+// alone by T-60 — deleting `tmax` would leave `pkBuildEntries` with no
+// absorption input, and inventing replacements would put a fabricated number on
+// a dosing curve. iOS's ka-by-bisection is already recorded as a divergence in
+// T-42, which is where that decision belongs. `defaultDose` is read by nothing.
 
 struct PlotterCompound: Identifiable, Equatable {
+    /// The LIVE plotter's id (`pk.js` / `spec/compounds.json`), not the dead
+    /// table's. `deca`→`nandrolone-d`, `eq`→`boldenone`, `mast-p`→`masteron-p`,
+    /// `mast-e`→`masteron-e`, `sema`/`tirz`/`reta`→ the full names.
     let id: String
+    /// The spec's `name`.
     let label: String
+    /// The spec's `short` — the compact form the web's own picker uses. Carried
+    /// so the drift test can assert it; no iOS surface renders it yet.
+    let short: String
+    /// The spec's `type`: `trt` | `peptide` | `glp1`. Same reason as `short`.
+    let type: String
+    /// The spec's `cat`. `CyclePlotterViewModel` gates the ng/dL factor on this
+    /// being `"Testosterone"` (T-42), so it is load-bearing, not decoration.
+    /// The four rows the live table has no entry for keep the dead table's
+    /// off-vocabulary `"Peptide"`, which is how they are identifiable as
+    /// non-spec rows.
     let category: String
-    let halfLife: Double  // days
-    let tmax: Double      // days
+    /// Days. **Spec-backed.**
+    let halfLife: Double
+    /// Days. NOT spec-backed — see the note above.
+    let tmax: Double
+    /// NOT spec-backed, and read by nothing. For `tb500`, `hgh`, `pt141` and
+    /// `mt2` it is still expressed in the dead table's `mcg` while `unit` is now
+    /// the live one; `spec/plotter-ios-fields.json` → `staleDefaultDoseUnit`
+    /// records that, and the generator refuses any further mismatch.
     let defaultDose: Double
-    let unit: String      // "mg" or "mcg"
+    /// `"mg"`, `"mcg"` or `"IU"`. **Spec-backed** — `IU` arrived with T-60 (HGH).
+    let unit: String
 
-    static let all: [PlotterCompound] = [
-        .init(id: "test-e", label: "Testosterone Enanthate", category: "Testosterone", halfLife: 4.5, tmax: 2.0, defaultDose: 100, unit: "mg"),
-        .init(id: "test-c", label: "Testosterone Cypionate", category: "Testosterone", halfLife: 5.0, tmax: 2.5, defaultDose: 100, unit: "mg"),
-        .init(id: "test-p", label: "Testosterone Propionate", category: "Testosterone", halfLife: 0.8, tmax: 0.5, defaultDose: 50, unit: "mg"),
-        .init(id: "test-u", label: "Testosterone Undecanoate", category: "Testosterone", halfLife: 20.0, tmax: 6.0, defaultDose: 1000, unit: "mg"),
-        .init(id: "npp", label: "Nandrolone Phenylpropionate (NPP)", category: "AAS", halfLife: 2.5, tmax: 1.0, defaultDose: 100, unit: "mg"),
-        .init(id: "deca", label: "Nandrolone Decanoate (Deca)", category: "AAS", halfLife: 7.0, tmax: 3.0, defaultDose: 200, unit: "mg"),
-        .init(id: "tren-a", label: "Trenbolone Acetate", category: "AAS", halfLife: 1.5, tmax: 0.5, defaultDose: 100, unit: "mg"),
-        .init(id: "tren-e", label: "Trenbolone Enanthate", category: "AAS", halfLife: 5.5, tmax: 2.0, defaultDose: 200, unit: "mg"),
-        .init(id: "eq", label: "Boldenone Undecylenate (EQ)", category: "AAS", halfLife: 14.0, tmax: 5.0, defaultDose: 300, unit: "mg"),
-        .init(id: "mast-p", label: "Drostanolone Propionate (Mast-P)", category: "AAS", halfLife: 2.5, tmax: 0.8, defaultDose: 100, unit: "mg"),
-        .init(id: "mast-e", label: "Drostanolone Enanthate (Mast-E)", category: "AAS", halfLife: 5.5, tmax: 2.0, defaultDose: 200, unit: "mg"),
-        .init(id: "bpc157", label: "BPC-157", category: "Peptide", halfLife: 0.17, tmax: 0.04, defaultDose: 250, unit: "mcg"),
-        .init(id: "tb500", label: "TB-500 (Thymosin β-4)", category: "Peptide", halfLife: 0.58, tmax: 0.25, defaultDose: 2000, unit: "mcg"),
-        .init(id: "cjc-nodac", label: "CJC-1295 (no DAC)", category: "Peptide", halfLife: 0.021, tmax: 0.010, defaultDose: 100, unit: "mcg"),
-        .init(id: "cjc-dac", label: "CJC-1295 + DAC", category: "Peptide", halfLife: 8.0, tmax: 2.0, defaultDose: 2000, unit: "mcg"),
-        .init(id: "ipamorelin", label: "Ipamorelin", category: "Peptide", halfLife: 0.083, tmax: 0.042, defaultDose: 200, unit: "mcg"),
-        .init(id: "ghrp2", label: "GHRP-2", category: "Peptide", halfLife: 0.083, tmax: 0.021, defaultDose: 200, unit: "mcg"),
-        .init(id: "ghrp6", label: "GHRP-6", category: "Peptide", halfLife: 0.083, tmax: 0.021, defaultDose: 200, unit: "mcg"),
-        .init(id: "sermorelin", label: "Sermorelin", category: "Peptide", halfLife: 0.0076, tmax: 0.003, defaultDose: 300, unit: "mcg"),
-        .init(id: "hgh", label: "HGH (Somatropin)", category: "Peptide", halfLife: 0.158, tmax: 0.125, defaultDose: 1000, unit: "mcg"),
-        .init(id: "pt141", label: "PT-141", category: "Peptide", halfLife: 0.113, tmax: 0.042, defaultDose: 1000, unit: "mcg"),
-        .init(id: "igf1lr3", label: "IGF-1 LR3", category: "Peptide", halfLife: 0.83, tmax: 0.25, defaultDose: 100, unit: "mcg"),
-        .init(id: "ta1", label: "Thymosin Alpha-1", category: "Peptide", halfLife: 0.083, tmax: 0.021, defaultDose: 1000, unit: "mcg"),
-        .init(id: "mt2", label: "Melanotan II", category: "Peptide", halfLife: 3.7, tmax: 0.042, defaultDose: 500, unit: "mcg"),
-        .init(id: "sema", label: "Semaglutide", category: "GLP-1", halfLife: 7.0, tmax: 1.0, defaultDose: 0.5, unit: "mg"),
-        .init(id: "tirz", label: "Tirzepatide", category: "GLP-1", halfLife: 5.0, tmax: 1.0, defaultDose: 2.5, unit: "mg"),
-        .init(id: "reta", label: "Retatrutide", category: "GLP-1", halfLife: 7.0, tmax: 1.0, defaultDose: 1.0, unit: "mg"),
-    ]
+    // `static let all` is GENERATED — see `PlotterCompoundTable.swift`.
 
     /// PLOTTER_FREQS — labeled dosing intervals in days.
     static let freqs: [CalculatorInput.PickerOption] = [

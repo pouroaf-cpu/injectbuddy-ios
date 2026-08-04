@@ -92,10 +92,15 @@ final class PlotterSeedTests: XCTestCase {
     /// The GLP-1 trio carry neither `mode` nor `injPerWeek`, so the web's
     /// `parseFloat(cfg.injPerWeek) || 1` fallback puts them at once a week — which is
     /// what all three calculators' own help text says the dose is.
+    ///
+    /// T-60: the ids are the LIVE plotter's now (`semaglutide`, not `sema`). The
+    /// iOS catalogue used to carry the DEAD `app.js` table's short ids, and the
+    /// divergent vocabularies were precisely why nothing detected iOS running the
+    /// wrong half-lives — a comparison by id found nothing to compare.
     func test_glp1_areWeeklyAndMapOntoTheiOSCompoundIds() throws {
-        for (slug, cid, dose) in [(CalculatorSlug.semaglutide, "sema", 0.5),
-                                  (.tirzepatide, "tirz", 5.0),
-                                  (.retatrutide, "reta", 1.0)] {
+        for (slug, cid, dose) in [(CalculatorSlug.semaglutide, "semaglutide", 0.5),
+                                  (.tirzepatide, "tirzepatide", 5.0),
+                                  (.retatrutide, "retatrutide", 1.0)] {
             let seed = try XCTUnwrap(PlotterSeed.from(slug: slug, values: values(slug)),
                                      "\(slug.rawValue) seeded nothing")
             XCTAssertEqual(seed.compoundId, cid)

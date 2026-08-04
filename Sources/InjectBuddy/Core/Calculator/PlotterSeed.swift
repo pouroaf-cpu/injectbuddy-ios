@@ -144,15 +144,16 @@ extension PlotterSeed {
             // → once a week, which is what all three of these calculators mean by
             // "mg per weekly injection" in their own help text.
             //
-            // The ids differ between the two plotter catalogues: the web's are
-            // `semaglutide`/`tirzepatide`/`retatrutide`, iOS's `PLOTTER_COMPOUNDS`
-            // entry is `sema`/`tirz`/`reta`. Mapped here rather than renamed, because
-            // the iOS list is transcribed verbatim from `app.js` and a rename would
-            // break that provenance for a cosmetic gain.
+            // These used to be `sema`/`tirz`/`reta`, with a note saying the rename
+            // was refused to preserve the "verbatim from app.js" provenance of the
+            // iOS list. T-60 established that the provenance being preserved was to
+            // a DEAD table, and that the divergent id vocabularies were the reason
+            // nothing ever detected iOS running the wrong half-lives. So the iOS
+            // catalogue now uses the LIVE ids and these are the web's own.
             switch slug {
-            case .semaglutide: cid = "sema"
-            case .tirzepatide: cid = "tirz"
-            default:           cid = "reta"
+            case .semaglutide: cid = "semaglutide"
+            case .tirzepatide: cid = "tirzepatide"
+            default:           cid = "retatrutide"
             }
             dose = values.number("dose")
             freqDays = interval(injectionsPerWeek: values.number("injPerWeek", 1))
@@ -172,7 +173,10 @@ extension PlotterSeed {
         //    Reconstitution computes a water volume, and a blend is two compounds,
         //    which is two lines and a decision this seed cannot carry.
         //  • `hcg` — the web maps it to a compound id `hcg`; the iOS plotter catalogue
-        //    has no HCG entry, so `compound(_:)` refuses it below. T-32.
+        //    has no HCG entry, so `compound(_:)` refuses it below. T-32. (T-60 gave
+        //    the spec a CREDIBLE half-life for it — 1.4 d — but no tmax, which is the
+        //    other half of a curve, so the row is still deliberately not carried.
+        //    `spec/plotter-ios-fields.json` → `notCarried` records that.)
         //  • the rest do not show the CTA at all (`PlotLevelsCTA.shows`).
         case .peptide, .reconstitution, .bpc157blend, .hcg,
              .bmi, .freeTestIndex, .cyclePlotter, .steroid:

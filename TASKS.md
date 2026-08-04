@@ -2598,8 +2598,54 @@ actually becomes the request, now non-`private` so it can be asserted) carries a
 names. 11 tests, green in an 85-test run, and shown failing first against a deliberately wrong
 column name. See T-51 for the same evidence chain on the other three columns.
 
-## T-60 — iOS's plotter compound table was copied from a DEAD web table
-**Priority 6/10** · **Owner:** mac · **Agent:** `t60-compounds` · **Status:** doing
+## ~~T-60 — iOS's plotter compound table was copied from a DEAD web table~~ — **iOS HALF DONE 2026-08-04**
+**Priority 6/10** · **Owner:** mac · **Agent:** — · **Status:** done (iOS half; the web-side deletion is win's)
+
+**CLOSED on the iOS side by agent `t60-compounds`. 220/220 green, shown red first. THIS UNBLOCKS
+T-42.**
+
+**Every claim was re-verified before acting, because two statements about this table had already been
+wrong today in OPPOSITE directions.** `spec/compounds.json` was parsed against
+`public/legacy/cycle-plotter/pk.js` on all 31 rows: **zero differences.** The spec's claim to be the
+single source of truth is TRUE. `PLOTTER_COMPOUNDS` is dead — `app.js:11297-11300` redirects the
+in-app plotter to `/cycle-plotter/`.
+
+**THE DIVERGENCE IS WORSE THAN REPORTED: 17 half-lives and 4 units, not 13.** Of 23 name-comparable
+rows only **6 agreed**. Tren A 1.5 → **3.0** (2×), PT-141 0.113 → **0.5** (4.4×), TB-500 0.58 →
+**2.5** (4.3×), CJC-no-DAC 0.021 → **0.08** (3.8×), MT-2 3.7 → **1.5** (2.5×). Four rows also had
+the wrong UNIT (PT-141, TB-500, MT-2 mcg→mg; HGH mcg→IU).
+
+**And the "verbatim from app.js" comment was itself inaccurate in a second way: iOS shipped 27 rows,
+not 31.** Four were dropped in transcription — so the copy was neither complete nor of the right
+source, while reading as provenance.
+
+**NOT RETYPED — GENERATED AND INDEPENDENTLY ASSERTED**, because the failure that produced this was a
+faithful copy of a wrong source, and another hand-copy of a right source is one refactor from the
+same position. `spec/compounds.json` is committed **byte-identical to the web's blob**
+(`cf14ff76a5c80f7053f28c10df8443228bc82edf`), `spec/generate-plotter-compounds.mjs` emits the Swift
+table (`--check` gates staleness), and `PlotterCompoundSpecTests` **re-reads the JSON from disk** and
+asserts the shipped table against it — not against a second copy of the values, so it can genuinely
+fail.
+
+**Shown RED in Swift, not only in the node mirror:** editing the generated table back to
+`tren-a 1.5` failed `test_everyShippedCompoundMatchesTheSpec` with `1.5` against `3.0`. The generator
+also refuses an unclassified new compound and a `defaultDose` unit that disagrees with its row.
+Anti-vacuous measures: the match test asserts `compared == 23` so it cannot pass by comparing
+nothing, and the loader throws a named error rather than `XCTSkip`.
+
+**`tmax` untouched, as instructed — and a real hazard was caught by checking it.** `pkSolveKa`
+bisects for a `tmax` whose supremum is `halfLife / ln2`. **17 half-lives just moved, several
+DOWNWARD**, so an unreachable `tmax` would have made the bisection return silent nonsense. A test now
+asserts `tmax < halfLife / ln2` for all 27 rows; sermorelin is tightest at 0.003 vs 0.0110.
+
+**Still open, deliberately:** the row set stays 27 — adding the 8 missing compounds needs a `tmax`
+each, which T-32 exists for and which must not be invented. The spec has now handed T-32 credible
+half-lives for all 8, which is new information for it. Four rows carry a `defaultDose` still in the
+dead table's unit; `defaultDose` is read by nothing today, and **anyone wiring it to the UI must
+convert those four first** (HGH has no exact mcg→IU conversion without a potency factor).
+
+**The web-side half — deleting `PLOTTER_COMPOUNDS` from `public/app.js` — is win's and is not done**;
+it is held because that file currently carries the owner's uncommitted in-flight work.
 
 **⚠ REWRITTEN 2026-08-04. The original framing was wrong and it was win's. Old text is below, per
 rule 7 — it is the reason the task existed and the reason it was parked.**
@@ -3265,8 +3311,44 @@ lists. Same reasoning that left the 3-vs-6 config split alone under T-45.
 **Done when:** the owner rules on whether iOS adopts the web's untouched defaults, and either the
 change lands with the re-fingerprinting acknowledged, or it is recorded here that iOS keeps `""`.
 
-## T-96 — `defaultConc` and `defaultTab` are read by nothing, so Anadrol seeds a 10 mg tablet
-**Priority 5/10** · **Owner:** mac · **Agent:** `t96-seed` · **Status:** doing
+## ~~T-96 — `defaultConc` and `defaultTab` are read by nothing, so Anadrol seeds a 10 mg tablet~~ — **DONE 2026-08-04**
+**Priority 5/10** · **Owner:** mac · **Agent:** — · **Status:** done
+
+**CLOSED. Built by agent `t96-seed`. 220/220 green, shown red first, photographed.**
+
+**FRAME: `docs/ui-audit/t96-anadrol-tablet/t96-01-steroid-anadrol-50mg-tab.png`** — Steroid Dosage,
+**Anadrol (Oxymetholone)**, **TABLET STRENGTH 50 mg/tab**. Self-identifying.
+
+**The red run states the harm in its own numbers:** forcing `defaultTab` back to a constant 10 failed
+`testAnadrolsTabletCountIsNoLongerFiveTimesTooHigh` with `"10.00 tab"` against `"2.00 tab"` — the 5×
+exactly, on the screen, not as an argument.
+
+**THE WEB HAS TWO RE-SEED MECHANISMS, NOT ONE, and the brief only named one.** `useEffect` on
+`[esterKey, form]` (`app.js:8813`) re-seeds **concentration only**. But a cross-compound pick is a
+NAVIGATION — `:8940` `window.location.href = '/steroid-dosage-calculator/' + s + '/'` — which
+remounts and re-runs BOTH `useState` seeds (`:8803`, `:8811`). A same-compound ester pick
+short-circuits at `:8938`. So the real rule is asymmetric: **compound change re-seeds both, ester
+change re-seeds concentration only.** That asymmetry is reproduced and pinned.
+
+**Seeding follows T-41's shape rather than inventing one:** the spec resolves purely, the VALUE seeds
+once on the transition, re-entrancy guarded (`isConverting` generalised to `isSettling`). A seeder
+that ran every render is how a field comes to show a number the engine never used.
+
+**A user-typed strength is replaced by a COMPOUND change and survives everything else** — the web's
+behaviour, and correct: a tablet strength is a fact about the compound in front of you, not a
+preference to carry forward. **One deliberate divergence:** the web's navigation also wipes dose,
+split, mgWeek, nDays and the barrel because the component is rebuilt; iOS is one screen and keeps
+them. Discarding a dose because the user corrected the compound is a worse screen, not a more
+faithful one. Pinned by `testACompoundChangeKeepsTheDoseTheUserTyped`.
+
+**Config key set unchanged — measured, not reasoned.** `saved_dosages` holds **9 steroid rows, none
+written by iOS**: every one carries the web's `tab: "10"`, and iOS injectable saves write `tab: ""`,
+of which there are zero. So there is nothing to re-fingerprint. **And one production row is
+`anavar / tab: "20"` — a user who hit exactly this defect and corrected the tablet strength by
+hand.**
+
+**Still open from this area:** the web also re-seeds on the `form` toggle, which iOS has no analogue
+for because it has no form toggle (T-94).
 
 **What:** `SteroidCompound.defaultConc(for:)` and `SteroidCompound.defaultTab` exist, are correct,
 and **nothing consults them.** Vial strength stays at 200 mg/mL and tablet strength at 10 mg/tab

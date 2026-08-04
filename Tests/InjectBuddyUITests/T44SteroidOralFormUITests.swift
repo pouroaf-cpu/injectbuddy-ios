@@ -94,4 +94,85 @@ final class T44SteroidOralFormUITests: XCTestCase {
 
         shot("t44-01-steroid-oxandrolone-oral.png")
     }
+
+    /// **T-96 — picking Anadrol must seed a 50 mg tablet strength.**
+    ///
+    /// Anadrol ships 50 mg tablets and iOS seeded 10 for every compound, so
+    /// tablets-per-dose read **5× too high** until the user noticed and edited it. The
+    /// unit tests pin the seeding; this pins that it reaches the field the user reads.
+    ///
+    /// Driven by LABEL, not by identifier, and with a tree dump on failure — earlier in
+    /// this session a mode control was reported absent twice while on screen, because
+    /// the identifier being queried had been overwritten by its container. Labels are
+    /// what the tree actually showed.
+    func testPickingAnadrolSeedsAFiftyMilligramTabletStrength() {
+        openSteroidCalculator()
+
+        let tabMg = app.textFields["field_tabMg"]
+        XCTAssertTrue(tabMg.waitForExistence(timeout: 8), "no tablet-strength field")
+        XCTAssertEqual(tabMg.value as? String, "10",
+                       "Oxandrolone should open on 10 mg/tab — if this is not 10 the "
+                       + "starting point of the comparison has moved.")
+
+        // Open the compound picker by its currently-displayed value.
+        let combo = app.descendants(matching: .any)
+            .containing(NSPredicate(format: "label CONTAINS[c] %@", "Oxandrolone"))
+            .firstMatch
+        let direct = app.staticTexts["Oxandrolone (Anavar)"].firstMatch
+        if direct.waitForExistence(timeout: 4), direct.isHittable { direct.tap() }
+        else if combo.exists { combo.tap() }
+        else {
+            print("T96-TREE-DUMP:\n\(app.debugDescription)")
+            return XCTFail("Could not find the compound control. See T96-TREE-DUMP.")
+        }
+
+        let anadrol = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS[c] %@", "Anadrol"))
+            .firstMatch
+        if !anadrol.waitForExistence(timeout: 6) {
+            print("T96-TREE-DUMP:\n\(app.debugDescription)")
+            return XCTFail("Anadrol is not offered in the compound picker. See T96-TREE-DUMP.")
+        }
+        anadrol.tap()
+
+        // THE ASSERTION T-96 EXISTS FOR.
+        let seeded = app.textFields["field_tabMg"]
+        XCTAssertTrue(seeded.waitForExistence(timeout: 6))
+        var value = seeded.value as? String
+        for _ in 0..<10 where value != "50" {
+            usleep(300_000)
+            value = seeded.value as? String
+        }
+        XCTAssertEqual(value, "50",
+                       "Picking Anadrol left the tablet strength at \(value ?? "nil"). "
+                       + "Anadrol ships 50 mg tablets, so a 10 makes tablets-per-dose "
+                       + "read 5× too high.")
+
+        shot("t96-01-steroid-anadrol-50mg-tab.png")
+    }
+
+    /// Shared navigation, arrival asserted.
+    private func openSteroidCalculator() {
+        let tools = app.buttons.matching(identifier: "Tools")
+        XCTAssertTrue(tools.firstMatch.waitForExistence(timeout: 8), "No Tools tab.")
+        let lowest = tools.allElementsBoundByIndex.filter { $0.isHittable }
+            .max { $0.frame.midY < $1.frame.midY }
+        lowest?.tap()
+        XCTAssertTrue(app.staticTexts["Reconstitution"].firstMatch.waitForExistence(timeout: 8),
+                      "Tapped Tools and never arrived.")
+        var row: XCUIElement?
+        for _ in 0..<12 {
+            let candidate = app.staticTexts.matching(identifier: "Steroid Dosage")
+                .allElementsBoundByIndex.first { $0.isHittable }
+            if let candidate { row = candidate; break }
+            let scrollable = (app.collectionViews.allElementsBoundByIndex
+                              + app.tables.allElementsBoundByIndex
+                              + app.scrollViews.allElementsBoundByIndex)
+                .first { $0.isHittable && $0.frame.minX >= 0 }
+            guard let list = scrollable else { break }
+            list.swipeUp()
+        }
+        guard let hit = row else { return XCTFail("Steroid Dosage never became hittable.") }
+        hit.tap()
+    }
 }

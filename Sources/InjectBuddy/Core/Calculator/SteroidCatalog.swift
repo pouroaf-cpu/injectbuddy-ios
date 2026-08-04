@@ -163,8 +163,17 @@ enum SteroidCatalog {
         /// Active-hormone mass fraction for THIS entry — the number T-44 is about.
         var esterFactor: Double { compound.esterFactor(for: ester) }
 
-        /// mg/mL this entry's vial is usually sold at.
+        /// mg/mL this entry's vial is usually sold at — the web's `defConc`,
+        /// `ev ? ev.defaultConc : (d.defaultConc || 200)` (`app.js:8797`).
         var defaultConc: Double { compound.defaultConc(for: ester) }
+
+        /// mg per tablet this entry's tablets are usually sold at — the web's
+        /// `defTab`, `d.defaultTab || 10` (`app.js:8798`).
+        ///
+        /// It takes NO ester, because the web's does not: `defTab` reads the compound
+        /// record only. Both ester compounds are `cls:'injectable'` and carry no
+        /// `defaultTab` at all, so the fallback is all an ester entry could ever have.
+        var defaultTab: Double { compound.defaultTab ?? 10 }
 
         /// Whether this entry has an injectable form at all. `cls` on the web:
         /// `'oral'`, `'injectable'`, or `'oral|injectable'` (Winstrol only).
@@ -229,6 +238,95 @@ enum SteroidCatalog {
         case "oralDose", "tabMg", "oralSplit":           return !injectable
         default:                                         return true
         }
+    }
+
+    // ─── The strengths follow the picker  (T-96) ─────────────────────────────
+    //
+    // `defaultConc(for:)` and `defaultTab` were both already here, both already
+    // correct, and BOTH READ BY NOTHING. Vial strength sat at the spec's 200 mg/mL
+    // and tablet strength at 10 mg/tab whatever compound was picked.
+    //
+    // THE LIVE WRONG NUMBER: **Anadrol ships 50 mg tablets** — `defaultTab:50`,
+    // `app.js:8757`, and its own `presentation:'50 mg tabs'`. Picking Anadrol left
+    // the tablet strength on 10, so the Tablets KPI read **5× too high** until the
+    // user noticed the field and edited it. That is a number a person acts on.
+    //
+    // ── THE WEB DOES IT WITH TWO MECHANISMS, NOT ONE ─────────────────────────
+    // The web is ONE PAGE PER COMPOUND, so changing compound is a NAVIGATION —
+    // `window.location.href = '/steroid-dosage-calculator/' + s + '/'`
+    // (`app.js:8940`). The page remounts and BOTH strengths seed from scratch:
+    //
+    //     var defConc = ev ? ev.defaultConc : (d.defaultConc || 200);   // 8797
+    //     var defTab  = d.defaultTab || 10;                             // 8798
+    //     var strengthState = useState(defConc);                        // 8803
+    //     var tabState      = useState(String(defTab));                 // 8811
+    //
+    // Changing only the ESTER stays on the page — `if (s === slug) { if (ek)
+    // setEsterKey(ek); return; }` (8938) — and re-seeds THE CONCENTRATION ALONE:
+    //
+    //     React.useEffect(function () { setStrength(defConc); }, [esterKey, form]);  // 8813
+    //
+    // `tab` is deliberately not in that effect, and iOS must not add it: an ester
+    // flip that also wrote a tablet strength would write a fallback of 10 the web
+    // never writes on those two compounds.
+    //
+    // ── SEED ON THE TRANSITION, NEVER ON A PASS ──────────────────────────────
+    // This is T-41's split, applied to a second quantity. `showsField` above is a
+    // RESOLUTION — pure, safe on every render. This is a CONVERSION: it must fire
+    // once, on the edge, or the field shows a number the engine never used. Hence
+    // `reseeding(from:to:)` takes BOTH bags and returns nil unless the picker moved,
+    // exactly as `CalculatorSpec.convertingUnits(from:to:)` does.
+    //
+    // ── WHAT HAPPENS TO A VALUE THE USER TYPED ───────────────────────────────
+    // A compound change REPLACES it. That is the web's behaviour and it is the right
+    // one: a tablet strength is a fact about the compound in front of you, so 25
+    // mg/tab of Anadrol is not a preference to carry over to Dianabol. Every OTHER
+    // change — including a keystroke in the strength field itself — leaves it alone,
+    // because the picker index is the only thing this looks at.
+    //
+    // DELIBERATELY NOT RE-SEEDED, and reported rather than taken: the web's
+    // navigation also resets `dose`, `split`, `mgWeek`, `nDays` and the barrel back
+    // to their initial state, because the whole component is rebuilt. iOS is one
+    // screen, and throwing away a dose the user typed because they corrected the
+    // compound is a worse screen, not a more faithful one. Only the two DEFAULTS
+    // that are properties of the compound move.
+
+    /// The value bag with the strengths picker entry `index` OPENS ON. Pure.
+    ///
+    /// `includingTablet` is the web's two mechanisms held apart: `false` is the
+    /// `useEffect` (8813), which moves the concentration alone; `true` is the remount
+    /// (8803 + 8811), which moves both.
+    static func seeding(_ values: CalculatorValues, forPickAt index: Int,
+                        includingTablet: Bool) -> CalculatorValues {
+        let entry = pick(at: index)
+        var out = values
+        out.numbers["strength"] = entry.defaultConc
+        if includingTablet { out.numbers["tabMg"] = entry.defaultTab }
+        return out
+    }
+
+    /// The strengths a picker move must re-seed, or **nil when the picker did not
+    /// move** — which is every other change, including every keystroke in the
+    /// strength fields themselves.
+    ///
+    /// It DECIDES; it does not apply. `CalculatorViewModel` writes the result back
+    /// exactly once, behind the re-entrancy guard T-41 established. A seeder that
+    /// applied itself would have to be called from somewhere, and the only somewhere
+    /// that sees every change is a render.
+    static func reseeding(from old: CalculatorValues,
+                          to new: CalculatorValues) -> CalculatorValues? {
+        let oldIndex = Int(old.number("compound"))
+        let newIndex = Int(new.number("compound"))
+        guard oldIndex != newIndex else { return nil }
+
+        // Same compound, different ester → the effect at 8813, concentration only.
+        // Different compound → the remount, both.
+        let sameCompound = pick(at: oldIndex).compound.key == pick(at: newIndex).compound.key
+        let seeded = seeding(new, forPickAt: newIndex, includingTablet: !sameCompound)
+        // Two compounds can share a default (Deca and Trenbolone Enanthate are both
+        // 200 mg/mL). Returning nil rather than an identical bag keeps the write-back
+        // — and the second `didSet` pass it costs — for changes that are real.
+        return seeded == new ? nil : seeded
     }
 
     /// A number as the STRING a web `<input type="number">` would be holding.
