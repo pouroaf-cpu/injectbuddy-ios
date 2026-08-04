@@ -54,7 +54,7 @@ final class CalculatorLinkWithdrawalTests: XCTestCase {
     // MARK: - The withdrawal itself
 
     func testWithdrawnSetIsExactlyTheTwoTheOwnerNamed() {
-        XCTAssertEqual(Set(CalculatorSlug.unlistedCases), expectedWithdrawn,
+        XCTAssertEqual(Set(CalculatorSlug.withdrawnCases), expectedWithdrawn,
                        "The withdrawn set has changed. H6 withdrew BMI and Free T Index "
                        + "and nothing else — Cycle Plotter cannot save either and stays "
                        + "reachable deliberately.")
@@ -64,7 +64,7 @@ final class CalculatorLinkWithdrawalTests: XCTestCase {
     /// assertion below is satisfied trivially by an empty withdrawn set, so the set
     /// being non-empty is asserted before any of them are believed.
     func testTheWithdrawnSetIsNotEmpty() {
-        XCTAssertFalse(CalculatorSlug.unlistedCases.isEmpty,
+        XCTAssertFalse(CalculatorSlug.withdrawnCases.isEmpty,
                        "Nothing is withdrawn, so every assertion in this file passes by "
                        + "having no work to do.")
     }
@@ -111,8 +111,15 @@ final class CalculatorLinkWithdrawalTests: XCTestCase {
 
     // MARK: - 2. Nothing was deleted
 
+    /// **`withdrawnCases`, NOT `unlistedCases`, and the distinction is load-bearing.**
+    /// T-12 collapsed EOD, which is unlisted for a different reason: its category
+    /// membership is gone and there is no screen to put back. Sweeping it in here would
+    /// have forced this test to be relaxed — and the invariants below are the entire
+    /// content of a *withdrawal*, so relaxing them would leave the file asserting
+    /// nothing while still reporting green. `EodCollapseTests` asserts the opposite
+    /// invariants for the collapsed set.
     func testAWithdrawnCalculatorKeepsItsScreenSpecAndIdentity() {
-        for slug in CalculatorSlug.unlistedCases {
+        for slug in CalculatorSlug.withdrawnCases {
             // Still in the enum, so a saved row of this type still decodes into a screen
             // rather than into nil. Production has none today; the type still exists.
             XCTAssertTrue(CalculatorSlug.allCases.contains(slug),
@@ -144,7 +151,7 @@ final class CalculatorLinkWithdrawalTests: XCTestCase {
         XCTAssertTrue(CalculatorSlug.cyclePlotter.isListed,
                       "Cycle Plotter is listed AND cannot save — that pairing is the "
                       + "reason `isListed` is not `canSaveProtocol` under another name.")
-        for slug in CalculatorSlug.unlistedCases {
+        for slug in CalculatorSlug.withdrawnCases {
             XCTAssertFalse(slug.canSaveProtocol,
                            "\(slug.title) is withdrawn but reports it can save a protocol.")
         }

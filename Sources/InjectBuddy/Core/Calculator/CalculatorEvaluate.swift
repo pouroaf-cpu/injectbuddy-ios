@@ -189,22 +189,62 @@ extension CalculatorEngine {
             ], isValid: r.isValid, scheduleLine: nil)
 
         case .steroid:
-            // The compound picker carries an index into SteroidCatalog.all (the generic
-            // picker field stores a Double). Out of range falls back to the first
-            // compound rather than returning .empty, so a stale saved config still
-            // renders something honest instead of a blank card.
-            let idx = Int(v.number("compound"))
-            let compound = SteroidCatalog.all.indices.contains(idx)
-                ? SteroidCatalog.all[idx]
-                : SteroidCatalog.all[0]
-            let ester = compound.defaultEster
+            // The compound picker carries an index into SteroidCatalog.picks — the
+            // ester-EXPANDED list (the generic picker field stores a Double). Out of
+            // range falls back to the first entry rather than returning .empty, so a
+            // stale saved config still renders something honest instead of a blank card.
+            let pick = SteroidCatalog.pick(at: Int(v.number("compound")))
+            let compound = pick.compound
+
+            // ── T-44: an oral compound has no injection, so it has no draw ────────
+            //
+            // The web decides this from `cls` and never offers the other half:
+            // `canInject = d.cls.indexOf('injectable') !== -1` (`app.js:8787`),
+            // `form = canInject ? 'injectable' : 'oral'` (8789), and every injectable
+            // surface downstream is `isInject ? … : null`. Five of the twelve
+            // compounds are `cls:'oral'` — Anavar, Dianabol, Tbol, Anadrol, Superdrol
+            // — and before this branch existed every one of them was evaluated through
+            // `steroidInjectable`, so the shipped default (Anavar) reported
+            // **0.75 mL / 75 units for a tablet**.
+            //
+            // `drawMl` is left NIL and that is the load-bearing half: `DoseVolume`
+            // publishes it into `dose_log`, and a volume for a tablet is a wrong number
+            // in the database, not just on the screen.
+            if !compound.canInject {
+                let r = steroidOral(doseMgPerDay: v.number("oralDose"),
+                                    tabMg: v.number("tabMg"),
+                                    split: v.number("oralSplit"))
+                // Labels, order and decimals are the web's oral KPI card —
+                // `HeroCyclePanel` at `app.js:8979-8982`: Tablets (2 dp, "tab"),
+                // Per Dose (1 dp, "mg"), Daily (1 dp, "mg").
+                return CalculatorResult(rows: [
+                    ResultRow(label: "Tablets", value: "\(fmt(r.tabsPerDose, 2)) tab", emphasis: true),
+                    ResultRow(label: "Per Dose", value: "\(fmt(r.perDoseMg, 1)) mg", emphasis: true),
+                    ResultRow(label: "Daily", value: "\(fmt(v.number("oralDose"), 1)) mg"),
+                ],
+                isValid: r.isValid,
+                // No interval, no injection: the web shows no schedule line on an
+                // oral, and `volumeMeta` describes a syringe.
+                scheduleLine: nil,
+                drawMl: nil,
+                // One ADMINISTRATION delivers `perDoseMg`, which is what the log sheet
+                // seeds. The web's own label for an oral save says the same thing in
+                // the other unit — `fmt(doseN,0) + ' mg/day'` (`app.js:8867`).
+                dosePerInjection: DoseAmount(value: r.perDoseMg, unit: "mg"))
+            }
+
+            // T-44's SECOND wrong number: this used to be `compound.defaultEster`,
+            // i.e. `esters.first`, no matter which entry was picked. Trenbolone's
+            // first ester is Acetate (0.87), so 300 mg/week of Tren Enanthate (0.71)
+            // reported 261 mg active instead of 213 — 22.5 % high — and the screen
+            // had no control that could correct it.
             let r = steroidInjectable(strength: v.number("strength"),
                                       mgWeek: v.number("mgWeek"),
                                       mode: .ndays,
                                       nDays: v.number("nDays"),
                                       injPerWeek: 0,
                                       mlDrawn: 0,
-                                      esterFactor: compound.esterFactor(for: ester),
+                                      esterFactor: pick.esterFactor,
                                       unitsPerML: scale.unitsPerML)
             let unitLabel = scale == .u100 ? "Units (U-100)" : "Units (U-40)"
             var rows = [
@@ -217,7 +257,7 @@ extension CalculatorEngine {
             // Active weekly is the steroid-specific number — the ester is dead weight by
             // mass, so this is the hormone actually delivered. Shown only when it differs,
             // since for an esterFactor of 1 it just repeats the line above.
-            if compound.esterFactor(for: ester) < 1 {
+            if pick.esterFactor < 1 {
                 rows.append(ResultRow(label: "Active weekly", value: "\(fmt(r.activeWeek, 1)) mg"))
             }
             return CalculatorResult(rows: rows, isValid: r.isValid,

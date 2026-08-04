@@ -102,7 +102,13 @@ struct DashboardScreen: View {
                 }) {
                     ProtocolGrid(protocols: data.protocols) { proto in
                         if let slug = proto.slug {
-                            navigator.push(.calculator(slug))
+                            // `formSlug`, not `slug` (T-12). This is the ONE push site
+                            // fed by a stored `calculator_type` rather than by a browse
+                            // list, so it is the only one that can still be handed
+                            // `.eod` — a protocol the WEB created. It opens the TRT
+                            // calculator, which is where that mode now lives and where
+                            // the web's own nav sends `eod`.
+                            navigator.push(.calculator(slug.formSlug))
                         }
                     }
                 }

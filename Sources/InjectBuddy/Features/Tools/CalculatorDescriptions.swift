@@ -35,6 +35,11 @@ extension CalculatorSlug {
     var blurb: String {
         switch self {
         case .trt:            return "Find your testosterone dose and injection volume."
+        // T-12 — EOD is collapsed and no browse surface lists it, so this line is never
+        // rendered. It survives because this switch is exhaustive over `CalculatorSlug`
+        // and the slug still exists to decode web-written protocols (`formSlug`). Kept
+        // rather than defaulted so that a slug added tomorrow still fails to compile
+        // here instead of silently inheriting somebody else's description.
         case .eod:            return "Split a weekly Testosterone (TRT) dose into every-other-day jabs."
         case .microdose:      return "Plan daily or EOD testosterone microdoses."
         case .hcg:            return "Reconstitute HCG and convert IU to units."

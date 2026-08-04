@@ -128,21 +128,85 @@ extension CalculatorSlug {
     /// Separate from `canSaveProtocol` on purpose. That flag answers "can this finish
     /// the Add funnel"; this one answers "may a user get here at all". They overlap on
     /// two slugs today and that is a coincidence, not a relationship.
-    var isListed: Bool {
+    ///
+    /// **TWO DIFFERENT REASONS A CALCULATOR CAN BE ABSENT, AND THEY ARE NOT THE SAME
+    /// STATE.** `isListed` is now the union of both, because every browse surface wants
+    /// the same one question answered — "may a user get here" — but the two inputs are
+    /// kept apart, because their invariants differ and a test pins each:
+    ///
+    ///   • `isWithdrawn` (H6) — the screen, spec, engine and category membership are
+    ///     ALL intact and the owner intends to return to it. Re-enabling is deleting a
+    ///     case. BMI and Free T Index.
+    ///   • `isCollapsed` (T-12) — the calculator is GONE. No category, no route, and
+    ///     nothing to restore. EOD.
+    ///
+    /// Collapsing through `isWithdrawn` would have been the easy edit and it would have
+    /// broken three real invariants that `CalculatorLinkWithdrawalTests` asserts of a
+    /// withdrawn slug: that it belongs to exactly one category, that it keeps a
+    /// renderable spec, and that it cannot save. EOD satisfies none of those any more,
+    /// and quietly relaxing the test to accommodate it would have cost the meaning of
+    /// the withdrawal rather than the meaning of the collapse.
+    ///
+    /// STILL ENUMERATED, NOT PREDICATED (§5.32) — both inputs are literal switches, so
+    /// the composition below cannot sweep anything in by accident.
+    var isListed: Bool { !isWithdrawn && !isCollapsed }
+
+    /// H6 — withdrawn from every route in; everything else about it is untouched.
+    var isWithdrawn: Bool {
         switch self {
-        case .bmi, .freeTestIndex: return false
-        default: return true
+        case .bmi, .freeTestIndex: return true
+        default: return false
+        }
+    }
+
+    /// T-12 — collapsed into another calculator. The screen does not exist any more.
+    ///
+    /// The SLUG still does, and must: it decodes `saved_dosages.calculator_type`, and
+    /// the web can still write this type. See `formSlug` for where it opens instead.
+    var isCollapsed: Bool {
+        switch self {
+        case .eod: return true
+        default: return false
         }
     }
 
     /// Every calculator a user is allowed to reach — the only list a browse surface may
-    /// enumerate. `allCases` still contains the withdrawn ones, because the screens,
-    /// the specs and the saved-protocol decoding all still need them.
+    /// enumerate. `allCases` still contains the withdrawn and collapsed ones, because
+    /// the screens, the specs and the saved-protocol decoding all still need them.
     static var listedCases: [CalculatorSlug] { allCases.filter(\.isListed) }
 
     /// The withdrawn set, named so a check can assert it is not empty. An exemption
     /// that exempts nothing is hiding that it exempts nothing (§5.32).
+    static var withdrawnCases: [CalculatorSlug] { allCases.filter(\.isWithdrawn) }
+
+    /// The collapsed set, named for the same reason.
+    static var collapsedCases: [CalculatorSlug] { allCases.filter(\.isCollapsed) }
+
+    /// Everything absent from browse, whatever the reason. This is what a "no route in"
+    /// check should sweep; the two sets above are what an "and it still has/has not a
+    /// screen" check should sweep.
     static var unlistedCases: [CalculatorSlug] { allCases.filter { !$0.isListed } }
+
+    /// The calculator screen this slug OPENS. Identity for every slug but `.eod`.
+    ///
+    /// T-12 — EOD IS NO LONGER A CALCULATOR ON iOS. The owner's decision was to
+    /// collapse it, *"that option is inside the TRT calc anyway"*, and the web agrees
+    /// in its own nav: `nav-items.js:23` and `:59` both point `eod` at
+    /// **`/trt-calculator/`**, the same URL as `trt`. So an EOD protocol opening the
+    /// TRT calculator is what the web already does, not an iOS invention.
+    ///
+    /// THE SLUG ITSELF SURVIVES, AND THAT IS THE WHOLE POINT OF THIS PROPERTY.
+    /// `CalculatorSlug.rawValue` is the decoder for `saved_dosages.calculator_type`,
+    /// and the WEB CAN STILL WRITE `eod` — `app.js` keeps a live `EODPage` in `PAGES`
+    /// (:9078) and `RAIL_PAGES` (:11316) whose save posts `calculator_type: 'eod'`
+    /// (:6054). Delete the case and a web-created EOD protocol stops decoding here:
+    /// no error, no empty state, it is simply absent. That is T-57's shape and
+    /// T-81's — a live protocol missing from the screen the user checks.
+    ///
+    /// Redirecting at the SOURCE rather than at each push site, for the same reason
+    /// `members` filters on `isListed` here rather than at every browse surface: a
+    /// screen written next week inherits the collapse instead of having to remember it.
+    var formSlug: CalculatorSlug { self == .eod ? .trt : self }
 }
 
 // MARK: - Categories
@@ -205,7 +269,12 @@ enum CalculatorCategory: String, CaseIterable, Identifiable, Hashable {
     var allMembers: [CalculatorSlug] {
         switch self {
         case .glp1:    return [.semaglutide, .tirzepatide, .retatrutide, .bmi]
-        case .hormone: return [.trt, .eod, .microdose, .hcg, .freeTestIndex]
+        // T-12 — `.eod` is REMOVED from category membership, not merely unlisted.
+        // `isListed` withdraws a screen that still exists (BMI, Free T Index); this is
+        // a collapse, so EOD leaves the taxonomy entirely and no browse surface,
+        // Add-funnel step or drawer can enumerate it. `CalculatorSlug.eod` still
+        // exists to DECODE a web-written protocol — see `formSlug`.
+        case .hormone: return [.trt, .microdose, .hcg, .freeTestIndex]
         case .peptide: return [.peptide, .reconstitution, .bpc157, .bpc157blend]
         case .steroid: return [.steroid]
         }

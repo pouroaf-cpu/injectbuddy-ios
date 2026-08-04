@@ -309,7 +309,31 @@ struct CalculatorScreen: View {
             default: return true
             }
         }
+        if slug == .steroid { return showsUnderSteroidForm(field) }
         return showsUnderMode(field)
+    }
+
+    /// T-44 — which half of the steroid form the CHOSEN COMPOUND asks for.
+    ///
+    /// Sibling of the BMI branch above rather than of `showsUnderMode`: the switch is
+    /// not a mode the user sets, it is a property of the compound. The web resolves it
+    /// once per page from `cls` — `canInject = d.cls.indexOf('injectable') !== -1`,
+    /// `form = canInject ? 'injectable' : 'oral'` (`public/app.js:8787-8789`) — because
+    /// every compound is its own page there. iOS has one screen and a picker, so it is
+    /// resolved per selection instead.
+    ///
+    /// THIS IS A DOSING FIX, NOT A TIDY. Without it the five `cls:'oral'` compounds
+    /// rendered a vial strength and a syringe barrel, and the screen answered a tablet
+    /// with a draw volume in millilitres.
+    ///
+    /// The one compound the web marks `'oral|injectable'` — Winstrol — gets a Form
+    /// toggle there (`app.js:8944`, shown only when both are true). iOS has no toggle
+    /// yet, so it sits on `injectable`, which is the form the web opens it on.
+    /// The rule itself is `SteroidCatalog.showsField` — in the catalog, not here,
+    /// because a rule that decides whether a DOSING INPUT is offered has to be
+    /// reachable from a unit test, and a private method on a `View` is not.
+    private func showsUnderSteroidForm(_ field: CalculatorInput) -> Bool {
+        SteroidCatalog.showsField(field.key, forPickAt: Int(vm.values.number("compound")))
     }
 
     /// T-01a #1 — which fields the chosen MODE asks for.

@@ -228,12 +228,35 @@ final class PeptideDoseUnitTests: XCTestCase {
         XCTAssertEqual(b.range?.upperBound, 20000, "the bounds did not come back")
     }
 
-    /// The other thirteen calculators declare no unit scaling, so resolution is
-    /// identity for them. Guards against the mechanism quietly rewriting a spec it was
-    /// never meant to touch.
-    func testResolutionIsIdentityForCalculatorsWithoutAUnitSelector() {
-        for slug in CalculatorSlug.allCases where slug != .peptide && slug != .cyclePlotter {
+    /// A calculator that declares no unit scaling must be untouched by the mechanism.
+    /// Guards against it quietly rewriting a spec it was never meant to touch.
+    ///
+    /// **THE EXCLUDED SET IS DERIVED FROM THE SPECS, NOT LISTED, AND THAT IS THE FIX
+    /// FOR A REAL STALENESS.** This test used to skip `.peptide` literally and open by
+    /// asserting "the other thirteen calculators declare no unit scaling". T-43 then
+    /// declared one on Free T Index — and the sentence became false while the test
+    /// stayed GREEN. It passes for Free T Index only because that selector's DEFAULT is
+    /// the base unit, so resolution is identity at defaults no matter what the
+    /// mechanism does; the test never exercised the case it appeared to cover. A test
+    /// that survives the very change it describes is not guarding anything, so the
+    /// membership is now read off the specs and asserted out loud.
+    func testResolutionIsIdentityForCalculatorsThatDeclareNoUnitScaling() {
+        let declaring = Set(CalculatorSlug.allCases.filter { slug in
+            CalculatorCatalog.spec(for: slug).fields.contains { $0.unitScaling != nil }
+        })
+
+        // Restated rather than read back, so adding a third declaration has to be said
+        // out loud here instead of silently shrinking this test's coverage.
+        XCTAssertEqual(declaring, [.peptide, .freeTestIndex],
+                       "The set of calculators declaring a UnitScaling has changed. Every "
+                       + "slug NOT in this set is asserted below to be untouched by the "
+                       + "mechanism, so this set growing silently shrinks that guarantee.")
+
+        for slug in CalculatorSlug.allCases where !declaring.contains(slug) {
             let spec = CalculatorCatalog.spec(for: slug)
+            // `.cyclePlotter` is a bespoke screen with no generic fields, so identity
+            // holds vacuously for it. Kept in the loop rather than skipped: an empty
+            // spec that starts producing fields should be caught here.
             let values = CalculatorValues.defaults(for: spec.fields)
             XCTAssertEqual(spec.resolvedFields(values), spec.fields, "\(slug) was rewritten")
             XCTAssertNil(spec.convertingUnits(from: values, to: values), "\(slug) converted")

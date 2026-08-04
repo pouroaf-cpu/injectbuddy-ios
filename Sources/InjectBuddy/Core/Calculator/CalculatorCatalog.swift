@@ -256,9 +256,13 @@ enum CalculatorCatalog {
         // The picker stores a Double; the web's `doseUnit` is the string 'mcg'/'mg'.
         // Emitted with the right name and type by configExtras below.
         case .peptide: return ["doseUnitMcg"]
-        // An index into SteroidCatalog — an iOS implementation detail. The web keys
-        // the compound by its slug string.
-        case .steroid: return ["compound"]
+        // `compound` is an index into SteroidCatalog.picks — an iOS implementation
+        // detail; the web keys the compound by its slug string and its ester
+        // separately. The oral trio are iOS NUMBER fields whose web counterparts are
+        // the raw input STRINGS `dose` / `tab` / `split`. Both groups are re-emitted
+        // with the web's name and type by configExtras below, so THE KEY SET IS
+        // UNCHANGED by T-44 — see the test.
+        case .steroid: return ["compound", "oralDose", "tabMg", "oralSplit"]
         default: return []
         }
     }
@@ -348,20 +352,52 @@ enum CalculatorCatalog {
             return [:]
 
         case .steroid:
-            let idx = Int(v.number("compound"))
-            let compound = SteroidCatalog.all.indices.contains(idx)
-                ? SteroidCatalog.all[idx] : SteroidCatalog.all[0]
-            // Injectable-only for now (see the spec below), so form/mode are known.
-            // The oral trio (dose/tab/split) are the web's own empty defaults.
-            return ["slug": .string(compound.key),
-                    "form": .string("injectable"),
-                    "mode": .string("ndays"),
-                    "esterKey": .string(compound.defaultEster?.key ?? ""),
-                    "injPerWeek": .number(2),
-                    "mlDrawn": .number(0.5),
-                    "dose": .string(""),
-                    "tab": .string(""),
-                    "split": .string("1")]
+            let pick = SteroidCatalog.pick(at: Int(v.number("compound")))
+            // `form` is DERIVED, not stored, and it is derived exactly as the web
+            // derives its initial value: `useState(canInject ? 'injectable' : 'oral')`
+            // (`app.js:8789`, off `cls` at 8787-8788). The web only ever offers the
+            // toggle when a compound has both forms — `(canInject && canOral)`,
+            // `app.js:8944` — which is Winstrol alone; iOS has no toggle yet, so
+            // every compound sits on the form the web opens it on.
+            let isOral = !pick.compound.canInject
+            var out: [String: JSONValue] = [
+                "slug": .string(pick.compound.key),
+                "form": .string(isOral ? "oral" : "injectable"),
+                "mode": .string("ndays"),
+                "esterKey": .string(pick.ester?.key ?? ""),
+                "injPerWeek": .number(2),
+                "mlDrawn": .number(0.5),
+            ]
+            if isOral {
+                // The oral trio carry the real inputs, as strings — the web's `dose`
+                // / `tab` / `split` are `<input>` state (`app.js:8810-8812, 8866`).
+                out["dose"] = .string(SteroidCatalog.inputString(v.number("oralDose")))
+                out["tab"] = .string(SteroidCatalog.inputString(v.number("tabMg")))
+                out["split"] = .string(SteroidCatalog.inputString(v.number("oralSplit")))
+                // The web's oral page never touches the weekly-dose state, so it saves
+                // `mgWeek: 0` (`useState(0)`, `app.js:8804`). iOS's hidden field would
+                // otherwise carry its injectable default of 300 into an oral row — a
+                // weekly injectable dose stored against a tablet. Safe to set: an oral
+                // steroid could not be saved AT ALL before this change, so there are no
+                // rows for it to re-fingerprint. The other five injectable keys already
+                // agree with the web's untouched state (strength 200 = `d.defaultConc ||
+                // 200`, nDays 3.5, injPerWeek 2, mlDrawn 0.5, syringeMl 1).
+                out["mgWeek"] = .number(0)
+            } else {
+                // Byte-for-byte what an injectable steroid save has always written.
+                //
+                // NOT "corrected" here, deliberately. The web's untouched `tab` on an
+                // injectable page is `String(defTab)` — "10", or "50" on Anadrol — not
+                // `""`, so this line is a known deviation. But `saved_dosages` is
+                // de-duplicated on the WHOLE config, so changing a value every future
+                // injectable row carries would re-fingerprint all of them against the
+                // rows already in production. That is a data decision, not a tidy;
+                // reported against T-44 rather than taken.
+                out["dose"] = .string("")
+                out["tab"] = .string("")
+                out["split"] = .string("1")
+            }
+            return out
 
         case .bmi, .freeTestIndex, .cyclePlotter:
             // Never saved — canSaveProtocol is false.
@@ -383,9 +419,12 @@ enum CalculatorCatalog {
     /// The two `configOmittedKeys` inversions are done explicitly, because they are the
     /// keys the web writes under a DIFFERENT NAME AND TYPE from the iOS field, so the
     /// loop above cannot see them: `peptide.doseUnit` ("mcg"/"mg") is the iOS
-    /// `doseUnitMcg` picker (1/0), and `steroid.slug` (a compound key string) is the iOS
-    /// `compound` index into `SteroidCatalog.all`. Miss either and the evaluation runs on
-    /// the spec default rather than on what was saved.
+    /// `doseUnitMcg` picker (1/0), and `steroid.slug` + `steroid.esterKey` together are
+    /// the iOS `compound` index into `SteroidCatalog.picks`. Miss either and the
+    /// evaluation runs on the spec default rather than on what was saved.
+    ///
+    /// T-44 added a third: the steroid ORAL trio (`dose`/`tab`/`split`) are web input
+    /// strings and iOS numbers named `oralDose`/`tabMg`/`oralSplit`.
     static func values(fromConfig config: JSONValue, slug: CalculatorSlug) -> CalculatorValues {
         let spec = spec(for: slug)
         var v = CalculatorValues.defaults(for: spec.fields)
@@ -411,10 +450,20 @@ enum CalculatorCatalog {
                 v.numbers["doseUnitMcg"] = unit.lowercased() == "mcg" ? 1 : 0
             }
         case .steroid:
+            // `slug` AND `esterKey` together name one picker entry (T-44). Matching on
+            // the slug alone is what forced every Trenbolone row onto Acetate.
             if let key = config["slug"]?.string,
-               let idx = SteroidCatalog.all.firstIndex(where: { $0.key == key }) {
+               let idx = SteroidCatalog.pickIndex(compoundKey: key,
+                                                  esterKey: config["esterKey"]?.string) {
                 v.numbers["compound"] = Double(idx)
             }
+            // The oral trio are STRINGS on the web and NUMBERS under other names here,
+            // so the loop above cannot see them either. An unparseable or absent value
+            // leaves the spec default standing rather than writing 0 — a 0 tablet
+            // strength is the one input `steroidOral` treats as invalid.
+            if let d = config["dose"]?.string.flatMap({ Double($0) }) { v.numbers["oralDose"] = d }
+            if let t = config["tab"]?.string.flatMap({ Double($0) }) { v.numbers["tabMg"] = t }
+            if let s = config["split"]?.string.flatMap({ Double($0) }) { v.numbers["oralSplit"] = s }
         default:
             break
         }
@@ -672,8 +721,75 @@ enum CalculatorCatalog {
             ])
 
         case .freeTestIndex:
+            // T-43 — THE TT VALUE IS READ IN THE UNIT `ttUnitNgdl` SELECTS, so the field
+            // carries a `unitScaling` and the flip converts it. This is T-41's defect on a
+            // second screen: `UnitScaling` in CalculatorModels is the mechanism, and this
+            // is a declaration on top of it rather than a new one.
+            //
+            // WHAT IT DID: the picker changed the unit and left the number, so the shipped
+            // default — 20 with SHBG 50 — went from FAI 40.0 "Normal" to 1.4 "Low" with no
+            // blood value changed. The web converts, and its own source names the exact
+            // consequence (`FreeTestPage.changeTtUnit`, `public/app.js:8434-8443` on
+            // `feature/dosage-status-model`, read from the checkout rather than from a
+            // document about it. The citation is corrected: this was first written as
+            // 7878-7887, which is the Reverse Dose Solver. The QUOTED CODE was verbatim
+            // right and only the line number was wrong — which is the more dangerous of
+            // the two, because a wrong reference that points at real-looking code is
+            // read as corroboration by the next person. A second, identical copy lives
+            // at :8595 for the FTV page, which iOS does not have):
+            //
+            //   // Toggling the unit converts the typed value so the physical quantity is
+            //   // kept (600 ng/dL -> ~20.8 nmol/L, not read as 600 nmol/L -> a 28.84x
+            //   // wrong FAI/band).
+            //   const nmol = ttUnit === 'ngdl' ? cur / 28.84 : cur;
+            //   const conv = u === 'ngdl' ? nmol * 28.84 : nmol;
+            //   setTtRaw(String(Math.round(conv * 100) / 100));
+            //
+            // BASE IS nmol/L, because that is the unit the field's default (20) is already
+            // in and the unit the maths is defined in — `CalculatorEngine.freeTestIndex`
+            // converts ng/dL INTO nmol/L before dividing by SHBG, and FAI is (TT ÷ SHBG)
+            // × 100 with BOTH terms in nmol/L. `factor` is declared as "base units per
+            // alternate unit", and one ng/dL is 1/28.84 nmol/L, so it is the RECIPROCAL of
+            // the engine's constant, not the constant. `toAlternate` therefore multiplies
+            // by 28.84 and `toBase` divides — `changeTtUnit`, both ways round.
+            //
+            // DECIMALS ARE THE WEB'S, verbatim: `Math.round(conv * 100) / 100` is two
+            // decimals in BOTH units.
+            //
+            //   THE ROUND TRIP IS EXACT ONE WAY ONLY, and that is a property of the number
+            //   28.84 rather than of this code. nmol/L → ng/dL → nmol/L returns the
+            //   original for EVERY two-decimal value: the ng/dL rounding is worth at most
+            //   0.005 ng/dL, i.e. 0.00017 nmol/L, far inside the nmol hundredth it lands
+            //   back on. The other direction cannot be exact, because 0.005 nmol/L is
+            //   0.144 ng/dL — WIDER than the ng/dL hundredth — so 600 ng/dL returns as
+            //   599.87. Exactness both ways needs the two decimal grids to correspond
+            //   under the factor; they do for T-41's 1000 (1 mcg IS 0.001 mg) and no
+            //   decimal pair can for 28.84. Buying the ng/dL trip would cost the nmol one
+            //   (four base decimals puts "20.7999" in a field the user typed 20.8 into).
+            //   What is kept instead is 0.024% at 600 ng/dL — three orders of magnitude
+            //   under any testosterone assay's precision, and invisible in an FAI printed
+            //   to one decimal. Both directions are pinned in `FreeTestUnitTests`.
+            //
+            // RANGE — IT WAS ONE RANGE HELD IN BOTH UNITS, the same second half T-41 had.
+            // `0...2000` is a ng/dL ceiling (a lab-report figure); read as nmol/L it
+            // admits 2000 nmol/L, an FAI of 4000. It is now 0...100 nmol/L, which resolves
+            // to 0...2884 ng/dL — clear of any real assay result including a
+            // supraphysiological peak, and the two ends are images of each other, so
+            // nothing in range on one side is out of range on the other.
+            //
+            // THE FLOOR STAYS 0, for the reason recorded on the peptide dose: iOS clamps
+            // on every keystroke, so a non-zero floor rewrites the leading "0" of a
+            // part-typed value.
+            //
+            // THE SUFFIX IS NEW. The field declared no unit at all, so the number's unit
+            // lived only in a separate picker — on the one screen whose defect is that the
+            // same number means two different blood values.
             return CalculatorSpec(slug: slug, savedType: "freetest", saveTitle: "Free T Index", fields: [
-                .number("tt", "Total testosterone", default: 20, range: 0...2000, step: 0.1),
+                .number("tt", "Total testosterone", unit: "nmol/L",
+                        default: 20, range: 0...100, step: 0.1,
+                        unitScaling: .init(selectorKey: "ttUnitNgdl", baseSelectorValue: 0,
+                                           alternateUnit: "ng/dL", factor: 1.0 / 28.84,
+                                           baseDecimals: 2, alternateDecimals: 2)),
                 .picker("ttUnitNgdl", "TT unit", options: [
                     .init(label: "nmol/L", value: 0), .init(label: "ng/dL", value: 1),
                 ], default: 0),
@@ -685,30 +801,61 @@ enum CalculatorCatalog {
             return CalculatorSpec(slug: slug, savedType: "plotter", saveTitle: "Cycle Plotter", fields: [])
 
         case .steroid:
-            // Injectable path only, for now. The web screen also has an ORAL form
-            // (mg/day ÷ split → tablets) for the seven oral compounds, and the engine
-            // side of that is ported — CalculatorEngine.steroidOral — but the generic
-            // field/spec model here renders ONE set of inputs, and the web swaps the
-            // whole input set on a form toggle. Wiring that needs a bespoke screen
-            // rather than a spec, so orals are held back rather than shipped showing
-            // syringe fields that mean nothing for a tablet.
+            // ── T-44 — BOTH FORMS, AND THE ESTER IS IN THE COMPOUND LIST ──────────
             //
-            // `compound` is an index into SteroidCatalog.all rather than a string,
-            // because the generic picker field carries a Double. The screen resolves
-            // it back to a compound, and configJSON writes the index — which is why
-            // the saved config here will NOT yet match the web's shape (see below).
+            // THE COMMENT THAT USED TO BE HERE SAID ORALS WERE "HELD BACK". They were
+            // not. It claimed the oral path was withheld "rather than shipped showing
+            // syringe fields that mean nothing for a tablet", and that is precisely
+            // what shipped: the picker enumerated all twelve compounds, five of them
+            // oral-only, and the screen opened on Oxandrolone (Anavar) offering a
+            // 200 mg/mL vial strength and a syringe barrel. `evaluate` returned
+            // **0.75 mL / 75 units for a tablet**. `SteroidCompound.canInject` was
+            // correct the whole time and nothing read it.
+            //
+            // The web does not have one screen with a toggle — it has one PAGE PER
+            // COMPOUND, and each page decides its own form from the compound's `cls`:
+            // `useState(canInject ? 'injectable' : 'oral')` (`app.js:8789`). iOS has
+            // one screen and a picker, so the same decision is made per SELECTION and
+            // `CalculatorScreen.shouldShow` renders the matching half. Both halves are
+            // declared here; neither is ever shown at the same time as the other.
+            //
+            // WHAT THE WEB ASKS AN ORAL FOR — `app.js:8964-8968`, three plain inputs:
+            // "Daily dose (mg)", "Tablet strength (mg/tab)", "Doses per day". No vial
+            // strength, no weekly dose, no interval, NO SYRINGE — `syringeSize` and
+            // the whole `SyringeResultPanel` are `isInject ? … : null` (8988, 8979),
+            // and so is the "Active <parent>" line (8984), which is why an oral shows
+            // no ester arithmetic either.
+            //
+            // `compound` is an index into `SteroidCatalog.picks` — the ESTER-EXPANDED
+            // list, which is what the web's dropdown is (`app.js:8927-8932`) — rather
+            // than into `.all`. `configExtras` splits it back into the web's `slug`
+            // and `esterKey`, so the SAVED KEY SET IS UNCHANGED.
+            //
+            // The oral defaults are the web's, as closely as a Double can hold them:
+            // `dose` opens EMPTY (`useState('')`, 8810) and 0 is this control's own
+            // empty reading, so the screen invents no dose — the web page is explicit
+            // that this calculator is "Maths + pharmacokinetic timing only — no doses,
+            // cycles, or regimens" (8745-8746). `tab` is the web's `defTab` fallback
+            // of 10 (8798); the web makes it PER COMPOUND (Anadrol ships 50 mg tabs),
+            // which needs the value to follow the picker and is reported, not guessed
+            // at here. `split` is 1 (8812).
             return CalculatorSpec(slug: slug, savedType: "steroid", saveTitle: "Steroid Dosage", fields: [
                 .picker("compound", "Compound",
-                        options: SteroidCatalog.all.enumerated().map { idx, c in
-                            .init(label: c.displayName, value: Double(idx))
+                        options: SteroidCatalog.picks.enumerated().map { idx, p in
+                            .init(label: p.label, value: Double(idx))
                         },
                         default: 0),
+                // ── injectable form (`cls` contains 'injectable') ──
                 .number("strength", "Vial strength", unit: "mg/mL", default: 200, range: 0...500, step: 5),
                 .number("mgWeek", "Weekly dose", unit: "mg", default: 300, range: 0...2000, step: 10,
                         quick: [200, 300, 400, 500, 600]),
                 .number("nDays", "Inject every", unit: "days", default: 3.5, range: 0.5...14, step: 0.5),
                 .segmented("syringeMl", "Syringe barrel",
                            options: barrelOptions, default: defaultBarrel(for: slug)),
+                // ── oral form (`cls:'oral'`) ──
+                .number("oralDose", "Daily dose", unit: "mg", default: 0, range: 0...500, step: 1),
+                .number("tabMg", "Tablet strength", unit: "mg/tab", default: 10, range: 0...200, step: 1),
+                .number("oralSplit", "Doses per day", default: 1, range: 1...6, step: 1),
             ])
         }
     }
