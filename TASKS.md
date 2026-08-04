@@ -2599,7 +2599,7 @@ names. 11 tests, green in an 85-test run, and shown failing first against a deli
 column name. See T-51 for the same evidence chain on the other three columns.
 
 ## T-60 — iOS's plotter compound table was copied from a DEAD web table
-**Priority 6/10** · **Owner:** mac · **Status:** open · **Agent:** —
+**Priority 6/10** · **Owner:** mac · **Agent:** `t60-compounds` · **Status:** doing
 
 **⚠ REWRITTEN 2026-08-04. The original framing was wrong and it was win's. Old text is below, per
 rule 7 — it is the reason the task existed and the reason it was parked.**
@@ -3266,7 +3266,7 @@ lists. Same reasoning that left the 3-vs-6 config split alone under T-45.
 change lands with the re-fingerprinting acknowledged, or it is recorded here that iOS keeps `""`.
 
 ## T-96 — `defaultConc` and `defaultTab` are read by nothing, so Anadrol seeds a 10 mg tablet
-**Priority 5/10** · **Owner:** mac · **Agent:** — · **Status:** open
+**Priority 5/10** · **Owner:** mac · **Agent:** `t96-seed` · **Status:** doing
 
 **What:** `SteroidCompound.defaultConc(for:)` and `SteroidCompound.defaultTab` exist, are correct,
 and **nothing consults them.** Vial strength stays at 200 mg/mL and tablet strength at 10 mg/tab
