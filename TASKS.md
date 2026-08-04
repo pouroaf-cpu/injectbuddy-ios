@@ -845,7 +845,8 @@ the compound dropdown as separate entries ("Trenbolone Enanthate"); iOS forces `
 selectable, and the Tren E case is shown returning 213 mg.
 
 ## ~~T-45 — The GLP-1 option lists were truncated at the web's warning thresholds, and the warnings were gone with them~~
-**Priority 9/10** · **Owner:** mac · **Status: done** — `SHA-T45`, unit suite green (see evidence)
+**Priority 9/10** · **Owner:** mac · **Status: done** — `42dfb42` (the change) + `2b51fc8` (the
+measurement, and two harness defects it found). Unit 19/19 in a target of 67/67, UI 3/3, two frames.
 
 **What it did:** `CalcConst` held PREFIXES of four `app.js` arrays. Counted on both sides
 2026-08-04, and the truncation claim in T-01b-3/4/5 is confirmed to the value:
@@ -895,16 +896,46 @@ three GLP-1 slugs do not share a config shape and that *grouping* them caused th
 **splitting** them caused it. The keys themselves are NOT changed here — see T-01b-4 #2 / T-01b-5 #2,
 which must close with a row read back out of the database.
 
-**Evidence:** `Tests/InjectBuddyTests/Glp1OptionParityTests.swift` — 18 tests, all green, pinning each
-array's length and every value against the literals transcribed from `app.js`; the thresholds; the
-warning strings to the character including the U+2014 em dash; the warnings firing one ladder step
-above the threshold and silent AT it; the 25 mg/mL case as arithmetic (`0.025 / 0.020 = 1.25`); and
-the config key sets. Sources cross-checked: the working tree (`master`), `feature/dosage-status-model`
-and the deployed `https://www.injectbuddy.com/app.js?v=e10ca869` — **all three agree on the four
-arrays and on all six warning strings.**
+**Evidence — measured 2026-08-04 on iPhone 16 Pro / iOS 18.3, not inspected.**
 
-**Left open, filed on:** T-71 (the typed value is not snapped to the web's grid), T-72 (`conc` clamps
-at 60 where the deployed build has no upper bound), T-73 (no preset chips under the two fields).
+**1 · `Tests/InjectBuddyTests/Glp1OptionParityTests.swift` — 19 tests, 0 failures**, inside a whole
+unit target of **67 tests, 0 failures**. Pins each array's length and every value against literals
+transcribed from `app.js`; the thresholds; the warning strings to the character including the U+2014
+em dash; the warnings firing one ladder step above the threshold and silent AT it; the 25 mg/mL case
+as arithmetic (`0.025 / 0.020 = 1.25`); and the config key sets.
+
+**2 · The suite was SHOWN TO FAIL before it was trusted.** `glp1Concs` was reverted to the shipped
+12-entry prefix, rebuilt and rerun: **7 of the 19 went red**, naming the defect in the words of the
+finding — *"glp1Concs: 12 values, web has 17"*, *"glp1Concs stops at 20.0, web runs to 60.0"*, and
+the 25 mg/mL reachability assertion. Restored, rebuilt, green again. A reference recorded from a
+broken state passes forever; this one demonstrably does not.
+
+**3 · `Tests/InjectBuddyUITests/Glp1ReachableValueUITests.swift` — 3 tests, 0 failures**, on the
+signed-in app. `25` goes in through the KEYBOARD and the card reads back `0.020 mL` / `2 u` — not the
+old 20 mg/mL answer of `0.025 mL` / `3 u`. 2.5 mg (off the old 11-entry list entirely) raises the
+advisory; 2.4 mg does not.
+
+**4 · Frames**, both self-naming (the screen renders "Semaglutide"), arrival asserted before each:
+- `frames/t45-01-semaglutide-conc-25-typed.png` — **conc 25 mg/mL, typed, previously unreachable**,
+  dose 0.5 mg, card reading `Draw 0.020 mL`.
+- `frames/t45-02-semaglutide-over-maximum-warning.png` — dose 2.5 mg, `Draw 0.500 mL`, and the amber
+  advisory **"Exceeds typical weekly maximum of 2.4 mg — verify with your prescriber."** on the glass.
+
+Sources cross-checked: the working tree (`master`), `feature/dosage-status-model` re-read this session
+via `git show FETCH_HEAD:public/app.js` (arrays at `:3916–3919`, warnings at `:10075`, `:10191`,
+`:10306`) and the deployed `https://www.injectbuddy.com/app.js?v=e10ca869` — **all three agree on the
+four arrays and on all six warning strings.**
+
+**Two test-harness defects were found and fixed here, because both produced a green beside no
+evidence.** The suite's keyboard-dismiss tapped `app.staticTexts.firstMatch`, which resolves offscreen
+at x = −313, so all three tests died on `kAXErrorCannotComplete` before asserting anything; it uses
+the app's own `kb_done` now. And the warning frame was first shot where the assertions ran, which
+photographed the note scrolled under the pinned bar — then a swipe loop that overshot and photographed
+the FAQ while still passing. The frame is now taken on the result sheet, with the sentence asserted to
+be inside the window before the shutter.
+
+**Left open, filed on:** T-91 (the typed value is not snapped to the web's grid), T-92 (`conc` clamps
+at 60 where the deployed build has no upper bound), T-93 (no preset chips under the two fields).
 
 ## T-51 — iOS logs no injection time, so the web plots its doses at an assumed noon
 **Priority 5/10** · **Owner:** mac · **Status:** open
@@ -1178,7 +1209,7 @@ has been true.
 
 ---
 
-## T-71 — A typed GLP-1 value is not snapped to the web's grid, so an off-grid save cannot dedup
+## T-91 — A typed GLP-1 value is not snapped to the web's grid, so an off-grid save cannot dedup
 **Priority 3/10** · **Owner:** mac · **Status:** open
 
 **What it does now:** T-45 gave the GLP-1 `conc` and `dose` fields typed entry. iOS's `NumberField`
@@ -1208,7 +1239,7 @@ to the nearest 5 would be the calculator editing the number the user acts on."*
 divergence in `CALC-PARITY.md` as deliberate — and if it is snapped, a test pins iOS and the web to
 the same value for a typed off-grid entry.
 
-## T-72 — iOS clamps GLP-1 concentration at 60 mg/mL; the deployed web has no upper bound
+## T-92 — iOS clamps GLP-1 concentration at 60 mg/mL; the deployed web has no upper bound
 **Priority 3/10** · **Owner:** mac · **Status:** open
 
 **What it does now:** T-45 set the `conc` field's range to `0...60`, the bounds of
@@ -1228,7 +1259,7 @@ Whichever wins, iOS should copy it rather than pick.
 
 **Done when:** the web has one answer and iOS matches it.
 
-## T-73 — The GLP-1 fields have no preset chips, and the web's computed ones are not portable
+## T-93 — The GLP-1 fields have no preset chips, and the web's computed ones are not portable
 **Priority 2/10** · **Owner:** mac · **Status:** open
 
 **What:** T-45 gave the GLP-1 `conc` and `dose` fields the ruler and typed entry but left `quick: []`

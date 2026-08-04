@@ -87,6 +87,40 @@ final class Glp1ReachableValueUITests: XCTestCase {
         XCTAssertTrue(note.label.contains("Exceeds typical weekly maximum of 2.4 mg"),
                       "Advisory read: \(note.label)")
 
+        // THE FRAME MUST SHOW THE SENTENCE, not merely be taken while it existed in
+        // the tree. Two earlier drafts of this line are the reason it is now this
+        // long, and both produced a GREEN test beside a frame that proved nothing:
+        //
+        //  1. Shooting where the assertions ran photographed the in-scroll card with
+        //     the note under the pinned bar — the note was in the tree, off the glass.
+        //  2. Swiping until `maxY <= plateTop` overshot: once the note scrolls off the
+        //     TOP that inequality is still true, so the run photographed the FAQ and
+        //     the formula card and passed.
+        //
+        // So the frame is taken on the app's own reading surface instead. `Show result`
+        // opens a sheet whose whole job is to present the result without competing with
+        // the bar, it renders the same `ResultCard` under `sheet_result_`, and it needs
+        // no scroll arithmetic to be right. Arrival and VISIBILITY are both asserted.
+        let showResult = app.descendants(matching: .any)
+            .matching(identifier: "cta_see_result").firstMatch
+        XCTAssertTrue(showResult.waitForExistence(timeout: 5), "No `cta_see_result`.")
+        showResult.tap()
+
+        let sheetNote = app.descendants(matching: .any)
+            .matching(identifier: "sheet_result_note_0").firstMatch
+        XCTAssertTrue(sheetNote.waitForExistence(timeout: 5),
+                      "The result sheet raised no advisory at 2.5 mg.")
+        XCTAssertEqual(sheetNote.label,
+                       "Warning. Exceeds typical weekly maximum of 2.4 mg "
+                       + "\u{2014} verify with your prescriber.",
+                       "The sheet's advisory is not the web's sentence.")
+        // ON THE GLASS, not merely resolvable. A frame of a sentence that is scrolled
+        // out of the window is the thing both earlier drafts produced.
+        let window = app.windows.firstMatch.frame
+        XCTAssertTrue(window.contains(sheetNote.frame),
+                      "The advisory is at \(sheetNote.frame), outside the window "
+                      + "\(window) — the frame would not show it.")
+
         shot("t45-02-semaglutide-over-maximum-warning")
     }
 
@@ -118,18 +152,57 @@ final class Glp1ReachableValueUITests: XCTestCase {
         field.tap()
         field.typeText(value)
         // Dismiss the keyboard so the result card is not occluded in the frame.
-        app.staticTexts.firstMatch.tap()
+        //
+        // VIA THE APP'S OWN `kb_done`, not via a tap on background text. The first
+        // draft tapped `app.staticTexts.firstMatch`, which resolves to an element at
+        // x = -313 — offscreen, parked left of the window — so XCUITest tried to
+        // scroll it into view and every test in this file died on
+        // `kAXErrorCannotComplete` BEFORE asserting anything. Measured 2026-08-04:
+        // 3 of 3 failed at that line having already typed the value correctly. A
+        // helper that cannot fail a real defect and cannot pass a real fix is worse
+        // than no helper.
+        //
+        // NARROWED TO `.button`, the one narrowing this suite makes: the keyboard
+        // `ToolbarItemGroup` publishes the identifier on BOTH the bridged bar button
+        // and the hosted SwiftUI content, so `.any` cannot resolve to one element.
+        let done = app.descendants(matching: .button).matching(identifier: "kb_done").firstMatch
+        if done.waitForExistence(timeout: 3) { done.tap() }
         XCTAssertEqual(field.value as? String, value,
                        "`field_\(key)` reads \(String(describing: field.value)) after "
                        + "typing \(value).")
     }
 
     /// The value cell of one result row, addressed by the card's own identifier scheme.
-    private func resultValue(_ label: String) -> String? {
-        let row = app.descendants(matching: .any)
+    ///
+    /// TAKES THE FIRST MATCH THAT ACTUALLY CARRIES A STRING, and dumps every candidate
+    /// when there is none. The first draft took `.first { minX >= 0 }` and read
+    /// `Optional("")` on all three tests — a match that exists, sits on screen and says
+    /// nothing. An empty string is indistinguishable from "the dose is wrong" in the
+    /// assertion message, which is the one thing a dosing check may not be vague about,
+    /// so the miss is now named with the whole `result_*` tree beside it.
+    private func resultValue(_ label: String,
+                             file: StaticString = #filePath, line: UInt = #line) -> String? {
+        let all = app.descendants(matching: .any)
             .matching(identifier: "result_\(label)").allElementsBoundByIndex
-            .first { $0.frame.minX >= 0 }
-        return row?.value as? String ?? row?.label
+        if let hit = all.first(where: { !$0.label.isEmpty }) { return hit.label }
+        if let hit = all.compactMap({ $0.value as? String }).first(where: { !$0.isEmpty }) { return hit }
+        dumpResultTree(context: "result_\(label) resolved \(all.count) element(s), none carrying text")
+        XCTFail("result_\(label) carries no value — see the RESULT-TREE dump above.",
+                file: file, line: line)
+        return nil
+    }
+
+    /// Everything on screen whose identifier starts `result_`, plus the gate control,
+    /// printed once. Cheap, and it turns "the assertion said empty" into a readable
+    /// picture of where the card actually is.
+    private func dumpResultTree(context: String) {
+        print("RESULT-TREE: \(context)")
+        for e in app.descendants(matching: .any).allElementsBoundByIndex
+        where e.identifier.hasPrefix("result_") || e.identifier.hasPrefix("sheet_result_")
+                || e.identifier == "cta_see_result" {
+            print("RESULT-TREE   id=\(e.identifier) type=\(e.elementType.rawValue) "
+                  + "label=\"\(e.label)\" value=\"\(String(describing: e.value))\" frame=\(e.frame)")
+        }
     }
 
     private func openCalculator(_ name: String) throws {
