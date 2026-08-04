@@ -20,6 +20,15 @@ job carried in a message does not survive a context clear.
    it, and stays.
 8. **Done means measured.** A photograph, a query, a run. Not "it should work now".
 
+9a. **And the file is what you BELIEVE, not what a message said.** On 2026-08-04 both sides spent
+    hours treating T-81 — a live 8/10 dosing-visibility defect — as merged and green. It was neither:
+    the guard sat untouched in `DoseProjection.swift:319` and the entry said `Status: open` the whole
+    time. It began as one ambiguous sentence, where "merged and pushed, build green" described the
+    T-45 work in the same message and was read as describing the T-81 finding beside it. **Win then
+    repeated it back as established fact — twice, once to the owner — while holding a checkout in
+    which a single grep would have refuted it.** An ambiguous claim is a mistake; repeating a claim
+    about a file you can read without reading it is a different and worse one. **Before you assert a
+    task's status, look at the task.**
 9. **This file is edited in the checkout, and you pull before you write it.** On 2026-08-04 Windows
    spent a session editing an untracked copy at `Projects\injectbuddy-ios\TASKS.md`; it showed T-03
    open three days after it was closed with evidence, and mac was sent to re-do finished work. The
