@@ -1264,6 +1264,28 @@ be inside the window before the shutter.
 **Left open, filed on:** T-91 (the typed value is not snapped to the web's grid), T-92 (`conc` clamps
 at 60 where the deployed build has no upper bound), T-93 (no preset chips under the two fields).
 
+**STRENGTHENED 2026-08-04 — the web's own FAQ settles this better than either side's argument did.**
+`app.js:10264`, semaglutide:
+
+> *"Compounded semaglutide vials vary — the most common concentrations are 2.5 mg/mL, 5 mg/mL, and
+> 10 mg/mL, but some compounders produce 2 mg/mL, 7.5 mg/mL, or **12 mg/mL** formulations. …
+> **Selecting the wrong concentration is the most common dosing error — it can mean you draw two or
+> three times the intended dose.** … **Use the Custom option if your vial doesn't match a preset.**"*
+
+Three things, all in the product's own voice:
+
+1. It names **12 mg/mL** as a real vial, and `GLP1_CONC_VALUES` contains 12.5, **not 12**. *The web's
+   own list does not cover the web's own documented example.* That is the proof that no array is
+   long enough, and it is why the fix is typed entry rather than a longer list.
+2. It names the harm, and it is worse than the 25% this task was filed with: **wrong concentration is
+   the most common dosing error, worth two or three times the intended dose.**
+3. **"Use the Custom option if your vial doesn't match a preset."** The web documents an escape
+   hatch. On iOS's closed `Menu` that sentence was **advice the user could not follow** — so iOS was
+   not merely stricter than the web, it made the web's own printed instruction impossible.
+
+The sub-unit-draw note ported alongside the ceilings matters for the same reason: high concentration
+means small volume, which is the real risk once the ceiling is gone.
+
 ## Note — a stale T-51 was removed here by a merge cleanup, 2026-08-04
 
 The T-45 worktree branched from a `feature/tabview-shell` that predated T-51 being closed, so the
