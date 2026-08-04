@@ -138,10 +138,24 @@ final class T05PullToRefreshUITests: XCTestCase {
         return value
     }
 
+    /// WAITS FIRST, and that is the whole of the fix. The first run of this suite failed
+    /// `No hittable Calendar tab` at 57s — not because the tab is unreachable but
+    /// because this asked for it before the app had finished launching and
+    /// authenticating over the network. The shipped `CaptureCurrentState.tab` waits 8s
+    /// for existence before filtering for hittable, and this now does the same.
+    ///
+    /// `max(by: midY)` picks the LOWEST match: `Calendar` is both a tab-bar item and a
+    /// word that appears in screen content, so `.firstMatch` is a coin toss that
+    /// resolves to whichever the tree happens to yield first.
     private func tab(_ name: String) {
-        let button = app.buttons.matching(identifier: name)
-            .allElementsBoundByIndex.first { $0.isHittable }
-        XCTAssertNotNil(button, "No hittable \(name) tab.")
-        button?.tap()
+        let matches = app.buttons.matching(identifier: name)
+        XCTAssertTrue(matches.firstMatch.waitForExistence(timeout: 15),
+                      "No \(name) tab appeared within 15s — did the app finish launching?")
+        let lowest = matches.allElementsBoundByIndex
+            .filter { $0.isHittable }
+            .max { $0.frame.midY < $1.frame.midY }
+        XCTAssertNotNil(lowest, "\(name) exists but nothing hittable.")
+        lowest?.tap()
+        _ = app.wait(for: .runningForeground, timeout: 2)
     }
 }
