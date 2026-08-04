@@ -898,3 +898,91 @@ hit it has no way to tell a leaked lock from a live run. **Carried in a message;
 
 **Done when:** a killed sweep leaves no lock — demonstrated by killing one — or the lock records its
 owning pid so a stale one is recognisable.
+
+## T-57 — The web silently drops two protocol types, and three ACTIVE protocols are invisible today
+**Priority 7/10** · **Owner:** win · **Status:** open
+
+**What:** `lib/account-schedule.ts`'s `deriveDose` returns `null` for any `calculator_type` it has no
+branch for, and `deriveProtocols` discards a null — `if (!dose) return`, with **no `console.warn`, no
+Sentry or PostHog capture, and no user-facing message**. The row simply vanishes.
+
+T-06 filed this for `microdose`. **The measurement says microdose is the least of it.** Queried
+`public.saved_dosages` 2026-08-04:
+
+| type | rows | active | active users |
+|---|---|---|---|
+| `femalehrt` | 3 | **2** | 1 |
+| `oilblend` | 1 | **1** | 1 |
+| `microdose` | 2 | **0** | 0 |
+| `bioavailability` | 1 | 0 | 0 |
+
+**So T-06's type has no live victim and these two do: three active protocols belonging to two real
+users are missing from their own dashboards right now.** These are *web-created* types — iOS has no
+femalehrt or oilblend calculator — so this is not a cross-platform gap at all. It is the web dropping
+its own data.
+
+**Blast radius:** `DashboardContext.tsx:169` calls `deriveProtocols` once and all sixteen dashboard
+sub-components read the result from context — TodayCard, MySupply, SiteRotation, SerumChart,
+ScheduleCalendar, DoseHistory, UpcomingDoses. `CalendarView.tsx:234` calls it independently.
+`ProtocolList.tsx` and the rail read raw rows, so a dropped protocol is still listed and editable
+there — which is why this has gone unnoticed: it looks saved everywhere except where it matters.
+
+**Do not just add two branches — classify first.** The live configs say why:
+`femalehrt` is `{prog, test, proto, route, doseIdx}` with `route` values of `patch`, `cream` and
+`oral`; `oilblend` is `{comps:[…], injVol, injPerWeek}`. **A patch is not an injection**, so returning
+no injection schedule for it may be semantically correct — but the file already has an explicit
+`NON_SCHEDULABLE` list (`reconstitution` is on it, line 80) and neither type is. They are falling
+through the *unknown-type* path, not the *deliberately-not-scheduled* path, and those must not look
+the same. `oilblend` genuinely is injectable and genuinely should schedule.
+
+**Done when:** every `calculator_type` present in `saved_dosages` either derives or is on
+`NON_SCHEDULABLE` with a reason; a non-schedulable protocol is still visible to its owner rather than
+vanishing; and an unrecognised type is reported instead of discarded silently. Verified by the two
+affected users' protocols appearing on the dashboard.
+
+## T-58 — Every bpc157 protocol shows "Draw volume unknown", from a config-key mismatch
+**Priority 6/10** · **Owner:** win · **Status:** open
+
+**What:** `deriveDose`'s `bpc157` branch reads `cfg.concMcgMl` / `cfg.vialMcg` — the **legacy** config
+shape. Both the current web calculator (`public/app.js:10602-10620`, with an explicit comment about
+the old→new change) and iOS (`CalculatorCatalog.swift:454-468`) now save
+`{vialMg, bawMl, dose, syringeMl}`.
+
+**Measured, all five production rows:** every one uses the new shape; **none** carries `vialMcg` or
+`concMcgMl`. The live active row is `{dose:250, bawMl:2, vialMg:5, syringeMl:0.5}`. So `vol` computes
+`null` and `inv.conc` computes `0`, and `InventoryPanel` renders "Draw volume unknown" for the one
+user who has this protocol active.
+
+**The same legacy-key read is duplicated independently** in `ProtocolList.tsx:120-121`'s detail-chip
+renderer, so fixing one place will not fix the other.
+
+**Why it is a 6 and not higher — stated because it was checked for specifically:** this degrades to a
+visible "unknown" with a fallback message, **not** to a confidently wrong number. Every other branch
+was cross-checked key-by-key against what iOS saves — including the `doseUnitMcg`→`doseUnit` and
+`compound`→`slug` translations iOS performs before saving — and they match. **No branch was found
+that produces a plausible wrong dose.** That was the failure mode worth fearing and it is not present.
+
+**Done when:** `deriveDose` reads `vialMg`/`bawMl` and falls back to the legacy keys — the pattern
+already implemented correctly in `lib/edit-schema.json:186` — the duplicate in `ProtocolList.tsx` is
+repointed at the same helper, and the active bpc157 protocol shows a draw volume.
+
+## T-59 — iOS-logged history rewrites itself when a protocol is renamed; web-logged history does not
+**Priority 5/10** · **Owner:** mac · **Status:** open
+
+**What:** `dose_log` carries five display-snapshot columns — `protocol_label`, `compound_label`,
+`category`, `dose_label`, `scheduled_on` — whose stated purpose (`app/api/dose-log/route.ts:47-48`)
+is to freeze what a dose looked like when it was logged. The web writes all five on every log. iOS
+writes **none** of them: `NewDoseLogPin` has four fields and no snapshot columns.
+
+**What that costs:** `DoseHistory.tsx:80-93` falls back to a **live** protocol lookup when the
+snapshot is NULL. So if a user renames or deletes a protocol after logging a dose from the phone,
+that history row's label and category **change retroactively**, or degrade to "Unknown protocol" /
+"—" / "Other" — while a web-logged row for the same protocol stays frozen at its original values.
+Two rows in production are affected today.
+
+**Why it is a 5:** narrow trigger — it only surfaces on a later rename or delete — but it is the
+snapshot column doing the opposite of its purpose for exactly the rows iOS wrote, and the fourth
+instance of the same pattern after T-03, T-51 and T-08.
+
+**Done when:** an iOS-logged dose carries all five, and renaming its protocol afterwards leaves the
+history row unchanged — verified by a rename and a re-read, not by inspection.
