@@ -176,6 +176,14 @@ d5a4f448-81b6-433c-bd1f-65d15361f930 | peptide | 2026-08-03 | null  | null
 
 The second row is the other protocol, untouched — the write went to the selected protocol only.
 
+**Where the code is: `29a8ede`.** Not its own commit — that SHA is T-01a's, and it swept up the
+five T-03 files (`InjectionSite.swift`, `LogDoseSheet.swift`, `InjectionSiteTests.swift`,
+`LogDoseSiteRoundTripUITests.swift`, this file) because both sides were working the same tree at the
+same time and the calculator commit staged everything dirty. Nothing is lost and nothing is wrong in
+the tree — but the commit message describes only the calculator, so the SHA is written down here
+rather than left to be found. **Two agents in one working tree cannot both use `git commit -a`;**
+stage by path, or the other side's half-finished work ships under your message.
+
 ## T-04 — The dashboard's dose line never renders its volume
 **Priority 3/10** · **Owner:** mac · **Status:** filed
 
