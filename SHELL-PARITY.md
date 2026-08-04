@@ -406,9 +406,50 @@ nothing.
 
 ---
 
-## S-05 … S-06 — add/confirm-start, settings
+## S-05 — Add, category list (compared 2026-08-04) — **4 differences, and it is the closest screen we have**
 
-Not yet compared. Entries land here as they are done.
+Frames: iOS `docs/ui-audit/2026-08-04-post-t01a/05-add.png` (**the current set**) · web
+`screens/05-add-default.png`.
+
+**Say the good part first, because it changes what "parity work" means here.** This screen is nearly
+right. Same four categories, same order, same subtitles almost word for word, same chevrons, same
+purpose. Nothing structural is missing. Contrast S-01, where six of the web's components had no iOS
+existence at all. **The remaining four are placement and emphasis, not absence** — this is the one
+shell screen where the honest verdict is "adjust", not "build".
+
+### The differences
+
+1. **The question is demoted from heading to eyebrow.** Web: `What are you adding?` is the page's
+   own H1, with `Pick a category to find the right calculator.` directly beneath it as a subtitle.
+   iOS: a large nav title `Add`, then `WHAT ARE YOU ADDING?` as a small-caps eyebrow above the list.
+   The web asks a question; iOS labels a section.
+2. **The explanation moved below the list, and grew.** Web puts one sentence above the cards, where
+   it is read before choosing. iOS puts `Pick a category to find the right calculator, fill it in,
+   then add it to your protocols.` *underneath* them — after the decision it exists to inform.
+3. **Four cards became one.** Web renders four separate cards with gaps between them, so each reads
+   as its own tappable object. iOS renders a single grouped container with hairline dividers.
+4. **`female HRT` is missing from the hormones subtitle** — web reads `TRT, microdosing, HCG, female
+   HRT`. **This is honest, not a bug:** iOS has no female HRT calculator, and listing it would
+   advertise a screen that does not exist. It closes when **T-19** does, and not before.
+
+**Recorded as a deliberate divergence, not a defect:** iOS gives each category an icon — pills,
+syringe, test tubes, flask — and the web gives none. The standing decision is that iOS matches the
+web where it can; it does not say iOS may not be better. **Do not remove the icons to match.**
+
+**Two recurring items are NOT listed above** because they are not this screen's problem — the header
+shape and the navy-vs-teal hero appear on every shell screen and are filed once as **T-54**.
+
+**Still needed on this screen:** confirm-start has a web reference (`screens/05-add-confirm-default.png`)
+and **no iOS frame in any sweep**. It cannot be compared until it is photographed.
+
+---
+
+## S-06 — Settings
+
+**Not compared, and it cannot be from here: settings has not been photographed since 2026-08-01.**
+It is absent from `2026-08-02-current`, `2026-08-03-current` and `2026-08-04-post-t01a`. The only
+frame is `archive/2026-08-01/08-settings-default.png`, which predates every change made since.
+Filed as part of **T-55**.
 
 ---
 

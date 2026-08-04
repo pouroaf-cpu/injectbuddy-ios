@@ -799,3 +799,72 @@ are per week, `TRT Dose` has none. Three conventions and a blank, stacked.
 
 **Done when:** every card in that list carries a line that distinguishes it from every other card, in
 one unit convention — photographed against an account holding two protocols of the same type.
+
+## T-54 — Every shell screen's header says the brand where the web says the screen
+**Priority 5/10** · **Owner:** mac · **Status:** open
+
+**What:** on the web, the top bar names the screen you are on — `Dashboard`, `Injection Calendar`,
+`Add a protocol` — often with a breadcrumb back to where you came from (`‹ Dashboard`). On iOS every
+tab root shows the same brand lockup, `injectbuddy`, and the screen name appears below it as a large
+title, or not at all.
+
+**Why it is one task and not four:** it was written up separately in `SHELL-PARITY.md` §S-01 #9,
+§S-02 #8 and §S-05 before it was obvious that all three are the same decision applied five times.
+Fixing it screen by screen would produce five slightly different headers.
+
+**Second recurring item, folded in here for the same reason:** the raised centre `Log dose` hero is
+**teal** on the web and **navy** on iOS, on every screen that shows the tab bar. Teal is the web's
+primary-action colour and navy is its icon/label colour; iOS has the pair inverted. Same inversion
+appears on the log-dose sheet's own CTA (S-04 #6).
+
+**Careful — this one interacts with T-05.** `RouteContent` gives the Dashboard an inline title and
+every other tab root a large one, and that difference is T-05's leading candidate for the dead
+pull-to-refresh. **Whatever is done here changes the thing T-05 is trying to measure**, so measure
+T-05 first or the experiment is spoiled.
+
+**Done when:** one header treatment names the screen on every shell root, photographed across all
+five, and the hero matches the web's colour.
+
+## T-55 — Two screens cannot be photographed, so nothing about them can be verified
+**Priority 5/10** · **Owner:** mac · **Status:** open
+
+**What:** three surfaces have no current frame, for two different reasons.
+
+**a) `bmi` and `freetest` are unphotographable while withdrawn.** `isListed` is false for both, so
+Tools cannot reach them — and the capture harness navigates by tapping a Tools row. Their only frames
+predate T-01a. **Found by mac during the 2026-08-04 sweep and reported in the channel; filing it,
+because rule 6 says a defect found while doing a task is added here immediately and this one was
+carried in a message.** It is a hole in the harness, not in the sweep: any calculator that is
+withdrawn from Tools becomes unverifiable by the same mechanism, so this recurs the next time
+something is withdrawn.
+
+**b) Settings has not been photographed since 2026-08-01.** Absent from `2026-08-02-current`,
+`2026-08-03-current` and `2026-08-04-post-t01a`. The one frame,
+`archive/2026-08-01/08-settings-default.png`, predates everything built since, so `SHELL-PARITY.md`
+§S-06 cannot be written.
+
+**c) Confirm-start has no iOS frame in any sweep**, while the web reference
+`screens/05-add-confirm-default.png` exists. Same consequence: uncomparable.
+
+**Why it matters beyond the three:** this project's whole standard is that nothing closes without a
+photograph or a query. A screen the harness cannot reach is a screen that can never be closed — so
+the gap is not "three missing images", it is three surfaces permanently exempt from the bar
+everything else is held to.
+
+**Done when:** the harness can reach a calculator that is not listed in Tools, and Settings and
+confirm-start appear in the sweep.
+
+## T-56 — The rig's lock does not survive a killed capture run
+**Priority 4/10** · **Owner:** mac · **Status:** open
+
+**What:** the full sweep takes **972 seconds**. Mac's first attempt on 2026-08-04 hit a 10-minute
+command timeout; the process was SIGKILLed and **the lock trap did not run**, leaving the rig locked
+with nothing holding it. It was released by hand.
+
+**Why it matters:** the rig is the one serialised resource in this project — every device check goes
+through it. A lock that leaks whenever a run is killed will strand it again, and the next person to
+hit it has no way to tell a leaked lock from a live run. **Carried in a message; filed here per rule
+6.**
+
+**Done when:** a killed sweep leaves no lock — demonstrated by killing one — or the lock records its
+owning pid so a stale one is recognisable.
