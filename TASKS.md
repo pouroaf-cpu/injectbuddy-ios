@@ -42,6 +42,15 @@ job carried in a message does not survive a context clear.
     perfectly because the feature under test was never armed — and sent the next person chasing
     causes that had already been cleared.
 
+13. **An agent in a worktree must rebase before writing to a SHARED FILE, not only before committing
+    code.** On 2026-08-04 a T-45 worktree cut from a tip that predated T-51's closure merged cleanly
+    and **resurrected the open version of T-51 beside the struck-through one** — two headings, one
+    id, one of them stale. Rules 9 and 10 did not cover it: the write was to the right file, from the
+    right block, by the right owner, and still wrong, because the branch point was old. Git cannot
+    help here — both versions are legitimate text.
+    **And a silent tidy-up is indistinguishable from quietly dropping a task**, so a duplicate
+    removed this way leaves a note saying what happened.
+
 **Priority** is out of 10 — 10 is a user is being harmed today, 1 is tidy-up.
 **Status:** `open` · `doing` · `blocked` · `done` · `filed` (real, deliberately not being worked)
 **Owner:** `mac` · `win` · `pouroa`
@@ -1444,9 +1453,24 @@ as observed — the lock warns that `xcodebuild` is already running while the le
 worktree agent was compiling without taking it. It cannot currently distinguish the two, so it is
 simultaneously too strict and too permissive.
 
-**Done when:** a build and a device run can be correctly serialised against each other — either two
-leases with the device one held only for the run, or one lease that records which resource it holds
-— demonstrated by a compile and a capture that do not falsely block or falsely pass.
+**PROVEN 2026-08-04, and it is no longer a theory.** A T-05 run acquired the device lock after **99
+retries** and then died:
+
+> `error: unable to attach DB: … build.db: database is locked. Possibly there are two concurrent
+> builds running in the same filesystem location.`
+
+**The rig lock protected the simulator and nothing protected `DerivedData`.** The device was held
+legitimately while an agent compiled into the same build directory. So the framing "one lock cannot
+tell compiling from driving" is still too generous: **these are two different resources that need two
+different locks, and only one of them exists.** A single lease can never be right — held for the
+whole build it serialises work that need not be, held only for the run it leaves the build directory
+unguarded, which is what happened.
+
+**Done when:** a build and a device run are serialised against each other by **two** leases — one for
+`DerivedData`, one for the simulator — with the device lease held only for the run; and the lease
+records its holder's pid **as information**, so a waiter can tell a dead holder from a live one
+without that pid ever becoming the exclusion mechanism. Demonstrated by a compile and a capture that
+neither falsely block nor falsely pass, and by a waiter correctly identifying a dead holder.
 
 ## T-57 — The web silently drops two protocol types, and three ACTIVE protocols are invisible today
 **Priority 7/10** · **Owner:** win · **Status:** open
