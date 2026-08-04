@@ -334,7 +334,79 @@ the argument does not apply: the calendar is `robots: noindex`, so its explainer
 
 ---
 
-## S-04 … S-06 — add/confirm-start, log-dose sheet, settings
+## S-04 — Log-dose sheet (compared 2026-08-04) — **6 differences**
+
+Frames: iOS `docs/ui-audit/2026-08-03-current/08-logdose-sheet-IB2245782.png` · web
+`screens/03-log-dose-sheet-open.png`.
+Web source: `components/account/dashboard/DashLogFlow.tsx`, `DashboardContext.tsx:352`.
+
+**Read the frame's date before using it.** That frame is from 2026-08-03 05:50. **T-03's site picker
+landed at `29a8ede`, 2026-08-03 22:51 — sixteen hours later.** So the sheet in the picture has no
+site row and the sheet in the code does. Nothing below claims the site is missing; it is built. The
+next capture supersedes this frame.
+
+### What we have now
+
+`Features/Log/LogDoseSheet.swift` — `WHICH PROTOCOL?` as a list of selectable cards, a `Day` row, and
+a navy `Log dose` button. Post-T-03 it also asks for the site, seeded one step past the last site
+logged against that protocol (the web's own `nextSiteIdx`), and derives `draw_ml` from the protocol's
+config via `DoseVolume.perInjectionMl` — no volume picker, but no NULL either.
+
+The write payload is the whole story. `Core/Models/Models.swift:208-219`:
+
+```swift
+struct NewDoseLogPin: Encodable {
+    var protocolId: String   // protocol_id
+    var dosedOn: String      // dosed_on   — a bare calendar day
+    var drawMl: Double?      // draw_ml
+    var site: String?        // site
+}
+```
+
+**Four columns.** The web writes `injected_at`, `injection_time` and `injection_timezone` as well
+(`DashboardContext.tsx:352`, `DoseHistory.tsx:287`). `grep -rn "injected_at" Sources/` returns
+nothing.
+
+### The differences
+
+1. **No injection time, so the serum chart plots iOS doses at an assumed noon.** The web's sheet has
+   an `INJECTION TIME · OPTIONAL` field with a stated default and timezone — "Defaults to 12:00 pm ·
+   America/New_York". iOS records a bare day.
+   **Checked rather than assumed:** this does *not* break the chart. `SerumChart.tsx:169-178` falls
+   back — ``new Date(`${row.dosed_on}T${row.injection_time || '12:00'}:00`)`` — so the point still
+   plots. What it costs: every iOS-logged dose sits at noon on the curve regardless of when it was
+   taken, and because that fallback string has no zone it is parsed in **the viewer's** local time,
+   so the same row lands at a different absolute moment for a reader in Auckland than in New York.
+   The comment directly above it says this is "what makes the curve reflect reality: … logging one
+   adds the time, so the curve jumps the moment it lands." For iOS rows it jumps at noon.
+   `observedIntervalFor` then derives cadence from those timestamps, quantised to whole days.
+   **Same shape as T-03** — a column iOS declines to fill that a web feature reads — but a degraded
+   curve rather than a hole, so it ranks below it.
+2. **No dose amount field.** The web's sheet has an editable `DOSE AMOUNT` (`0.5 mg`). iOS writes the
+   protocol's implied volume and offers no override, so **a partial or adjusted dose cannot be
+   recorded** — it goes in as if it were the full one. On a dosing tracker that is the user's data
+   being silently rounded to the plan.
+3. **The sheet never says what you are about to log.** Web header: `Log injection` over
+   `0.5mg · Semaglutide · 0.5 mg · SubQ` — including the **route**. iOS: `Log a dose`, and the
+   identity is only whatever the selected card happens to show.
+4. **Two protocol cards are indistinguishable.** The frame lists `TRT Dose` twice, both with no
+   supporting line. They are legitimately different rows — the dedup index is
+   `(user_id, calculator_type, config)`, so two TRT protocols with different configs are allowed —
+   but the sheet renders nothing that differs, so **the user picks which dose to log by guessing.**
+   On the write path of a dosing app that is the most serious item on this screen.
+5. **Card meta mixes units within one list.** `TB-500 · 350mcg/inj` (per injection) against
+   `Masteron · 300 mg/wk` and `Testosterone Cypionate · 0mg/wk` (per week), and `TRT Dose` with
+   none. Three conventions and a blank, stacked.
+6. **The primary action is navy and unexplained.** Web: a full-width **teal** `Log it` under a line
+   saying what it will do — "Records the injection against the date + site you chose, for your own
+   tracking." iOS: a navy `Log dose` with no such line. Teal is the web's primary-action colour here
+   and navy is its icon/label colour; iOS has them the other way round.
+
+**Done when:** each of the six is built, or recorded here with the reason it cannot be.
+
+---
+
+## S-05 … S-06 — add/confirm-start, settings
 
 Not yet compared. Entries land here as they are done.
 
