@@ -1058,3 +1058,58 @@ instance of the same pattern after T-03, T-51 and T-08.
 
 **Done when:** an iOS-logged dose carries all five, and renaming its protocol afterwards leaves the
 history row unchanged — verified by a rename and a re-read, not by inspection.
+
+## T-60 — The web has TWO compound tables that disagree on 13 half-lives, and one falsely claims to be the only one
+**Priority 8/10** · **Owner:** win · **Status:** open
+
+**What:** the web tree carries two independent pharmacokinetic tables.
+
+- `public/app.js:10949` — `PLOTTER_COMPOUNDS`, 31 entries, **with a `tmax` on every row**. This is
+  what the live cycle plotter runs on.
+- `spec/compounds.json`, 31 entries, **no `tmax` on any row**. Its own `$comment` reads: *"Generated
+  from public/legacy/cycle-plotter/pk.js by spec/generate-vectors.mjs. Do not hand-edit. **This file
+  is the single source of truth for compound half-lives across web, iOS and Android.**"*
+
+**They are not generated from each other, and they do not agree.** Matched 19 compounds by name;
+**13 disagree on half-life**:
+
+| compound | `app.js` | `spec/compounds.json` | ratio |
+|---|---|---|---|
+| Trenbolone Acetate | 1.5 | 3 | **2.0×** |
+| PT-141 | 0.113 | 0.5 | **4.4×** |
+| Melanotan II | 3.7 | 1.5 | **2.5×** |
+| CJC-1295 (no DAC) | 0.021 | 0.08 | **3.8×** |
+| BPC-157 | 0.17 | 0.25 | 1.5× |
+| Trenbolone Enanthate | 5.5 | 7 | 1.3× |
+| Testosterone Cypionate | 5 | 6 | 1.2× |
+| Testosterone Undecanoate | 20 | 21 | — |
+| CJC-1295 + DAC | 8 | 7 | — |
+| Ipamorelin · HGH · IGF-1 LR3 · Retatrutide | minor | | |
+
+The remaining 12 do not match by name at all — the two tables use different id and label
+vocabularies (`eq` vs `boldenone`, `reta` vs `retatrutide`), so nothing would ever have flagged the
+divergence automatically.
+
+**Why this is 8 and why it is the web's problem, not the port's.** A half-life drives the whole
+accumulation curve. Two tables that disagree by 2–4× produce materially different pictures of the
+same protocol, and the file asserting sole authority is **not** the one the live plotter uses. So:
+
+- **Any port is guaranteed to be "wrong" against one of them**, whichever it copies, through no fault
+  of its own.
+- **It invalidates a finding in mac's T-42 that would otherwise have sent work the wrong way.** T-42
+  reports iOS's compound table disagreeing with `spec/compounds.json` on 15 half-lives, and reports
+  its `tmax` values as having no web origin. Corrected: `PLOTTER_COMPOUNDS` **does exist** — mac's
+  message said it does not — it **does** carry `tmax`, and iOS's comment citing it is accurate. iOS
+  is faithfully mirroring the table the live web actually runs. **Do not "fix" iOS to match
+  `spec/compounds.json` until the web decides which table is real.**
+
+**T-42's core is untouched and still stands.** `spec/math-spec.md:204-206` verbatim: *"This yields
+**mg-equivalents of active drug, not ng/dL.** … the chart is labelled in mg and must never claim a
+lab number. **A port must not add a unit conversion here.**"* That is a separate defect from this
+one and does not depend on which table wins.
+
+**Done when:** one table is the source and the other is generated from it or deleted; the id
+vocabularies are reconciled so a mismatch is detectable; and `spec/compounds.json`'s claim to be the
+single source of truth is either made true or removed. Verified by a script that fails when the two
+disagree — **the check has to outlive the fix**, because nothing detected this for however long it
+has been true.
