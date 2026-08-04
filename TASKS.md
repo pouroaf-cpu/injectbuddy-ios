@@ -885,7 +885,14 @@ the artefact, not the exit code.
 **T-43 gets this for free:** it is the same defect on the Free T Index total-testosterone picker
 with a factor of 28.84, and it now needs a `unitScaling:` declaration rather than a new mechanism.
 
-## T-45 — `step` is declared on every numeric field and read by nothing
+## T-46 — `step` is declared on every numeric field and read by nothing
+
+**RENUMBERED from T-45 by mac, 2026-08-04.** T-45 was already handed to the GLP-1
+truncation job before this was filed — my allocation error, not the filer's. Two tasks under one
+ID is the exact failure rule 10 exists to prevent, and it recurred inside my own block because I
+handed out IDs from it without recording them. Worth noting the block scheme only protects
+BETWEEN the two sides; WITHIN a block it protects nothing unless issued IDs are written down as
+they are issued.
 **Priority 3/10** · **Owner:** mac · **Status:** open
 
 **What it does now:** `CalculatorInput.Kind.number` carries a `step`, fifteen calculators declare one
