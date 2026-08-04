@@ -1838,6 +1838,34 @@ recomposing it from `dosed_on` — a workaround, not a fix, and it is commented 
 **Done when:** one frame produces every `dosed_on` in the app, chosen deliberately, and a test pins a
 device-zone morning east of UTC to the day the user would name.
 
+**CORRECTED 2026-08-04 by win, from production — read this before fixing it.**
+
+**No instance found.** `dose_log` was searched for the signature (same protocol, `dosed_on` one day
+apart, created within six hours). Exactly one candidate, and on inspection it is NOT this bug: the
+two rows have `dosed_on` and `scheduled_on` **mirrored** and **different sites**, both written
+2026-07-29 — before iOS could write a site at all, so both are web-written. It is the web's
+move-a-dose feature used twice. **It looked like this defect in the aggregate and stopped looking
+like it the moment the rows were read.** Say "no instance found" here rather than implying damage, or
+whoever closes this will go hunting for harm that does not exist.
+
+**DO NOT STANDARDISE ON UTC — that was the obvious fix and it is the wrong one.** The web is
+deliberately LOCAL and carries a comment written against exactly this hazard, in
+`DashboardContext.tsx`'s `ymd` helper: *"local 'YYYY-MM-DD' (matches parseLocalDate / a Postgres
+date) — never toISOString (that would shift the calendar day for negative-UTC offsets)"*. Every
+web-written `dosed_on` is a local calendar day, and the unique index is shared, so iOS's frame must
+agree with the web's or the two clients collide on the index while each believes it is right.
+**`LogDoseSheet`'s `TimeZone.current` is the correct path; `DoseProjection`'s UTC is the odd one
+out.**
+
+**One nuance so the fix does not overshoot:** local is right for the EMITTED CALENDAR DAY, not
+necessarily for the INTERVAL ARITHMETIC — stepping N days across a DST boundary in local time can
+gain or lose an hour and drift a projection. Keeping the arithmetic in UTC and converting only where
+a `dosed_on` is produced is a defensible shape. What must not survive is two surfaces disagreeing
+about what day it is.
+
+**Done when:** both surfaces emit the same local calendar day for the same instant, a test pins an
+Auckland morning producing one `dosed_on` from both paths, and the DST case is pinned too.
+
 ## T-83 — iOS cannot say what time a dose was taken; the web can
 **Priority 4/10** · **Owner:** mac · **Status:** open
 
