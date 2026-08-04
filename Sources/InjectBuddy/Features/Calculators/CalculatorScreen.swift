@@ -902,6 +902,22 @@ private struct ResultCard: View {
                     SecondaryResultRow(label: "Volume", value: line,
                                        identifier: identifier(for: "Volume"))
                 }
+                // The engine's own advisories (T-45), ABOVE the barrel note and in
+                // the web's order. Two different kinds of statement, deliberately
+                // styled apart: these are about the DOSE — is it above the compound's
+                // typical weekly maximum, is the draw too small to measure — while
+                // the capacity note below is about whether the number fits the
+                // hardware. Same amber-vs-red distinction the web draws with its
+                // orange `InfoBox`.
+                // INDEXED, not named after the sentence and not sharing one name.
+                // Two elements answering to one identifier is an AMBIGUOUS query and
+                // it fails at RESOLUTION, before any assertion runs — the failure this
+                // file already paid for once with `result_Weekly total`. Both notes
+                // cannot currently fire at once (that needs conc > 100 × dose, and
+                // conc clamps at 60), but a test must not be resting on that.
+                ForEach(Array(result.notes.enumerated()), id: \.offset) { i, note in
+                    AdvisoryNote(text: note, identifier: "\(idPrefix)note_\(i)")
+                }
                 if let note = capacityNote {
                     CapacityWarning(text: note)
                 }
@@ -1013,6 +1029,51 @@ private struct ResultSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .onAppear { focusOnLead = true }
+    }
+}
+
+/// A dosing advisory from the engine — the web's orange `InfoBox` (T-45).
+///
+/// AMBER, NOT RED, and the two are different statements. `CapacityWarning` below is
+/// red because the number does not fit the syringe in front of the user: it cannot be
+/// drawn as shown. This one carries a dose that is entirely drawable and entirely
+/// possibly correct — *"Exceeds typical weekly maximum of 2.4 mg — verify with your
+/// prescriber"* is addressed to someone who may well have been prescribed it. Painting
+/// that red would either stop a legitimate protocol or, far worse, teach the user that
+/// red on this screen is usually nothing.
+///
+/// Same construction as `CapacityWarning` otherwise: icon + text + filled shape, so it
+/// survives greyscale and every form of colour vision deficiency, and it is one
+/// combined accessibility element so VoiceOver reads the sentence rather than the icon.
+/// `Theme.warning` is #B45309 — the web's #F97316 taken to a text-legal contrast
+/// (5.9:1 on the card) rather than shipped at the web's own ratio.
+private struct AdvisoryNote: View {
+    let text: String
+    let identifier: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Theme.warning)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(Theme.Typeface.cardMeta)
+                .foregroundStyle(Theme.warning)
+                // NEVER truncates. The sentence names a number (`2.4 mg`) and then
+                // says what to do about it; a note clipped at "Exceeds typical weekly
+                // maxim…" has lost the only actionable half.
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.control)
+                .fill(Theme.warning.opacity(0.08))
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Warning. \(text)")
+        .accessibilityIdentifier(identifier)
     }
 }
 

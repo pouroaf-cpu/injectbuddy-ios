@@ -844,6 +844,68 @@ the compound dropdown as separate entries ("Trenbolone Enanthate"); iOS forces `
 **Done when:** an oral compound renders no injectable inputs and no draw volume, the ester is
 selectable, and the Tren E case is shown returning 213 mg.
 
+## ~~T-45 — The GLP-1 option lists were truncated at the web's warning thresholds, and the warnings were gone with them~~
+**Priority 9/10** · **Owner:** mac · **Status: done** — `SHA-T45`, unit suite green (see evidence)
+
+**What it did:** `CalcConst` held PREFIXES of four `app.js` arrays. Counted on both sides
+2026-08-04, and the truncation claim in T-01b-3/4/5 is confirmed to the value:
+
+| list | iOS was | web is | iOS stopped at | web runs to |
+|---|---|---|---|---|
+| `glp1Concs` / `GLP1_CONC_VALUES` | 12 | **17** | 20 mg/mL | 60 mg/mL |
+| `semaDoses` / `SEMA_DOSE_VALUES` | 11 | **22** | 2.4 mg | 7.5 mg |
+| `tirzDoses` / `TIRZ_DOSE_VALUES` | 7 | **17** | 15 mg | 40 mg |
+| `retaDoses` / `RETA_DOSE_VALUES` | 16 | **22** | 12 mg | 24 mg |
+
+**Why it was worse than a short list, and both halves are in the fix:**
+
+1. **Every dose list was cut at EXACTLY the web's warning threshold** — 2.4 / 15 / 12, the values
+   behind `isValid && dose > N` on the three pages. iOS therefore enforced the ceiling by deleting
+   the option instead of warning about it, and the sentence went with the option: a user prescribed
+   above the Wegovy or SURMOUNT ceiling got **nothing**, where the web gives them
+   *"Exceeds typical weekly maximum of N mg — verify with your prescriber."* Neither of the web's two
+   GLP-1 `InfoBox`es existed on iOS; the second is
+   *"Draw is less than 1 unit — accuracy may be limited at this scale."* (`isValid && volumeMl < 0.01`).
+2. **The control was a closed SwiftUI `Menu`, so the list WAS the reachable set.** A 25 mg/mL
+   compounded vial had no correct option; the nearest was 20, and `glp1(conc: 20, dose: 0.5)` returns
+   **0.025 mL / 3 u instead of 0.020 mL / 2 u — a draw 25 % larger than the true one**, on a screen
+   that looks entirely normal.
+
+**What was built:** all four arrays restored verbatim; both `InfoBox`es ported as
+`CalculatorResult.notes` and rendered as an amber `AdvisoryNote` (amber not red — a dose over the
+typical maximum may well be the prescribed one, and red here would teach the user to ignore red on
+this screen); `conc` and `dose` on all three calculators changed from `.picker` to `.number`, so they
+take **typed entry** clamped to the array's own bounds with the full array spent as the `TickDrum`
+ruler beside the field.
+
+**Typed entry was required, not a nicety.** Lengthening the list does not fix #2 on its own — any
+value BETWEEN two entries stays unreachable, and compounded vials do not come on a preset ladder.
+The web accepts a typed value off the list on **both** builds: deployed/`master` `ConcDrumField`
+takes any positive number rounded to 2 dp, and `feature/dosage-status-model`'s `QuickPickerField`
+clamps to the array bounds and snaps to half its first gap. The page's own FAQ names **12 mg/mL** as
+a strength compounders produce and 12 is **not** in `GLP1_CONC_VALUES` — so the web's own copy
+describes a value only typed entry can reach.
+
+**The config shape did not move, deliberately.** `.picker` and `.number` both encode through
+`case .number` in `configJSON()`, so the key sets are unchanged — semaglutide 6, tirzepatide and
+retatrutide 3 — and a test asserts it. Defaults are unchanged too (5/7.5/5 and 0.5/5/1); moving them
+is SH-5's job. **The wrong comment in `configExtras` is corrected in the same file:** it claimed the
+three GLP-1 slugs do not share a config shape and that *grouping* them caused the mismatch. All three
+`handleSave`s write the same six keys on `master`, on the branch and in the deployed bundle, so
+**splitting** them caused it. The keys themselves are NOT changed here — see T-01b-4 #2 / T-01b-5 #2,
+which must close with a row read back out of the database.
+
+**Evidence:** `Tests/InjectBuddyTests/Glp1OptionParityTests.swift` — 18 tests, all green, pinning each
+array's length and every value against the literals transcribed from `app.js`; the thresholds; the
+warning strings to the character including the U+2014 em dash; the warnings firing one ladder step
+above the threshold and silent AT it; the 25 mg/mL case as arithmetic (`0.025 / 0.020 = 1.25`); and
+the config key sets. Sources cross-checked: the working tree (`master`), `feature/dosage-status-model`
+and the deployed `https://www.injectbuddy.com/app.js?v=e10ca869` — **all three agree on the four
+arrays and on all six warning strings.**
+
+**Left open, filed on:** T-71 (the typed value is not snapped to the web's grid), T-72 (`conc` clamps
+at 60 where the deployed build has no upper bound), T-73 (no preset chips under the two fields).
+
 ## T-51 — iOS logs no injection time, so the web plots its doses at an assumed noon
 **Priority 5/10** · **Owner:** mac · **Status:** open
 
@@ -1113,3 +1175,77 @@ vocabularies are reconciled so a mismatch is detectable; and `spec/compounds.jso
 single source of truth is either made true or removed. Verified by a script that fails when the two
 disagree — **the check has to outlive the fix**, because nothing detected this for however long it
 has been true.
+
+---
+
+## T-71 — A typed GLP-1 value is not snapped to the web's grid, so an off-grid save cannot dedup
+**Priority 3/10** · **Owner:** mac · **Status:** open
+
+**What it does now:** T-45 gave the GLP-1 `conc` and `dose` fields typed entry. iOS's `NumberField`
+clamps a typed value into the field's range and does not snap it to any grid. The web does snap, and
+the two builds snap differently:
+
+- deployed / `master` — `ConcDrumField` rounds `conc` to **2 dp**; `SliderField` clamps `dose` to
+  `[min, max]` and snaps it to `step` (sema 0.25, tirz 2.5, reta 0.5).
+- `feature/dosage-status-model` — `QuickPickerField` clamps both to the array bounds and snaps to
+  **half the array's first gap** (conc 0.5, sema 0.125, tirz 1.25, reta 0.25).
+
+**Why it is a 3 and not higher.** The number iOS keeps is the user's own vial strength and the
+arithmetic on it is exact, so no dose is wrong. The cost is the fingerprint: `saved_dosages` dedups
+on the whole config, so an iOS row at `conc: 6.3` never resolves to the web row the same user would
+have saved at `6.5`. Every value in ordinary clinical use (1, 2, 2.5, 5, 7.5, 10, 12, 12.5, 15, 20,
+25) is already on both grids, so the divergence needs a deliberately odd entry to reach.
+
+**Not fixed inside T-45 on purpose.** `NumberField` clamps on EVERY KEYSTROKE and rewrites the
+visible text when the clamp bites; snapping on the same edge would rewrite the number under the
+caret mid-entry (typing `0.25` would go `0.2` → snapped `0.25` → `0.255` → `0.25`). The web snaps on
+BLUR. Doing this properly means a commit-time edge on that control, which is a change to every
+numeric field in the app and needs its own pass. `TickDrum`'s own doc comment argues the opposite
+case and should be read first: *"a TYPED value need not be on a tick … snapping the user's typed dose
+to the nearest 5 would be the calculator editing the number the user acts on."*
+
+**Done when:** a decision is recorded either way — snap on commit and match the web, or document the
+divergence in `CALC-PARITY.md` as deliberate — and if it is snapped, a test pins iOS and the web to
+the same value for a typed off-grid entry.
+
+## T-72 — iOS clamps GLP-1 concentration at 60 mg/mL; the deployed web has no upper bound
+**Priority 3/10** · **Owner:** mac · **Status:** open
+
+**What it does now:** T-45 set the `conc` field's range to `0...60`, the bounds of
+`GLP1_CONC_VALUES`, which is exactly what `feature/dosage-status-model`'s `QuickPickerField` clamps
+to. The **deployed** build does not clamp at all — `ConcDrumField` accepts any positive number and
+only rounds it to 2 dp. So a vial above 60 mg/mL is typeable on the live site and is snapped down to
+60 on iOS.
+
+**Why it is a 3.** 60 mg/mL is already multiples of any GLP-1 vial that exists; nothing in the
+production protocol mix comes close. And iOS's clamp REWRITES THE VISIBLE TEXT when it bites, so a
+refused value is seen rather than silently absorbed — this cannot produce a wrong number shown as a
+right one, which is the class that earns a high priority on this list.
+
+**The real finding underneath it** is that the two web builds disagree about whether concentration
+has a ceiling at all, and `TASKS.md`'s ordering of truth puts the deployed build above the branch.
+Whichever wins, iOS should copy it rather than pick.
+
+**Done when:** the web has one answer and iOS matches it.
+
+## T-73 — The GLP-1 fields have no preset chips, and the web's computed ones are not portable
+**Priority 2/10** · **Owner:** mac · **Status:** open
+
+**What:** T-45 gave the GLP-1 `conc` and `dose` fields the ruler and typed entry but left `quick: []`
+— no one-tap chips, where TRT's weekly dose has `[100, 200, 300, 400, 500]`. So the commonest
+concentrations (5, 10, 12.5) take a keystroke rather than a tap.
+
+**Why the web's own chips were NOT ported.** On `feature/dosage-status-model`, `QuickPickerField`
+DERIVES its ladder — `[1,2,3,4,5].map(i => snap(max * i / 5))` — which for `GLP1_CONC_VALUES` yields
+**12 · 24 · 36 · 48 · 60 mg/mL** and for tirzepatide's dose yields **7.5 · 16.25 · 23.75 · 32.5 · 40
+mg**. Those are arithmetic on the array's maximum, not clinical values, and half of them are
+strengths and doses nobody holds. Shipping them verbatim would have put a misleading one-tap row on
+a dosing screen in the name of parity; inventing a better row is a design decision that belongs to
+the owner, not to a defect fix. So neither was done, and the reason is written down here rather than
+left as an empty array someone later reads as an oversight.
+
+**Also note** the deployed build has no chip row on these fields at all — it renders a `DrumPicker`
+plus an exact-entry box — so "the web has chips here" is only true on the unmerged branch.
+
+**Done when:** either a chip row is specified by the owner and built, or this is closed as
+deliberately absent with the deployed build cited.
