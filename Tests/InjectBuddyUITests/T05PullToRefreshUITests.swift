@@ -137,13 +137,53 @@ final class T05PullToRefreshUITests: XCTestCase {
             settled = now
         }
 
+        // ── THE WINDOW, IN UTC, PRINTED FOR AN OBSERVER THIS SIDE CANNOT SEE ──────
+        //
+        // Closing T-05 needs the half a reload counter cannot reach: did a REQUEST
+        // leave the device. Windows has read access to the database's API log — the
+        // same observer that condemned the affordance originally — and cannot touch
+        // the device; this side drives the device and cannot see the log. So the pull
+        // is timestamped and the window handed over.
+        //
+        // NEITHER SIDE CAN FAKE IT, and that is the point of doing it this way: a
+        // closure that fires without a request looks identical, from here, to a
+        // closure that fires with one.
+        //
+        // The quiet gap matters as much as the timestamps. The screen's own initial
+        // load also hits the API, so without separation the pull's read and the
+        // arrival read are one indistinguishable burst in the log — and "a request
+        // arrived" would prove only that the app launched.
+        let stamp = ISO8601DateFormatter()
+        stamp.formatOptions = [.withInternetDateTime]
+        stamp.timeZone = TimeZone(identifier: "UTC")
+
+        // STAMPED BEFORE THE SLEEP, AND THE FIRST VERSION WAS NOT.
+        //
+        // It stamped `quietFrom` AFTER the 8 seconds, so the printed value was where
+        // the quiet period ENDED — identical to `pull-at`, which reads as a zero-length
+        // gap and makes the whole discriminator look absent. The silence was really
+        // there; the label pointed at the wrong boundary.
+        //
+        // Small, and it is the same failure as the rest of today in miniature: an
+        // instrument reporting something adjacent to what it claims. The handoff of
+        // this window to an observer who CANNOT see the device is exactly where a
+        // mislabelled boundary does damage — they would have had eight seconds of
+        // arrival traffic and a gap they were told was empty.
+        let quietFrom = stamp.string(from: Date())
+        Thread.sleep(forTimeInterval: 8)
+
+        let pullAt = stamp.string(from: Date())
+        print("T05-WINDOW quiet-from=\(quietFrom)")
         pullDown()
         // Generous: the assertion is about whether the closure ran at all, and a slow
         // reload must not read as "never fired".
         Thread.sleep(forTimeInterval: 5)
+        let pullEnd = stamp.string(from: Date())
 
         let after = try count(from: probe)
         print("T05 inline=\(expectingInline) before=\(settled) after=\(after) probe=\(probe.label)")
+        print("T05-WINDOW pull-at=\(pullAt) pull-end=\(pullEnd) "
+              + "reloads=\(settled)->\(after) inline=\(expectingInline)")
         return (settled, after)
     }
 
