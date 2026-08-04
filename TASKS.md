@@ -2301,8 +2301,55 @@ actually becomes the request, now non-`private` so it can be asserted) carries a
 names. 11 tests, green in an 85-test run, and shown failing first against a deliberately wrong
 column name. See T-51 for the same evidence chain on the other three columns.
 
-## T-60 — The web has TWO compound tables that disagree on 13 half-lives, and one falsely claims to be the only one
-**Priority 8/10** · **Owner:** pouroa · **Status:** filed — **PARKED 2026-08-05 by the owner**, who is resolving it with a separate agent.
+## T-60 — iOS's plotter compound table was copied from a DEAD web table
+**Priority 6/10** · **Owner:** mac · **Status:** open · **Agent:** —
+
+**⚠ REWRITTEN 2026-08-04. The original framing was wrong and it was win's. Old text is below, per
+rule 7 — it is the reason the task existed and the reason it was parked.**
+
+**What was claimed:** the web ships two compound tables that disagree on 13 half-lives, and the one
+declaring itself the single source of truth is NOT the one the live plotter uses. Owner parked it as
+a pharmacological question.
+
+**What is actually true.** `PLOTTER_COMPOUNDS` in `public/app.js` **is dead.** The in-app plotter was
+removed in favour of the standalone `/cycle-plotter/` page — `App()` redirects `plotter` straight
+there — and nothing reads that table any more. The live plotter is
+`public/legacy/cycle-plotter/pk.js`, which is exactly what `spec/compounds.json`'s own `$comment`
+says it is generated from.
+
+**Compared properly, they agree on all 31 compounds. Zero disagreements.** So
+`spec/compounds.json`'s claim to be the single source of truth is **TRUE**, and the 13 "disagreements"
+were between the live table and a corpse.
+
+**How the wrong conclusion was reached, because the mechanism is the lesson.** Win's doc-claim
+checker compared the spec against `PLOTTER_COMPOUNDS`, found 13 differences, and reported them.
+**The instrument was pointed at the wrong artefact, so it produced a real-looking failure — and a
+FAILING check is trusted harder than a passing one.** It then generated a task, a parked owner
+decision, and an instruction to mac not to reconcile against the spec. All three were wrong, from one
+mis-aimed check. The checker is repointed at `pk.js` and now reports 6 of 6.
+
+**The real finding, which is smaller but actionable, and it is on the iOS side.** iOS's plotter
+compound table carries the comment *"verbatim from app.js `PLOTTER_COMPOUNDS`"*. **That is true, and
+it means iOS copied the dead table.** So iOS's half-lives differ from the live plotter's on the same
+13 compounds — Tren A by 2×, PT-141 by 4.4×, Melanotan II by 2.5× — because it was transcribed from
+a table nothing has run for some time.
+
+**Unparked. This is no longer a pharmacological question and does not need the owner:** there is one
+live table, it agrees with the spec, and iOS should match it.
+
+**Correction to the instruction win gave mac:** win said *"do not reconcile iOS to
+`spec/compounds.json` — that is the table the live plotter does NOT use."* **The opposite is the
+case.** `spec/compounds.json` is generated from the live plotter and is the correct reconciliation
+target. Reconcile to it.
+
+**Done when:** iOS's compound table matches `spec/compounds.json`, pinned by a test that fails if
+they drift; and `PLOTTER_COMPOUNDS` is deleted from `public/app.js` (**T-63's neighbour** — same file,
+same class, and it should not be left to mislead the next reader as it misled this one).
+
+---
+
+**Original entry, left standing:**
+
 
 **Nothing else waits on it, but two things must not happen while it is parked.** Do not reconcile iOS to `spec/compounds.json` — that is the table the live plotter does NOT use, and doing so moves iOS away from shipped behaviour on the authority of a file the plotter ignores. And do not "fix" either table toward the other: which half-life is correct is a pharmacological question, not an engineering one, which is why it is parked rather than assigned.
 
