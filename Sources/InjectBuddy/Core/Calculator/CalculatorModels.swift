@@ -336,5 +336,21 @@ struct CalculatorResult: Equatable {
     /// BMI/Free-T screens produce no dose at all, and a BPC/TB blend delivers two.
     var dosePerInjection: DoseAmount?
 
+    /// Advisory sentences the web raises as an `InfoBox` beside the result (T-45).
+    ///
+    /// A SEPARATE CHANNEL FROM `rows`, and the separation is load-bearing. A row is a
+    /// label and a number the user acts on; these are prose about a number that is
+    /// already correct — the GLP-1 pages' *"Exceeds typical weekly maximum of 2.4 mg
+    /// — verify with your prescriber."* and *"Draw is less than 1 unit — accuracy may
+    /// be limited at this scale."* Putting them in `rows` would have made them wear a
+    /// value's styling and answer to `result_<label>`, which is the identifier space
+    /// the dose readouts own.
+    ///
+    /// Ordered as the web orders them (over-maximum first, then sub-unit draw) and
+    /// EMPTY IS THE NORMAL CASE, so nothing renders on a result with nothing to say.
+    /// Declared last so the memberwise init keeps every existing call site compiling
+    /// without one.
+    var notes: [String] = []
+
     static let empty = CalculatorResult(rows: [], isValid: false, scheduleLine: nil, drawMl: nil)
 }

@@ -14,11 +14,82 @@ enum CalcConst {
         "Testosterone Undecanoate", "Testosterone Acetate", "Testosterone Suspension",
         "Sustanon 250",
     ]
-    // SEMA_DOSE_VALUES / TIRZ_DOSE_VALUES / RETA_DOSE_VALUES
-    static let semaDoses: [Double] = [0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.4]
-    static let tirzDoses: [Double] = [0, 2.5, 5, 7.5, 10, 12.5, 15]
-    static let retaDoses: [Double] = [0, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    static let glp1Concs: [Double] = [0, 1, 2, 2.5, 3, 4, 5, 7.5, 10, 12.5, 15, 20]
+    // ── THE GLP-1 LADDERS  (T-45) ────────────────────────────────────────────
+    //
+    // `SEMA_DOSE_VALUES` / `TIRZ_DOSE_VALUES` / `RETA_DOSE_VALUES` / `GLP1_CONC_VALUES`,
+    // now COMPLETE. Verified against three sources on 2026-08-04 and all three agree
+    // on these four arrays to the value: the web working tree (`master`),
+    // `public/app.js` on `feature/dosage-status-model`, and the DEPLOYED bundle
+    // (`https://www.injectbuddy.com/app.js?v=e10ca869`).
+    //
+    // WHAT THEY USED TO BE, because the shape of the truncation is the finding:
+    //
+    //   semaDoses  11 of 22, last 2.4    tirzDoses   7 of 17, last 15
+    //   retaDoses  16 of 22, last 12     glp1Concs  12 of 17, last 20
+    //
+    // Every one of the three dose lists was cut at EXACTLY the web's warning
+    // threshold (2.4 / 15 / 12 — see `weeklyMaxMg` below). So iOS was enforcing the
+    // ceiling by DELETING the option rather than by warning about it, and the
+    // sentence explaining why the value needs care went with it: a user prescribed
+    // above the Wegovy/SURMOUNT ceiling got no guidance at all where the web gives
+    // them a message. Restoring the list without restoring the warning would have
+    // been half a fix; `weeklyMaxMg` is the other half and they land together.
+    //
+    // THESE ARE GRADATIONS, NOT THE REACHABLE SET, and that distinction is the rest
+    // of T-45. On the web they feed a ruler (`DrumPicker`) and supply the bounds of a
+    // typed box — the value the user commits need not be on a tick. iOS now spends
+    // them as `drum:` on a `.number` field for the same reason. Spending them as
+    // `.picker` options, which is what this file used to do, made the array the
+    // complete set of expressible concentrations: a 12 mg/mL compounded vial — a
+    // strength the web's OWN FAQ names — had no correct option, and the nearest
+    // choice over-drew.
+    static let semaDoses: [Double] = [
+        0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.4, 2.5,
+        3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5,
+    ]
+    static let tirzDoses: [Double] = [
+        0, 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20, 22.5, 25, 27.5, 30, 32.5, 35, 37.5, 40,
+    ]
+    static let retaDoses: [Double] = [
+        0, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+        14, 16, 18, 20, 22, 24,
+    ]
+    static let glp1Concs: [Double] = [
+        0, 1, 2, 2.5, 3, 4, 5, 7.5, 10, 12.5, 15, 20, 25, 30, 40, 50, 60,
+    ]
+
+    /// The web's per-compound *typical weekly maximum*, in mg — the threshold that
+    /// raises an `InfoBox` on the GLP-1 pages, NOT a cap. `app.js`:
+    ///
+    ///     isValid && dose > 2.4  →  'Exceeds typical weekly maximum of 2.4 mg — …'
+    ///     isValid && dose > 15   →  '… 15 mg — …'
+    ///     isValid && dose > 12   →  '… 12 mg — …'
+    ///
+    /// The number is repeated inside the sentence on the web, so it is formatted from
+    /// this one value rather than written twice — a threshold that drifts from its own
+    /// copy is a warning that names the wrong ceiling.
+    static func weeklyMaxMg(for slug: CalculatorSlug) -> Double? {
+        switch slug {
+        case .semaglutide:  return 2.4
+        case .tirzepatide:  return 15
+        case .retatrutide:  return 12
+        default:            return nil
+        }
+    }
+
+    /// Verbatim from the three GLP-1 pages, em dash and all. The trailing clause is
+    /// the whole point of the message: it tells the user what to DO, which is the
+    /// part a truncated list could not say.
+    static func weeklyMaxNote(_ maxMg: Double) -> String {
+        let n = maxMg == maxMg.rounded() ? String(Int(maxMg)) : String(maxMg)
+        return "Exceeds typical weekly maximum of \(n) mg — verify with your prescriber."
+    }
+
+    /// `isValid && volumeMl < 0.01` on all three GLP-1 pages. The other half of the
+    /// pair, and the one that fires at the SMALL end: a draw under one insulin unit
+    /// cannot be measured accurately on a U-100 barrel.
+    static let subUnitDrawNote =
+        "Draw is less than 1 unit — accuracy may be limited at this scale."
 
     static func doseOptions(_ values: [Double]) -> [CalculatorInput.PickerOption] {
         values.map { v in
@@ -226,10 +297,37 @@ enum CalculatorCatalog {
             // iOS HCG save a different config from the equivalent web row.
             return [:]
 
-        // The three GLP-1 slugs do NOT share a config shape on the web, despite
-        // sharing a spec shape here. Semaglutide rows carry the mode pair; tirzepatide
-        // and retatrutide rows carry only conc/dose/syringeMl. Grouping them in one
-        // case is what made two of the three mismatch.
+        // ── THE COMMENT THAT USED TO BE HERE WAS BACKWARDS  (corrected T-45) ──
+        //
+        // It read: *"The three GLP-1 slugs do NOT share a config shape on the web…
+        // Semaglutide rows carry the mode pair; tirzepatide and retatrutide rows carry
+        // only conc/dose/syringeMl. Grouping them in one case is what made two of the
+        // three mismatch."* Every clause of that is inverted, and both sides have now
+        // confirmed it against the source rather than against each other's notes.
+        //
+        // THE TRUTH: all three pages write the SAME SIX KEYS.
+        // `SemaglutidePage.handleSave`, `TirzepatidePage.handleSave` and
+        // `RetatrutidePage.handleSave` each build
+        // `config = {conc, dose, syringeMl, mode, nDays, injPerWeek}` — three identical
+        // sites, present on `master`, on `feature/dosage-status-model` AND in the
+        // deployed bundle. So SPLITTING them into two cases is what made two of the
+        // three mismatch, not grouping them.
+        //
+        // CONSEQUENCE, still live: iOS writes three keys for tirzepatide and
+        // retatrutide where the web writes six. The unique index covers the WHOLE
+        // config, so every iOS row of those two types is a different protocol from the
+        // equivalent web row — the same protocol saved on both platforms exists twice —
+        // and `loadDosage` reads `cfg.mode`/`cfg.nDays`/`cfg.injPerWeek`, so an iOS row
+        // reopens on the web at `perweek`/7/1 whatever the user chose. It does NOT move
+        // the schedule: `deriveDose`'s GLP-1 branch hardcodes `freqDays: 7` and reads
+        // only `dose`, `conc` and `syringeMl`.
+        //
+        // THE KEYS ARE DELIBERATELY NOT CHANGED IN THIS COMMIT. Adding three keys here
+        // re-fingerprints every future tirzepatide and retatrutide save, which is a
+        // migration question about rows that already exist (retatrutide is the third
+        // largest protocol group in production) and not a side effect to slip in behind
+        // an option-list fix. It is T-01b-4 #2 / T-01b-5 #2 and it must be closed with a
+        // row read back out of the database, not with a diff.
         case .semaglutide:
             return ["mode": .string("perweek"),
                     "nDays": .number(7), "injPerWeek": .number(1)]
@@ -461,32 +559,75 @@ enum CalculatorCatalog {
                 .number("targetConc", "Target concentration", unit: "mcg/mL", default: 1000, range: 0...10000, step: 50),
             ])
 
+        // ── THE THREE GLP-1 CALCULATORS  (T-45) ──────────────────────────────
+        //
+        // `conc` and `dose` WERE `.picker` — a closed SwiftUI `Menu`, so the option
+        // array WAS the complete set of values the app could express — over arrays
+        // truncated to 12 / 11 / 7 / 16 entries. Two defects stacked on one control:
+        // the list was short, and the list was also the ceiling.
+        //
+        // They are `.number` now: typed entry, clamped to the array's own bounds,
+        // with the full web array spent as `drum:` — the ruler `TickDrum` was written
+        // for, whose doc comment already states the rule this change needs
+        // ("a TYPED value need not be on a tick … snapping the user's typed dose to
+        // the nearest 5 would be the calculator editing the number the user acts on").
+        //
+        // WHY TYPED ENTRY IS REQUIRED HERE AND NOT A NICETY. The web's control on
+        // both `master`/deployed and `feature/dosage-status-model` accepts a typed
+        // value off the list — deployed `ConcDrumField` takes any positive number
+        // rounded to 2 dp, the branch's `QuickPickerField` clamps it to the array
+        // bounds. Concentration is the field that decides the DIVISOR of every dose
+        // on this screen, and compounded vials do not come on a preset ladder: the
+        // page's own FAQ names 12 mg/mL as a strength compounders produce, and 12 is
+        // not in `GLP1_CONC_VALUES`. With a closed menu a 25 mg/mL vial had no
+        // correct option at all — the nearest was 20, and `glp1(conc: 20, dose:)`
+        // returns a draw 25 % larger than the true one on a screen that looks
+        // entirely normal. Lengthening the list alone would not have fixed that:
+        // any value BETWEEN two entries stays unreachable, so the ladder can only
+        // ever be the shortcut and never the only way in.
+        //
+        // RANGES are the arrays' own first/last, which is the branch's clamp exactly.
+        // The deployed build imposes no upper bound on `conc`; 60 mg/mL is already
+        // multiples of any real GLP-1 vial, and iOS's clamp REWRITES THE VISIBLE TEXT
+        // when it bites, so a refused value is seen rather than silently absorbed.
+        // Recorded in TASKS.md rather than quietly widened.
+        //
+        // DEFAULTS ARE UNTOUCHED (5 / 7.5 / 5 and 0.5 / 5 / 1). The web opens these
+        // fields blank and that difference is SH-5's, filed separately — changing it
+        // here would alter what an untouched save writes, which is a config change
+        // wearing a layout change's clothes.
         case .semaglutide:
             return CalculatorSpec(slug: slug, savedType: "semaglutide", saveTitle: "Semaglutide", fields: [
-                .picker("conc", "Concentration", options: CalcConst.doseOptions(CalcConst.glp1Concs), default: 5,
-                        help: "mg/mL after reconstitution."),
-                .picker("dose", "Dose", options: CalcConst.doseOptions(CalcConst.semaDoses), default: 0.5,
-                        help: "mg per weekly injection."),
+                .number("conc", "Concentration", unit: "mg/mL", default: 5, range: 0...60, step: 0.5,
+                        help: "mg/mL after reconstitution. Type the strength printed on your vial.",
+                        drum: CalcConst.glp1Concs),
+                .number("dose", "Dose", unit: "mg", default: 0.5, range: 0...7.5, step: 0.25,
+                        help: "mg per weekly injection.",
+                        drum: CalcConst.semaDoses),
                 .segmented("syringeMl", "Syringe barrel",
                            options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .tirzepatide:
             return CalculatorSpec(slug: slug, savedType: "tirzepatide", saveTitle: "Tirzepatide", fields: [
-                .picker("conc", "Concentration", options: CalcConst.doseOptions(CalcConst.glp1Concs), default: 7.5,
-                        help: "mg/mL after reconstitution."),
-                .picker("dose", "Dose", options: CalcConst.doseOptions(CalcConst.tirzDoses), default: 5,
-                        help: "mg per weekly injection."),
+                .number("conc", "Concentration", unit: "mg/mL", default: 7.5, range: 0...60, step: 0.5,
+                        help: "mg/mL after reconstitution. Type the strength printed on your vial.",
+                        drum: CalcConst.glp1Concs),
+                .number("dose", "Dose", unit: "mg", default: 5, range: 0...40, step: 2.5,
+                        help: "mg per weekly injection.",
+                        drum: CalcConst.tirzDoses),
                 .segmented("syringeMl", "Syringe barrel",
                            options: barrelOptions, default: defaultBarrel(for: slug)),
             ])
 
         case .retatrutide:
             return CalculatorSpec(slug: slug, savedType: "retatrutide", saveTitle: "Retatrutide", fields: [
-                .picker("conc", "Concentration", options: CalcConst.doseOptions(CalcConst.glp1Concs), default: 5,
-                        help: "mg/mL after reconstitution."),
-                .picker("dose", "Dose", options: CalcConst.doseOptions(CalcConst.retaDoses), default: 1,
-                        help: "mg per weekly injection."),
+                .number("conc", "Concentration", unit: "mg/mL", default: 5, range: 0...60, step: 0.5,
+                        help: "mg/mL after reconstitution. Type the strength printed on your vial.",
+                        drum: CalcConst.glp1Concs),
+                .number("dose", "Dose", unit: "mg", default: 1, range: 0...24, step: 0.5,
+                        help: "mg per weekly injection.",
+                        drum: CalcConst.retaDoses),
                 .segmented("syringeMl", "Syringe barrel",
                            options: barrelOptions, default: defaultBarrel(for: slug)),
             ])

@@ -102,12 +102,42 @@ extension CalculatorEngine {
             ], isValid: r.isValid, scheduleLine: nil)
 
         case .semaglutide, .tirzepatide, .retatrutide:
-            let r = glp1(conc: v.number("conc"), dose: v.number("dose"))
+            let dose = v.number("dose")
+            let r = glp1(conc: v.number("conc"), dose: dose)
+            // ── THE TWO INFOBOXES  (T-45) ────────────────────────────────────
+            //
+            // `app.js`, all three GLP-1 pages, in this order:
+            //     isValid && dose > N        → 'Exceeds typical weekly maximum of N mg …'
+            //     isValid && volumeMl < 0.01 → 'Draw is less than 1 unit …'
+            //
+            // Both gated on `isValid` exactly as the web gates them: an incomplete
+            // form has no dose to be over a maximum and no draw to be under a unit,
+            // and a warning on a blank form is noise that teaches the user to ignore
+            // the next one.
+            //
+            // The over-maximum guard is what the truncated dose lists REPLACED. iOS
+            // used to stop the list at N, so the condition `dose > N` was unreachable
+            // and the sentence was dead code that had never been written. The list is
+            // whole now, which means the branch is live now — the two halves are one
+            // change and neither is correct without the other.
+            var notes: [String] = []
+            if r.isValid, let maxMg = CalcConst.weeklyMaxMg(for: slug), dose > maxMg {
+                notes.append(CalcConst.weeklyMaxNote(maxMg))
+            }
+            if r.isValid, r.volumeMl < 0.01 {
+                notes.append(CalcConst.subUnitDrawNote)
+            }
             return CalculatorResult(rows: [
                 ResultRow(label: "Draw", value: "\(fmt(r.volumeMl, 3)) mL", emphasis: true),
                 ResultRow(label: "Units (U-100)", value: fmtInt(r.units), emphasis: true),
-            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.volumeMl) : nil, drawMl: r.volumeMl,
-               dosePerInjection: DoseAmount(value: v.number("dose"), unit: "mg"))
+            // BOTH sides of this merge were needed and neither subsumes the other:
+            // T-52 added the structured dose the log sheet seeds its amount from, and
+            // T-45 added the advisory notes the web raises beside the result. Dropping
+            // either would have silently reverted a shipped fix.
+            ], isValid: r.isValid, scheduleLine: r.isValid ? volumeMeta(r.volumeMl) : nil,
+               drawMl: r.volumeMl,
+               dosePerInjection: DoseAmount(value: v.number("dose"), unit: "mg"),
+               notes: notes)
 
         case .bpc157:
             // mcg/mL from vial + water, the web's own derivation (mg × 1000 ÷ mL), so

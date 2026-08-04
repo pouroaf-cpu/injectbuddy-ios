@@ -204,7 +204,8 @@ final class PinnedBarReachabilityUITests: XCTestCase {
     /// the frame of `result_Draw` — the emphasised dose VOLUME on the GLP-1 card.
     ///
     /// THE SAMPLE IS THREE CALCULATORS, NOT ONE (P5). `semaglutide`, `tirzepatide` and
-    /// `retatrutide` share one field set (conc picker / dose picker / syringe barrel) and
+    /// `retatrutide` share one field set (conc / dose — both numeric with a ruler since
+    /// T-45, previously closed menu pickers — plus the syringe barrel) and
     /// one result shape (`Draw`, `Units (U-100)`, `Volume`), so they land at the same
     /// offset and a finding read off only the one it was first noticed on would be a
     /// finding about a screen rather than about the control underneath all three.

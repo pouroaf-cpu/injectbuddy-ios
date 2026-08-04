@@ -1162,62 +1162,113 @@ selectable, and the Tren E case is shown returning 213 mg.
 
 ## ~~T-51 — iOS logs no injection time, so the web plots its doses at an assumed noon~~ — **DONE 2026-08-04**
 **Priority 5/10** · **Owner:** mac · **Status:** done
+## ~~T-45 — The GLP-1 option lists were truncated at the web's warning thresholds, and the warnings were gone with them~~
+**Priority 9/10** · **Owner:** mac · **Status: done** — `42dfb42` (the change) + `996a9b3` (the
+measurement, and two harness defects it found). Unit 19/19 in a target of 67/67, UI 3/3, two frames.
 
-**What:** `NewDoseLogPin` (`Core/Models/Models.swift:208-219`) encodes four columns — `protocol_id`,
-`dosed_on`, `draw_ml`, `site`. The web also writes `injected_at`, `injection_time` and
-`injection_timezone` (`DashboardContext.tsx:352`, `DoseHistory.tsx:287`).
-`grep -rn "injected_at" Sources/` returns nothing.
+**What it did:** `CalcConst` held PREFIXES of four `app.js` arrays. Counted on both sides
+2026-08-04, and the truncation claim in T-01b-3/4/5 is confirmed to the value:
 
-**What it actually costs — checked, not assumed.** It does **not** break the serum chart.
-`SerumChart.tsx:169-178` falls back to ``new Date(`${row.dosed_on}T${row.injection_time || '12:00'}:00`)``
-so the point still plots. But every iOS-logged dose sits at **noon** on a curve whose own comment
-says it exists so that "logging one adds the time, so the curve jumps the moment it lands" — and that
-fallback string carries no zone, so it is parsed in **the viewer's** local time. The same iOS row
-lands at a different absolute moment for a reader in Auckland than in New York. `observedIntervalFor`
-then derives observed cadence from those timestamps, quantised to whole days.
+| list | iOS was | web is | iOS stopped at | web runs to |
+|---|---|---|---|---|
+| `glp1Concs` / `GLP1_CONC_VALUES` | 12 | **17** | 20 mg/mL | 60 mg/mL |
+| `semaDoses` / `SEMA_DOSE_VALUES` | 11 | **22** | 2.4 mg | 7.5 mg |
+| `tirzDoses` / `TIRZ_DOSE_VALUES` | 7 | **17** | 15 mg | 40 mg |
+| `retaDoses` / `RETA_DOSE_VALUES` | 16 | **22** | 12 mg | 24 mg |
 
-**Same shape as T-03** — a column iOS declines to fill that a web feature reads — but this degrades a
-curve rather than leaving a hole, which is why it is a 5 and T-03 was a 6.
+**Why it was worse than a short list, and both halves are in the fix:**
 
-**Done when:** a dose logged from iOS carries a time and a zone, read back from the database, and the
-web chart plots it at that time rather than at noon.
+1. **Every dose list was cut at EXACTLY the web's warning threshold** — 2.4 / 15 / 12, the values
+   behind `isValid && dose > N` on the three pages. iOS therefore enforced the ceiling by deleting
+   the option instead of warning about it, and the sentence went with the option: a user prescribed
+   above the Wegovy or SURMOUNT ceiling got **nothing**, where the web gives them
+   *"Exceeds typical weekly maximum of N mg — verify with your prescriber."* Neither of the web's two
+   GLP-1 `InfoBox`es existed on iOS; the second is
+   *"Draw is less than 1 unit — accuracy may be limited at this scale."* (`isValid && volumeMl < 0.01`).
+2. **The control was a closed SwiftUI `Menu`, so the list WAS the reachable set.** A 25 mg/mL
+   compounded vial had no correct option; the nearest was 20, and `glp1(conc: 20, dose: 0.5)` returns
+   **0.025 mL / 3 u instead of 0.020 mL / 2 u — a draw 25 % larger than the true one**, on a screen
+   that looks entirely normal.
 
-**CLOSED.** `InjectionMoment` (`Core/Models/DoseSnapshot.swift`) writes all three; `NewDoseLogPin`
-and `SupabaseBackendClient.OwnedDoseLogPin` carry them on all three log paths.
+**What was built:** all four arrays restored verbatim; both `InfoBox`es ported as
+`CalculatorResult.notes` and rendered as an amber `AdvisoryNote` (amber not red — a dose over the
+typical maximum may well be the prescribed one, and red here would teach the user to ignore red on
+this screen); `conc` and `dose` on all three calculators changed from `.picker` to `.number`, so they
+take **typed entry** clamped to the array's own bounds with the full array spent as the `TickDrum`
+ruler beside the field.
 
-**The zone is an IANA identifier, matching the web.** `DashboardContext.tsx:193` writes
-`Intl.DateTimeFormat().resolvedOptions().timeZone`; iOS writes `TimeZone.current.identifier`. An
-offset would have been the plausible-but-wrong value — it cannot name the zone and it freezes one
-side of a DST transition. `testTheZoneIsAnIANANameAndSurvivesDST` pins that: the same zone is
-UTC+12 in August and UTC+13 in January, and 08:00 local on 2027-01-15 is `2027-01-14T19:00:00.000Z`.
+**Typed entry was required, not a nicety.** Lengthening the list does not fix #2 on its own — any
+value BETWEEN two entries stays unreachable, and compounded vials do not come on a preset ladder.
+The web accepts a typed value off the list on **both** builds: deployed/`master` `ConcDrumField`
+takes any positive number rounded to 2 dp, and `feature/dosage-status-model`'s `QuickPickerField`
+clamps to the array bounds and snaps to half its first gap. The page's own FAQ names **12 mg/mL** as
+a strength compounders produce and 12 is **not** in `GLP1_CONC_VALUES` — so the web's own copy
+describes a value only typed entry can reach.
 
-**Logging today stamps the real moment; logging another day writes the web's own `12:00`.** iOS has
-no time picker (the web's `DashLogFlow` does — filed as T-83), so stamping "now" onto a day the user
-was not injecting would be inventing a number. `injected_at` for a same-day log is `now` verbatim,
-not a recomposition of `dosed_on + injection_time`, because those two are not the same instant when
-the day frames disagree (T-82) — and `SerumChart.tsx:171` prefers `injected_at`, so the instant it
-plots is true either way.
+**The config shape did not move, deliberately.** `.picker` and `.number` both encode through
+`case .number` in `configJSON()`, so the key sets are unchanged — semaglutide 6, tirzepatide and
+retatrutide 3 — and a test asserts it. Defaults are unchanged too (5/7.5/5 and 0.5/5/1); moving them
+is SH-5's job. **The wrong comment in `configExtras` is corrected in the same file:** it claimed the
+three GLP-1 slugs do not share a config shape and that *grouping* them caused the mismatch. All three
+`handleSave`s write the same six keys on `master`, on the branch and in the deployed bundle, so
+**splitting** them caused it. The keys themselves are NOT changed here — see T-01b-4 #2 / T-01b-5 #2,
+which must close with a row read back out of the database.
 
-**Evidence — written over PostgREST with the QA account's own JWT, exactly as the app writes, then
-read back with SQL.** Two rows: one back-dated (noon branch), one same-day (live-clock branch).
+**Evidence — measured 2026-08-04 on iPhone 16 Pro / iOS 18.3, not inspected.**
 
-```sql
-select id, dosed_on, injection_time, injection_timezone, injected_at
-from dose_log
-where id in ('325c7e74-977e-433f-94b2-96d480a416e1','079856d1-c18f-4137-ae18-daf3a9571ad6');
-```
-```
- 325c7e74… | 2026-08-02 | 12:00:00 | America/Los_Angeles | 2026-08-02 19:00:00+00   ← back-dated
- 079856d1… | 2026-08-04 | 03:21:00 | America/Los_Angeles | 2026-08-04 10:21:00+00   ← logged live
-```
-`03:21` PDT is `10:21Z` — the row carries the hour the dose happened, in a zone a reader in another
-country can resolve. Before this, both rows would have read `12:00:00 / NULL / NULL`, and every
-other iOS row in the table still does.
+**1 · `Tests/InjectBuddyTests/Glp1OptionParityTests.swift` — 19 tests, 0 failures**, inside a whole
+unit target of **67 tests, 0 failures**. Pins each array's length and every value against literals
+transcribed from `app.js`; the thresholds; the warning strings to the character including the U+2014
+em dash; the warnings firing one ladder step above the threshold and silent AT it; the 25 mg/mL case
+as arithmetic (`0.025 / 0.020 = 1.25`); and the config key sets.
 
-**Unit:** `DoseLogSnapshotTests` — 11 tests, all green in an 85-test run
-(`xcodebuild test -only-testing:InjectBuddyTests`, exit 0, 0 failures). Shown FAILING first against a
-deliberately wrong reference (`injected_at` → `injection_at` in the asserted key set): exit 65, one
-failure on exactly that assertion. A reference that cannot fail is not evidence.
+**2 · The suite was SHOWN TO FAIL before it was trusted.** `glp1Concs` was reverted to the shipped
+12-entry prefix, rebuilt and rerun: **7 of the 19 went red**, naming the defect in the words of the
+finding — *"glp1Concs: 12 values, web has 17"*, *"glp1Concs stops at 20.0, web runs to 60.0"*, and
+the 25 mg/mL reachability assertion. Restored, rebuilt, green again. A reference recorded from a
+broken state passes forever; this one demonstrably does not.
+
+**3 · `Tests/InjectBuddyUITests/Glp1ReachableValueUITests.swift` — 3 tests, 0 failures**, on the
+signed-in app. `25` goes in through the KEYBOARD and the card reads back `0.020 mL` / `2 u` — not the
+old 20 mg/mL answer of `0.025 mL` / `3 u`. 2.5 mg (off the old 11-entry list entirely) raises the
+advisory; 2.4 mg does not.
+
+**4 · Frames**, both self-naming (the screen renders "Semaglutide"), arrival asserted before each:
+- `frames/t45-01-semaglutide-conc-25-typed.png` — **conc 25 mg/mL, typed, previously unreachable**,
+  dose 0.5 mg, card reading `Draw 0.020 mL`.
+- `frames/t45-02-semaglutide-over-maximum-warning.png` — dose 2.5 mg, `Draw 0.500 mL`, and the amber
+  advisory **"Exceeds typical weekly maximum of 2.4 mg — verify with your prescriber."** on the glass.
+
+Sources cross-checked: the working tree (`master`), `feature/dosage-status-model` re-read this session
+via `git show FETCH_HEAD:public/app.js` (arrays at `:3916–3919`, warnings at `:10075`, `:10191`,
+`:10306`) and the deployed `https://www.injectbuddy.com/app.js?v=e10ca869` — **all three agree on the
+four arrays and on all six warning strings.**
+
+**Two test-harness defects were found and fixed here, because both produced a green beside no
+evidence.** The suite's keyboard-dismiss tapped `app.staticTexts.firstMatch`, which resolves offscreen
+at x = −313, so all three tests died on `kAXErrorCannotComplete` before asserting anything; it uses
+the app's own `kb_done` now. And the warning frame was first shot where the assertions ran, which
+photographed the note scrolled under the pinned bar — then a swipe loop that overshot and photographed
+the FAQ while still passing. The frame is now taken on the result sheet, with the sentence asserted to
+be inside the window before the shutter.
+
+**Left open, filed on:** T-91 (the typed value is not snapped to the web's grid), T-92 (`conc` clamps
+at 60 where the deployed build has no upper bound), T-93 (no preset chips under the two fields).
+
+## Note — a stale T-51 was removed here by a merge cleanup, 2026-08-04
+
+The T-45 worktree branched from a `feature/tabview-shell` that predated T-51 being closed, so the
+merge resurrected the OPEN version of the entry alongside the struck-through one above. Both
+described the same task; the open copy was the older text.
+
+**This is not a rule-7 deletion.** Nothing was struck and nothing was lost — the closed entry, with
+its evidence, is intact further up. What was removed is a duplicate heading a merge reintroduced.
+Recorded because "T-51 appears twice" is exactly the two-tasks-one-ID confusion rules 9 and 10 were
+written for, and a silent tidy-up would look identical to one of us quietly dropping a task.
+
+**The general hazard, worth more than this instance:** an agent working in a worktree cut from an
+older tip will re-add anything closed since it branched. Long-running agents need to rebase before
+they write to a shared file, not only before they commit code.
 
 ## ~~T-52 — The log-dose sheet cannot record a dose that was not the planned one~~ — **DONE 2026-08-04**
 **Priority 6/10** · **Owner:** mac · **Status:** done
@@ -1882,3 +1933,76 @@ them from the phone.
 
 **Done when:** the log sheet accepts a time, defaulted to now for today and to 12:00 otherwise, and a
 dose logged with a changed time reads back with that time.
+---
+
+## T-91 — A typed GLP-1 value is not snapped to the web's grid, so an off-grid save cannot dedup
+**Priority 3/10** · **Owner:** mac · **Status:** open
+
+**What it does now:** T-45 gave the GLP-1 `conc` and `dose` fields typed entry. iOS's `NumberField`
+clamps a typed value into the field's range and does not snap it to any grid. The web does snap, and
+the two builds snap differently:
+
+- deployed / `master` — `ConcDrumField` rounds `conc` to **2 dp**; `SliderField` clamps `dose` to
+  `[min, max]` and snaps it to `step` (sema 0.25, tirz 2.5, reta 0.5).
+- `feature/dosage-status-model` — `QuickPickerField` clamps both to the array bounds and snaps to
+  **half the array's first gap** (conc 0.5, sema 0.125, tirz 1.25, reta 0.25).
+
+**Why it is a 3 and not higher.** The number iOS keeps is the user's own vial strength and the
+arithmetic on it is exact, so no dose is wrong. The cost is the fingerprint: `saved_dosages` dedups
+on the whole config, so an iOS row at `conc: 6.3` never resolves to the web row the same user would
+have saved at `6.5`. Every value in ordinary clinical use (1, 2, 2.5, 5, 7.5, 10, 12, 12.5, 15, 20,
+25) is already on both grids, so the divergence needs a deliberately odd entry to reach.
+
+**Not fixed inside T-45 on purpose.** `NumberField` clamps on EVERY KEYSTROKE and rewrites the
+visible text when the clamp bites; snapping on the same edge would rewrite the number under the
+caret mid-entry (typing `0.25` would go `0.2` → snapped `0.25` → `0.255` → `0.25`). The web snaps on
+BLUR. Doing this properly means a commit-time edge on that control, which is a change to every
+numeric field in the app and needs its own pass. `TickDrum`'s own doc comment argues the opposite
+case and should be read first: *"a TYPED value need not be on a tick … snapping the user's typed dose
+to the nearest 5 would be the calculator editing the number the user acts on."*
+
+**Done when:** a decision is recorded either way — snap on commit and match the web, or document the
+divergence in `CALC-PARITY.md` as deliberate — and if it is snapped, a test pins iOS and the web to
+the same value for a typed off-grid entry.
+
+## T-92 — iOS clamps GLP-1 concentration at 60 mg/mL; the deployed web has no upper bound
+**Priority 3/10** · **Owner:** mac · **Status:** open
+
+**What it does now:** T-45 set the `conc` field's range to `0...60`, the bounds of
+`GLP1_CONC_VALUES`, which is exactly what `feature/dosage-status-model`'s `QuickPickerField` clamps
+to. The **deployed** build does not clamp at all — `ConcDrumField` accepts any positive number and
+only rounds it to 2 dp. So a vial above 60 mg/mL is typeable on the live site and is snapped down to
+60 on iOS.
+
+**Why it is a 3.** 60 mg/mL is already multiples of any GLP-1 vial that exists; nothing in the
+production protocol mix comes close. And iOS's clamp REWRITES THE VISIBLE TEXT when it bites, so a
+refused value is seen rather than silently absorbed — this cannot produce a wrong number shown as a
+right one, which is the class that earns a high priority on this list.
+
+**The real finding underneath it** is that the two web builds disagree about whether concentration
+has a ceiling at all, and `TASKS.md`'s ordering of truth puts the deployed build above the branch.
+Whichever wins, iOS should copy it rather than pick.
+
+**Done when:** the web has one answer and iOS matches it.
+
+## T-93 — The GLP-1 fields have no preset chips, and the web's computed ones are not portable
+**Priority 2/10** · **Owner:** mac · **Status:** open
+
+**What:** T-45 gave the GLP-1 `conc` and `dose` fields the ruler and typed entry but left `quick: []`
+— no one-tap chips, where TRT's weekly dose has `[100, 200, 300, 400, 500]`. So the commonest
+concentrations (5, 10, 12.5) take a keystroke rather than a tap.
+
+**Why the web's own chips were NOT ported.** On `feature/dosage-status-model`, `QuickPickerField`
+DERIVES its ladder — `[1,2,3,4,5].map(i => snap(max * i / 5))` — which for `GLP1_CONC_VALUES` yields
+**12 · 24 · 36 · 48 · 60 mg/mL** and for tirzepatide's dose yields **7.5 · 16.25 · 23.75 · 32.5 · 40
+mg**. Those are arithmetic on the array's maximum, not clinical values, and half of them are
+strengths and doses nobody holds. Shipping them verbatim would have put a misleading one-tap row on
+a dosing screen in the name of parity; inventing a better row is a design decision that belongs to
+the owner, not to a defect fix. So neither was done, and the reason is written down here rather than
+left as an empty array someone later reads as an oversight.
+
+**Also note** the deployed build has no chip row on these fields at all — it renders a `DrumPicker`
+plus an exact-entry box — so "the web has chips here" is only true on the unmerged branch.
+
+**Done when:** either a chip row is specified by the owner and built, or this is closed as
+deliberately absent with the deployed build cited.

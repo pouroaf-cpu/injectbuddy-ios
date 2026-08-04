@@ -983,6 +983,12 @@ obviously wrong rather than arguably wrong.
 one change — replace the truncated `CalcConst` arrays with the web's full ones and give the field a
 typed entry path — and it is the change to make first.
 
+**#1, #2 and #3 are CLOSED — T-45.** All four arrays restored and pinned to the web's literals;
+`conc`/`dose` moved from a closed `Menu` to a typed `.number` field clamped to the arrays' bounds
+with the full array as the ruler; both `InfoBox` warnings ported verbatim. The counts were verified
+on both sides before acting and T-01b-3's figures are correct to the value. #4, #5 and #6 remain
+open. Evidence in `TASKS.md` T-45.
+
 ---
 
 ## T-01b-4 — Tirzepatide · frame `20-calculator-tirzepatide.png` — **6 differences**
@@ -1038,6 +1044,14 @@ computes `volumeMl = dose / conc` identically.
 **#2 must be closed with a row, not a diff** — save a tirzepatide protocol from the device and
 SELECT it back showing six keys.
 
+**#1 is CLOSED — T-45**, with Semaglutide #1 and #3 which it inherits. `TIRZ_DOSE_VALUES` restored
+to all 17 values and the 15 mg warning ported, so the ceiling is now flagged rather than deleted.
+**#2 is STILL OPEN and is unchanged by T-45** — the three keys are deliberately not added, because
+re-fingerprinting every future tirzepatide save is a migration question about rows that already
+exist, not a side effect of an option-list fix. **The wrong comment that #2 calls out IS corrected**
+in `CalculatorCatalog.configExtras`: all three pages write the same six keys, so splitting them is
+what caused the mismatch, exactly as #2 says.
+
 ---
 
 ## T-01b-5 — Retatrutide · frame `21-calculator-retatrutide.png` — **5 differences**
@@ -1071,6 +1085,9 @@ unchanged.** Specific to this screen:
    which is the property that makes SH-5 dangerous rather than untidy.
 
 **Done when:** each of the five, plus the shared and inherited items, is built or recorded.
+
+**#1 is CLOSED — T-45.** `RETA_DOSE_VALUES` restored to all 22 values and the 12 mg warning ported.
+**#2 is STILL OPEN**, for the reason given under Tirzepatide #2.
 
 ---
 
