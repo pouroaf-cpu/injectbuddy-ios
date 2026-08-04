@@ -450,12 +450,72 @@ and **no iOS frame in any sweep**. It cannot be compared until it is photographe
 
 ---
 
-## S-06 — Settings
+## S-06 — Settings (web side specced 2026-08-04) — **whole panels missing, not fields**
 
-**Not compared, and it cannot be from here: settings has not been photographed since 2026-08-01.**
-It is absent from `2026-08-02-current`, `2026-08-03-current` and `2026-08-04-post-t01a`. The only
-frame is `archive/2026-08-01/08-settings-default.png`, which predates every change made since.
-Filed as part of **T-55**.
+**The iOS half still cannot be compared: settings has not been photographed since 2026-08-01** —
+absent from `2026-08-02-current`, `2026-08-03-current` and `2026-08-04-post-t01a`, and the one frame
+predates everything built since (**T-55**). So this entry is written from **source on both sides**,
+which for this screen is enough: the gaps are structural, not visual.
+
+### The web
+
+Not a route — a panel inside the account dashboard (`components/account/dashboard/DashSettings.tsx`),
+sharing its components with `/account/settings/` and the mobile drill-in sheet. **Six sub-tabs**,
+about **25 controls**: Account · Profile · Personalisation · Badges · Metrics · Billing & Plan.
+Sign-out is **not** in this surface at all — it lives in the global nav rail.
+
+### The iOS
+
+`Features/Settings/SettingsScreen.swift`, one flat grouped list: profile header (tap → edit-name
+sheet) → Preferences (Units, Syringe scale, both local-only via `SettingsStore`) → Connections
+(Discord) → Account (Change password, Sign out, Delete account).
+
+### The differences — these are missing panels, so they are features, not layout
+
+1. **No Personalisation.** Nickname, weight/height baselines, timezone, per-field dose-display
+   preference, and four logging-interest toggles (Hormones/Steroids/Peptides/GLP-1) have no iOS
+   home. iOS's `Units` is one combined picker where the web has independent weight / height / dose
+   unit choices.
+2. **No Badges.** Seven tiered families × five stages, standalone badges, pin-to-profile showcase.
+   A whole feature area, nothing to compare field by field.
+3. **No Metrics tab.** Folded, much thinner, into the single Preferences picker.
+4. **No avatar upload or accent colour.** Photo upload, Google-photo import, twelve swatches plus a
+   custom hex. **Note the boundary:** the app being light-only is a locked decision and a *theme*
+   picker is correctly out of scope — a per-user **accent** is a different thing and is simply
+   unaddressed.
+5. **No email-address change.** iOS offers a password-reset email only.
+6. **No "Download my data".** `/api/account/export` has no iOS counterpart. Worth pairing with T-02:
+   iOS's delete sheet already itemises what will be deleted, which is the better half of the same
+   idea — there is just no way to get a copy first.
+7. **No Billing & Plan.** Low priority, and stated with the reason: the web's own version is
+   **inert** — "Free forever", a "Coming soon" Pro tier, a disabled button, no Stripe, no portal
+   link. Porting it would port static marketing copy.
+
+### Two mechanism differences that are product decisions, not ports
+
+- **Password change.** Web sets a new password in-panel; iOS sends a reset email. Different
+  mechanism, not missing UI. **Neither requires the old password** — the web has no re-auth
+  challenge beyond an active session.
+  *Correction to an earlier note in this file's working notes:* it was reported that the web
+  "collects the current password and never sends it". It does not collect it — `currentPw` was
+  **dead state, bound to no input and read by nothing**, and has been removed. A field that ignores
+  your password would have been a real finding; unused state is not, and the difference matters
+  enough to say so rather than quietly drop it.
+- **Delete confirmation.** Web requires typing `DELETE`; iOS uses a second destructive tap in a
+  sheet that names what will be lost. **iOS's is arguably the stronger design** — a named list plus
+  a non-default destructive button per HIG. Do not "fix" it toward the web without deciding that.
+
+### And one where iOS is simply ahead — protect it
+
+**`ConfirmStartScreen.swift` is a faithful port that exceeds its original.** It has real
+`.loading` / `.missing` / `.failed` / `.loaded` states, distinguishes "the row was deleted" from
+"the load failed", and handles offline explicitly — *"You're offline — confirming the start day
+needs a connection. Your protocol is already saved; set the day later from the dashboard."* **The
+web has none of that**: its read happens server-side, so it has no client loading state and no
+load-failure state at all. A parity pass must not strip these.
+
+Remaining copy-level nit, the only one: iOS renders booleans as Yes/No and trims trailing `.0`;
+the web prints raw `String(v)`. If exact-text parity matters, **the web should move**, not iOS.
 
 ---
 
