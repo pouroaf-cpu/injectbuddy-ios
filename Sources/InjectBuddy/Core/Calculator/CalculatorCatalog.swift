@@ -96,6 +96,20 @@ struct CalculatorSpec: Equatable {
 
 enum CalculatorCatalog {
 
+    /// The three dosing modes, verbatim from `app.js:8396`:
+    /// `[{label:'Every N Days',value:'ndays'},{label:'Per Week',value:'perweek'},
+    ///   {label:'mL → mg',value:'ml2mg'}]`.
+    ///
+    /// The VALUES are what reach `config.mode` and they are the web's strings
+    /// exactly. `CalculatorEngine.TrtMode` already spells them the same way, which
+    /// is why the engine needed no new cases for T-01a #1 — only a caller that
+    /// stopped hardcoding one of them.
+    static let trtModeOptions: [CalculatorInput.ModeOption] = [
+        .init(label: "Every N Days", value: "ndays"),
+        .init(label: "Per Week", value: "perweek"),
+        .init(label: "mL → mg", value: "ml2mg"),
+    ]
+
     // Frequency picker shared by TRT-style calculators (Daily..1×, value = inj/week).
     private static let trtFreqOptions: [CalculatorInput.PickerOption] = [
         .init(label: "Daily", value: 7),
@@ -182,12 +196,19 @@ enum CalculatorCatalog {
     static func configExtras(for slug: CalculatorSlug, values v: CalculatorValues) -> [String: JSONValue] {
         switch slug {
         case .trt:
-            // evaluate() runs TRT in perweek mode, so that is the honest value here.
-            // nDays/mlDrawn are the unused half of the mode pair; web defaults.
-            // syringeMl is a real field now — see barrelField. Emitting it here too
-            // would overwrite the user's choice (extras win in configJSON).
-            return ["mode": .string("perweek"), "nDays": .number(3.5),
-                    "mlDrawn": .number(0.5)]
+            // EMPTY, as of T-01a #1, and the emptiness is the fix.
+            //
+            // This used to hardcode `mode: "perweek"`, `nDays: 3.5`, `mlDrawn: 0.5`
+            // with the note "evaluate() runs TRT in perweek mode, so that is the
+            // honest value here". It was honest about the ENGINE and dishonest about
+            // the USER: all three are now real, visible fields, and extras WIN over
+            // field values in `configJSON()` — so leaving any of them here would
+            // silently overwrite the mode the user just picked with `perweek`, which
+            // is exactly the failure mode this file's own `syringeMl` note warns
+            // about two screens up.
+            //
+            // The key set reaching `config` is unchanged; only its source is.
+            return [:]
 
         case .eod:
             // Web's EOD lives on the MicrodoseTRT page, whose barrel default is 0.3 —
@@ -275,7 +296,12 @@ enum CalculatorCatalog {
             switch field.kind {
             case .number, .picker, .segmented, .stepperDays:
                 if let d = raw.double { v.numbers[field.key] = d }
-            case .stringPicker:
+            // `.modePicker` belongs on the STRING branch, and getting it here matters
+            // more than it looks: this is the path that restores a saved protocol
+            // into the form. Left off, a TRT row saved in `ndays` would reopen in
+            // whatever the spec defaults to and recompute a different per-injection
+            // dose from the same stored config.
+            case .stringPicker, .modePicker:
                 if let s = raw.string { v.strings[field.key] = s }
             case .toggle:
                 if let b = raw.bool { v.bools[field.key] = b }
@@ -301,12 +327,43 @@ enum CalculatorCatalog {
         switch slug {
 
         case .trt:
-            // config keys mirror web: strength, mgWeek, injPerWeek, mode, esterType.
+            // config keys mirror web: strength, mgWeek, injPerWeek, mode, nDays,
+            // mlDrawn, esterType, syringeMl.
+            //
+            // ── T-01a #1: `mode` IS A FIELD NOW, NOT AN EXTRA ────────────────────
+            // It was a hardcoded `"perweek"` in configExtras: every iOS TRT save
+            // carried a mode the user could not see, could not change, and had not
+            // chosen. The web leads this page with a three-way switch and defaults it
+            // to `ndays` (`app.js:8246`, `useState('ndays')`).
+            //
+            // THE KEY SET IS UNCHANGED and that is the point. `mode`, `nDays` and
+            // `mlDrawn` move from configExtras to real fields carrying the SAME names
+            // and the SAME types, so `configJSON()` emits the same eight keys it
+            // always did. The unique index covers the whole config, so a key set that
+            // drifted by one would make every iOS save a different protocol from the
+            // equivalent web row instead of the same one.
+            //
+            // THE DEFAULT MOVES, deliberately: `perweek` → `ndays`. That is a real
+            // change to what an untouched save writes, and it is the correct one —
+            // it is the web's default, so an iOS save and a web save from untouched
+            // defaults now agree where before they disagreed. Recorded in TASKS.md
+            // under T-01a rather than slipped in.
             return CalculatorSpec(slug: slug, savedType: "trt", saveTitle: "TRT Dose", fields: [
-                .number("strength", "Vial strength", unit: "mg/mL", default: 200, range: 1...500, step: 1),
+                .modePicker("mode", "Mode", options: trtModeOptions, default: "ndays"),
+                .number("strength", "Vial strength", unit: "mg/mL", default: 200, range: 1...500, step: 1,
+                        drum: TickDrum.vialStrength),
                 .number("mgWeek", "Weekly dose", unit: "mg/week", default: 100, range: 0...1000, step: 10,
-                        quick: [100, 200, 300, 400, 500]),
+                        quick: [100, 200, 300, 400, 500], drum: TickDrum.weeklyDose),
+                // `ndays` mode only. Web default 3.5 — twice-weekly, the commonest
+                // TRT interval, and a legal non-integer (`EVERY_N_DAYS_VALUES`).
+                .number("nDays", "Every N days", unit: "days", default: 3.5, range: 0.5...14, step: 0.5,
+                        drum: TickDrum.everyNDays),
+                // `perweek` mode only.
                 .picker("injPerWeek", "Frequency", options: trtFreqOptions, default: 2),
+                // `ml2mg` mode only — the reverse calculation: you drew this much,
+                // what dose was it?
+                .number("mlDrawn", "Volume drawn", unit: "mL", default: 0.5, range: 0...3, step: 0.05,
+                        drum: TickDrum.mlDrawn),
                 .stringPicker("esterType", "Ester", options: CalcConst.esterTypes, default: "Testosterone Enanthate"),
                 .segmented("syringeMl", "Syringe barrel",
                            options: barrelOptions, default: defaultBarrel(for: slug)),

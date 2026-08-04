@@ -133,8 +133,8 @@ affecting real users right now.
 **Done when:** the web route clears three bucket prefixes and deletes `feedback` by uid. The iOS
 edge function already does both and is the reference.
 
-## T-03 — iOS never records the injection site
-**Priority 6/10** · **Owner:** mac · **Status:** open
+## ~~T-03 — iOS never records the injection site~~ — **DONE 2026-08-03**
+**Priority 6/10** · **Owner:** mac · **Status:** done
 
 **What:** `dose_log.site` is NULL on every iOS-written row. All fourteen web-written rows carry it.
 The web derives its whole site-rotation model from that column — eight IM sites, six SubQ, a
@@ -143,7 +143,38 @@ The web derives its whole site-rotation model from that column — eight IM site
 **Why it matters:** not a missing feature — a column iOS silently declines to fill. The damage is to
 data the user already has rather than to a screen they do not.
 
-**Done when:** a dose logged from iOS carries its site, read back from the database.
+**Root cause — (a), never collected in the UI.** Nothing was broken. `NewDoseLogPin.site`,
+`OwnedDoseLogPin.site` and the `select` on the way back all existed and all carried the right key;
+`LogDoseSheet` simply never passed one, by a decision written into its own header comment
+("Deliberately the LEAN version … No body-site picker — `site` stays nil"). Every caller used the
+`site: String? = nil` default, so the column was NULL by choice at the one place a human could have
+answered it.
+
+**Built:** `Core/Models/InjectionSite.swift` — the fourteen labels transcribed from the web's
+`lib/account-schedule.ts` (`SITES_IM` / `SITES_SUBQ`), the per-calculator route mapping copied
+branch-for-branch from its `deriveDose`, and the web's `nextSiteIdx` rotation. A picker in
+`LogDoseSheet` showing only the selected protocol's track, opening on the next site in rotation and
+saying so. 14 unit tests pin the vocabulary; a UI test drives the sheet on the device.
+
+**The vocabulary is the whole risk, not the plumbing.** The web resolves a pin with
+`p.sites.indexOf(pin.site)` and DISCARDS anything it cannot find — so "Left glute" would look
+perfectly correct in the table and be exactly as useless to the rotation as the NULL was.
+
+**Done — measured, not asserted.** `LogDoseSiteRoundTripUITests` tapped `R Delt` (the last row of
+the IM track, deliberately NOT the `L Glute` the rotation suggested, so a decorative picker could
+not pass) and logged. Row `92c3af8f` read NULL before the run and after it:
+
+```sql
+select d.id, s.calculator_type, d.dosed_on, d.draw_ml, d.site
+from public.dose_log d join public.saved_dosages s on s.id = d.protocol_id
+where d.user_id = 'c8926abc-52b0-41f3-8968-bc44f56e1dd1' and d.dosed_on = '2026-08-03';
+```
+```
+92c3af8f-7dfb-4698-acc0-84ed62d76c73 | trt     | 2026-08-03 | 0.373 | R Delt
+d5a4f448-81b6-433c-bd1f-65d15361f930 | peptide | 2026-08-03 | null  | null
+```
+
+The second row is the other protocol, untouched — the write went to the selected protocol only.
 
 ## T-04 — The dashboard's dose line never renders its volume
 **Priority 3/10** · **Owner:** mac · **Status:** filed
@@ -170,3 +201,54 @@ large one, and a large title owns the pull-down stretch above a plain ScrollView
 with a large title will silently not refresh.**
 
 **Done when:** the candidate is measured — flip the Calendar to an inline title and pull once.
+
+## T-06 — The web drops every `microdose` protocol on the floor
+**Priority 5/10** · **Owner:** win · **Status:** open
+
+**What:** `lib/account-schedule.ts`'s `deriveDose` has branches for `trt`, `eod`, `steroid`,
+`peptide`, `semaglutide`, `tirzepatide`, `retatrutide`, `bpc157`, `bpc157blend`/`blend` and `hcg`,
+and returns `null` for anything else. iOS ships a **TRT Microdose** calculator that saves
+`calculator_type = 'microdose'`, and `deriveProtocols` discards a null — so the row is saved, is
+`is_active`, and then does not exist as far as the web is concerned.
+
+**Why it matters:** a microdose protocol saved on iOS gets no dashboard card, no schedule, no site
+track, no inventory and no place in the rotation on the web. It is not a rendering difference; the
+protocol is absent. Found while mapping calculator types to injection routes for T-03 — iOS now
+routes `microdose` to the IM track locally so it at least logs a site the web could read if the row
+ever reached it.
+
+**Done when:** `deriveDose` handles `microdose` (it is TRT's math), or the web states why it will
+not and iOS stops offering the calculator.
+
+## T-07 — Two of the three iOS log paths still write a NULL site
+**Priority 4/10** · **Owner:** mac · **Status:** open
+
+**What:** T-03 fixed `LogDoseSheet`, which is the only path that asks the user anything. The
+dashboard's "Mark taken" (`DashboardViewModel.markTaken`) and the calendar's day toggle
+(`CalendarViewModel.toggleTaken`) are one-tap affordances holding a `DoseOccurrence` and no site,
+and both still send `NewDoseLogPin(for: occurrence)` with the `site: nil` default.
+
+**Why it was left:** the web's equivalent one-tap "done" DOES write a site — but it renders the
+suggested site next to the button first (`TodayCard.tsx`), so the user can see and change what is
+about to be recorded. iOS shows nothing there. Writing an unseen suggestion would put body
+locations the user never chose into the rotation model, which is worse than the NULL: a NULL is
+absent data, an invented site is wrong data that the web's heat map will colour a muscle with.
+
+**Done when:** those two surfaces show the suggested site and let it be changed, as the web's card
+does — then they write it. Not before.
+
+## T-08 — iOS never touches `dose_log.updated_at`
+**Priority 2/10** · **Owner:** mac · **Status:** open
+
+**What:** `dose_log.updated_at` is `NOT NULL DEFAULT now()`, and the web's `/api/dose-log` sets it
+explicitly on every upsert and patch. iOS's upsert sends only the dose columns, so on a
+conflict-update the column keeps its INSERT value.
+
+**Measured 2026-08-03:** row `92c3af8f` was updated with a site at 05:47 UTC and still reports
+`updated_at = 2026-08-03 09:22:44` — its creation time on the previous day's row.
+
+**Why it matters:** small, but it is a column that exists to answer "when did this last change" and
+it answers wrongly for exactly the rows iOS touches. Anything syncing or auditing on it will skip
+them.
+
+**Done when:** `OwnedDoseLogPin` carries `updated_at` and a re-logged dose shows a moved timestamp.

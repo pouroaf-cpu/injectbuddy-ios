@@ -27,9 +27,19 @@ extension CalculatorEngine {
         switch slug {
 
         case .trt:
+            // T-01a #1. `mode` was `.perweek`, hardcoded, with `nDays` and `mlDrawn`
+            // passed as 0 — so two of the engine's three branches were unreachable
+            // from the phone even though the engine has always had all three and
+            // every saved config carried a `mode` key.
+            //
+            // Falls back to the web's own default rather than to the old hardcoded
+            // value: an unrecognised or missing string means "this row predates the
+            // field", and `ndays` is what `app.js:8246` opens on.
+            let mode = CalculatorEngine.TrtMode(rawValue: v.string("mode")) ?? .ndays
             let r = trt(strength: v.number("strength"), mgWeek: v.number("mgWeek"),
-                        mode: .perweek, nDays: 0, injPerWeek: v.number("injPerWeek"),
-                        mlDrawn: 0, unitsPerML: scale.unitsPerML)
+                        mode: mode, nDays: v.number("nDays"),
+                        injPerWeek: v.number("injPerWeek"),
+                        mlDrawn: v.number("mlDrawn"), unitsPerML: scale.unitsPerML)
             return trtResult(r, scale: scale)
 
         case .eod:

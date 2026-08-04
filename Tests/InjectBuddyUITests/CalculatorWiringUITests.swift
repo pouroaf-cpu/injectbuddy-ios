@@ -241,31 +241,51 @@ final class CalculatorWiringUITests: XCTestCase {
                        "The RESULT disagrees with the field, or has lost its unit.")
     }
 
-    /// PROVES: the ± pair belonging to `mgWeek` moves `mgWeek` by its configured
-    /// step of 10 — not that *some* stepper on the screen moved *something*.
-    /// `buttons["Increase"].firstMatch` resolved to vial strength's stepper, so the
-    /// old version incremented one field and asserted on another.
-    func testStep_movesByTen() {
+    /// PROVES: the RULER belonging to `mgWeek` reports the same number as the field
+    /// belonging to `mgWeek` — and that setting one field's value leaves the other
+    /// field and the other field's ruler alone.
+    ///
+    /// REPLACES `testStep_movesByTen`, which asserted that the ± pair moved `mgWeek`
+    /// by its configured step of 10. THAT CONTROL NO LONGER EXISTS: T-01a #7 replaced
+    /// the steppers with `TickDrum`, the web's ruler, so `step_up_mgWeek` /
+    /// `step_down_mgWeek` address nothing. The old test is not weakened into a
+    /// tautology and it is not left addressing a dead identifier — it is re-pointed
+    /// at the defect that is still reachable on the new control.
+    ///
+    /// WHAT IT STILL CATCHES, which is what the old one was really for: a ruler wired
+    /// to the wrong field. `buttons["Increase"].firstMatch` once resolved to vial
+    /// strength's stepper while the assertion read weekly dose, so one field was
+    /// driven and another was checked. Two drums on one screen have exactly that
+    /// failure available to them, which is why both are asserted here.
+    ///
+    /// WHAT IT DOES NOT COVER, stated rather than implied by a green run: the DRAG.
+    /// `TickDrum` publishes one `.adjustable` element, and XCUITest has no direct way
+    /// to invoke an accessibility adjustable action — so drag-to-select is unproven
+    /// by this suite. Filed in TASKS.md rather than papered over with a swipe that
+    /// would assert nothing about where it landed.
+    func testRuler_tracksItsOwnField() {
         openTRTCalculator()
 
         let field = app.textFields["field_mgWeek"]
         XCTAssertTrue(field.waitForExistence(timeout: 8))
+
+        let strength = app.textFields["field_strength"]
+        let strengthBefore = strength.value as? String
+        let strengthDrumBefore = app.otherElements["drum_strength"].value as? String
+
         app.buttons["quick_mgWeek_300"].tap()
         XCTAssertEqual(field.value as? String, "300")
 
-        // The other field must not move. Without this the test still passes if the
-        // identifiers are ever wired to the wrong pair.
-        let strength = app.textFields["field_strength"]
-        let strengthBefore = strength.value as? String
-
-        unique("step_up_mgWeek").tap()
-        XCTAssertEqual(field.value as? String, "310", "Step moved by the wrong amount.")
-
-        unique("step_down_mgWeek").tap()
-        XCTAssertEqual(field.value as? String, "300")
+        let drum = app.otherElements["drum_mgWeek"]
+        XCTAssertTrue(drum.waitForExistence(timeout: 4),
+                      "The weekly-dose field has no ruler — T-01a #7 is not rendering.")
+        XCTAssertEqual(drum.value as? String, "300",
+                       "The ruler disagrees with the field it sits in.")
 
         XCTAssertEqual(strength.value as? String, strengthBefore,
-                       "Stepping the weekly dose changed the vial strength.")
+                       "Setting the weekly dose changed the vial strength.")
+        XCTAssertEqual(app.otherElements["drum_strength"].value as? String, strengthDrumBefore,
+                       "Setting the weekly dose moved the vial strength's ruler.")
     }
 
     /// PROVES: with the keypad up, the quick values are REACHABLE and the field

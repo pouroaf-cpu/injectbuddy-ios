@@ -109,6 +109,21 @@ struct CalculatorScreen: View {
                     ResultCard(result: vm.result, barrelMl: barrelMl)
                 }
 
+                // T-01a #3. Position copied from the web, which is not incidental:
+                // `PlotProtocolCTA`'s own comment places it "between the result value
+                // and the FUNNEL-2 Save CTA". It reads as "and now look at this over
+                // time", which only works after the number it is offering to plot.
+                if PlotLevelsCTA.shows(slug) {
+                    PlotLevelsCTA(slug: slug, resultValid: vm.result.isValid) {
+                        navigator.push(.calculator(.cyclePlotter))
+                    }
+                }
+
+                // T-01a #4. Last thing before the disclaimer, exactly as the web
+                // orders it — `TwoColCalcPage` renders `CalcFormula` beneath the FAQ,
+                // above the footer.
+                FormulaCard(slug: slug)
+
                 Spacer(minLength: Theme.Spacing.md)
 
                 Text("Maths only — not medical advice.")
@@ -267,12 +282,39 @@ struct CalculatorScreen: View {
 
     // BMI shows metric or imperial fields depending on the toggle.
     private func shouldShow(_ field: CalculatorInput) -> Bool {
-        guard slug == .bmi else { return true }
-        let imperial = vm.values.bool("imperial")
+        if slug == .bmi {
+            let imperial = vm.values.bool("imperial")
+            switch field.key {
+            case "heightCm", "weightKg": return !imperial
+            case "heightFt", "heightIn", "weightLb": return imperial
+            default: return true
+            }
+        }
+        return showsUnderMode(field)
+    }
+
+    /// T-01a #1 — which fields the chosen MODE asks for.
+    ///
+    /// Driven by the spec carrying a `mode` field rather than by `slug == .trt`, so
+    /// the next calculator to gain the switch gets this for free instead of adding a
+    /// branch here. A spec with no `mode` field shows everything, which is every
+    /// calculator today except TRT.
+    ///
+    /// The three branches mirror `CalculatorEngine.trt` exactly, and they have to:
+    /// a field the engine does not read is a field the user can set and watch do
+    /// nothing, and on this screen "does nothing" is indistinguishable from "did
+    /// something I did not notice". `ml2mg` is the one worth reading twice — the
+    /// weekly dose is an OUTPUT there (`weeklyTotal = mgPerInj × freq`), so showing
+    /// its input would be offering to set a number the engine is about to overwrite.
+    private func showsUnderMode(_ field: CalculatorInput) -> Bool {
+        guard vm.spec.fields.contains(where: { $0.key == "mode" }) else { return true }
+        let mode = vm.values.string("mode")
         switch field.key {
-        case "heightCm", "weightKg": return !imperial
-        case "heightFt", "heightIn", "weightLb": return imperial
-        default: return true
+        case "nDays":      return mode == "ndays"
+        case "injPerWeek": return mode == "perweek" || mode == "ml2mg"
+        case "mlDrawn":    return mode == "ml2mg"
+        case "mgWeek":     return mode != "ml2mg"
+        default:           return true
         }
     }
 
@@ -454,15 +496,28 @@ struct CalculatorScreen: View {
                     .accessibilityHidden(true)
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: Theme.Spacing.sm) {
-                    seeResultButton
-                    addButton
-                }
-                VStack(spacing: Theme.Spacing.sm) {
-                    seeResultButton
-                    addButton
-                }
+            // T-01a #11 — THE RESULT AFFORDANCE, and this is a layout change as much
+            // as a colour one.
+            //
+            // WHAT WAS WRONG: a pale teal `See your result` SHARING A ROW with a navy
+            // `Add`. Two controls of equal size and competing colours, so nothing on
+            // the bar said which one the screen wants you to press. The web has no
+            // such competition — its bar is one full-bleed bright cyan `Show result`,
+            // and saving lives in the bottom nav's Add slot.
+            //
+            // WHAT THIS IS: the cyan bar as the web has it, full width and alone on
+            // its line, with `Add` demoted underneath. `Add` does NOT move into the
+            // sheet and does not leave the screen — D5 makes the committing action
+            // mandatory and wholly visible, and SPEC-RESULT-SHEET-AND-SYRINGE refuses
+            // it explicitly: *"the sheet is for reading, not committing. One commit
+            // path, not two."* So the two stop competing by stacking rather than by
+            // one of them being taken away.
+            //
+            // The `ViewThatFits` that used to choose the axis is gone with the
+            // competition: there is no longer a row to fall back FROM.
+            VStack(spacing: Theme.Spacing.sm) {
+                seeResultButton
+                addButton
             }
 
             if !network.isOnline {
@@ -496,7 +551,7 @@ struct CalculatorScreen: View {
                 // No frozen size. The Tools-at-AX5 finding is partly "icons that stayed
                 // small while the text went huge" — inheriting the label's font is what
                 // stops that being reintroduced here.
-                Image(systemName: "syringe")
+                Image(systemName: "eye.fill")
                     // THE OTHER HALF OF THE SAME COLLISION, and this one is an EXACT
                     // string match: `Image(systemName: "syringe")`, the same symbol the
                     // hero draws, added by the same pass that added `ScreenHeader`'s
@@ -510,24 +565,31 @@ struct CalculatorScreen: View {
                     .accessibilityIdentifier("mark_see_result")
                     .accessibilityLabel(Text(verbatim: ""))
                     .accessibilityHidden(true)
-                Text("See your result")
-                    // Wraps rather than truncating, in either branch of the fit test.
+                // The web's words. `Show result` rather than `See your result` —
+                // same action, and matching the label means a user who learned the
+                // web is not looking for a control that has been renamed.
+                Text("Show result")
+                    // Wraps rather than truncating.
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .font(.headline)
-            .foregroundStyle(Theme.tealTextStrong)
+            .font(.headline.weight(.bold))
+            // NAVY ON CYAN, and neither half of that is free choice. #00FFEE is
+            // 1.35:1 against white and cannot carry text at all; navy #001D5C on it
+            // measures 12.7:1. The reference frame draws the label dark for the same
+            // reason the Theme forbids `accent` as a text colour.
+            .foregroundStyle(Theme.navy)
             .frame(maxWidth: .infinity, minHeight: Theme.minTarget)
             .padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: Theme.Radius.control)
-                    .fill(Theme.accentSoft)
+                    .fill(Theme.ctaCyan)
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("cta_see_result")
-        .accessibilityLabel("See your result")
+        .accessibilityLabel("Show result")
         .accessibilityAddTraits(.isButton)
     }
 
@@ -1079,13 +1141,37 @@ private struct FieldRow: View {
         return nil
     }
 
+    /// Numeric fields get the web's ROW treatment — label, value and ruler inside
+    /// one flat grey group. Everything else keeps its label above the control,
+    /// which is what the web does too (`FieldLabel` above `ChipRow`/`ModeTab`).
+    private var isNumeric: Bool {
+        if case .number = field.kind { return true }
+        return false
+    }
+
+    /// The mode switcher carries NO label on the real page. `ModeTab.tsx`'s preview
+    /// wraps it in a `FieldLabel`, but the TRT call site (`app.js:8396`) passes none
+    /// and the reference frame shows it sitting directly under the breadcrumb. The
+    /// preview is the component's demo, not the page.
+    private var isMode: Bool {
+        if case .modePicker = field.kind { return true }
+        return false
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            Text(field.label)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(Theme.secondaryLabel)
-
-            content
+            if isNumeric {
+                numericRow
+            } else {
+                // T-01a #10 — SMALL CAPS SECTION HEADERS, so grouped controls read
+                // as a group. iOS used sentence-case field labels throughout and
+                // nothing grouped: `Syringe barrel` looked like a peer of
+                // `Weekly dose` rather than a heading over a set of choices.
+                if !isMode {
+                    CalcSectionHeader(title: field.label)
+                }
+                content
+            }
 
             // Hidden while THIS field is being edited, because the keyboard toolbar
             // is showing the same five values at that moment. Two identical control
@@ -1102,6 +1188,69 @@ private struct FieldRow: View {
             if let help = field.help {
                 Text(help).font(.caption2).foregroundStyle(Theme.secondaryLabel)
             }
+        }
+    }
+
+    // MARK: The web's numeric row  (T-01a #7, #8, #9)
+    //
+    // `[ LABEL ][ value ][ ruler ]`, all inside one flat #F1F1F4 group. Three of the
+    // twelve differences are this one row:
+    //   #8 label placement — web puts it LEFT of the value on the same line; iOS
+    //      stacked it above, so the row was two lines tall and read as two things.
+    //   #9 value emphasis — the value sits in a navy-outlined recessed well, so the
+    //      number is the focus of the row rather than ordinary text in a box.
+    //   #7 the ruler — see `TickDrum`.
+    //
+    // `ViewThatFits` chooses the axis, and it chooses by LAYOUT rather than by a
+    // Dynamic Type category — the same rule the rest of this file lives by, for the
+    // same reason: `if isAccessibilitySize` is the exact guess the retired pinning
+    // gate was retired for. The ruler carries a `minWidth` so the fit test has a real
+    // number to compare; a bare `GeometryReader` reports no ideal width and the test
+    // would always pick the row.
+    private var numericRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: Theme.Spacing.sm) {
+                rowLabel
+                content
+                drumStrip
+            }
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.sm) {
+                    rowLabel
+                    Spacer(minLength: Theme.Spacing.sm)
+                    content
+                }
+                drumStrip
+            }
+        }
+        .padding(Theme.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.Radius.control)
+                .fill(Theme.fieldRowFill)
+        )
+    }
+
+    private var rowLabel: some View {
+        Text(field.label)
+            .textCase(.uppercase)
+            .font(Theme.Typeface.eyebrow)
+            .tracking(0.5)
+            .foregroundStyle(Theme.secondaryLabel)
+            // Wraps rather than truncating. A label is not a value+unit pair, but
+            // `Weekly dose` shearing to `Weekly d…` beside a number is still a row
+            // whose number has no name.
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private var drumStrip: some View {
+        if !field.drum.isEmpty {
+            TickDrum(values: field.drum,
+                     selection: vm.numberBinding(field.key),
+                     key: field.key)
+                // The fit test's input. Below this the ruler stops being a ruler —
+                // four gradations do not show you where you are on a range.
+                .frame(minWidth: 110)
         }
     }
 
@@ -1176,31 +1325,27 @@ private struct FieldRow: View {
             SegmentedRow(key: field.key, options: options,
                          selection: vm.numberBinding(field.key))
 
+        case let .modePicker(options, _):
+            // T-01a #1 — the control iOS never had.
+            ModeTab(modes: options.map { .init(label: $0.label, value: $0.value) },
+                    selection: vm.stringBinding(field.key))
+
         case let .stringPicker(options, _):
-            Picker(field.label, selection: vm.stringBinding(field.key)) {
-                ForEach(options, id: \.self) { opt in Text(opt).tag(opt) }
-            }
-            .pickerStyle(.menu)
-            .tint(Theme.tealTextStrong)
-            // OPEN DEFECT: this control's selected value DRAWS OUTSIDE ITS OWN CHROME
-            // at large text and lands on the label above it. Measured on IB2245752 —
-            // `Oxandrolone (Anavar)` occupies {{83.3, 192.7}, {193.0, 183.3}} inside a
-            // button of {{15.5, 245.5}, {371.3, 78.3}}, overlapping `Compound` by
-            // 148.6 x 49.3pt. App-wide: 12 picker fields across 8 calculators render
-            // through here. See BOARD §1 and `LeafOverlapUITests`.
+            // T-01a #2 — a SEARCHABLE combobox, replacing `.pickerStyle(.menu)`.
             //
-            // RULED OUT, and recorded rather than banked: adding
-            // `.fixedSize(horizontal: false, vertical: true)` here — the obvious "let it
-            // grow" fix — changed the geometry by NOTHING. Re-measured after the change:
-            // the same 193.0 x 183.3 text in the same 371.3 x 78.3 button, identical to
-            // the byte. `.pickerStyle(.menu)` does not let its label's multiline height
-            // reach the control's frame, so the growth has to come from replacing the
-            // style with a `Menu` whose label we lay out ourselves. That is a change to
-            // a control on 12 call sites and it gets its own pass, not a rushed one.
-            .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
-            .padding(.horizontal, Theme.Spacing.md)
-            .fieldChrome()
-            .accessibilityIdentifier("control_\(field.key)")
+            // Applied to every `stringPicker` in the app, not only TRT's ester, and
+            // that is deliberate rather than scope creep: the menu picker carried a
+            // MEASURED open defect — its selected value draws outside its own chrome
+            // at large text and lands on the label above it, `Oxandrolone (Anavar)`
+            // overlapping `Compound` by 148.6 x 49.3pt on IB2245752 — and the note
+            // recording it says the fix is "replacing the style with a `Menu` whose
+            // label we lay out ourselves". This is that, arriving with the search the
+            // web has. The remaining menu pickers (`.picker`, numeric) are untouched
+            // and still carry the defect; they are listed in TASKS.md.
+            CompoundCombobox(label: field.label,
+                             options: options,
+                             selection: vm.stringBinding(field.key),
+                             key: field.key)
 
         case .toggle:
             // The switch alone was the tap target: ~51x31pt, under the 44pt floor,
@@ -1587,9 +1732,51 @@ private struct NumberField: View {
         Group {
             if isAccessibilitySize && !Self.forcedInlineForRegressionTest { stacked } else { inline }
         }
-        .padding(.horizontal, Theme.Spacing.md)
-        .fieldChrome(isFocused: focused)
         .onTapGesture { focusedKey.wrappedValue = key }
+    }
+
+    /// T-01a #9 — THE VALUE WELL. The web wraps the number in a heavy navy-outlined
+    /// box so the value is the focus of the row; iOS rendered it as ordinary text in
+    /// a bordered container that looked like every other container on the screen.
+    ///
+    /// `fieldChrome` is deliberately NOT used here and this is the one place in the
+    /// app that departs from it. `fieldChrome` is a WHITE fill with a #8E8E93
+    /// hairline — correct for an input sitting on the page, wrong for one sitting
+    /// inside a grey row, where white-on-grey reads as raised and the web's well is
+    /// recessed (#E6E6E9 INSIDE #F1F1F4 — measured, the well is darker than the row
+    /// it sits in). The border is #243C73 at 2pt, which is the "heavy navy outline"
+    /// of #9 and also clears WCAG 1.4.11 by a wide margin: 12.0:1 against the row.
+    ///
+    /// The focus ring still wins over it, so the active field stays unambiguous.
+    private var valueWell: some View {
+        field
+            .padding(.horizontal, Theme.Spacing.sm)
+            // Room for four digits before the ruler starts stealing width — the
+            // reconstitution target concentration holds 1000, so four-digit values
+            // are ordinary on this form, not an edge case.
+            .frame(minWidth: 62)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.Radius.control)
+                    .fill(Theme.valueWell)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.control)
+                    .stroke(focused ? Theme.tealTextStrong : Theme.valueWellBorder,
+                            lineWidth: 2)
+            )
+    }
+
+    @ViewBuilder
+    private var unitText: some View {
+        if let unit {
+            Text(unit)
+                .font(Theme.Typeface.cardMeta)
+                .foregroundStyle(Theme.secondaryLabel)
+                // Paired with `field_<key>` so a test can compare the two
+                // geometrically. See DynamicTypeTruncationUITests — the value cell
+                // must never be narrower than its own unit.
+                .accessibilityIdentifier("unit_\(key)")
+        }
     }
 
 
@@ -1612,55 +1799,24 @@ private struct NumberField: View {
         #endif
     }
 
+    /// Above AX1 the unit drops below the value instead of sharing its line — the
+    /// F1 reflow, unchanged in kind. What has gone is the `−`/`+` pair that used to
+    /// sit on this line and squeeze the value; see `TickDrum` for what replaced it.
     private var stacked: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-            field
-            HStack(spacing: Theme.Spacing.sm) {
-                if let unit {
-                    Text(unit)
-                        .font(Theme.Typeface.cardMeta)
-                        .foregroundStyle(Theme.secondaryLabel)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("unit_\(key)")
-                }
-                Spacer(minLength: Theme.Spacing.sm)
-                steppers
-            }
+            valueWell
+            unitText
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, Theme.Spacing.sm)
     }
 
     private var inline: some View {
         HStack(spacing: Theme.Spacing.sm) {
-            field
-            if let unit {
-                Text(unit)
-                    .font(Theme.Typeface.cardMeta)
-                    .foregroundStyle(Theme.secondaryLabel)
-                    .fixedSize()
-                    // Paired with `field_<key>` so a test can compare the two
-                    // geometrically. See DynamicTypeTruncationUITests — the value
-                    // cell must never be narrower than its own unit.
-                    .accessibilityIdentifier("unit_\(key)")
-            }
-            steppers
-        }
-    }
-
-    @ViewBuilder
-    private var steppers: some View {
-        if let step {
-            // A bare `Stepper` renders 46 x 32pt — 12pt under the HIG floor
-            // (finding F6). Two explicit buttons give each half 44 x 44pt and let us
-            // put a real gap between −/+, which act in opposite directions on a dose.
-            HStack(spacing: Theme.Spacing.sm) {
-                stepButton("minus", id: "step_down_\(key)") {
-                    value = clamp(value - step); text = format(value)
-                }
-                stepButton("plus", id: "step_up_\(key)") {
-                    value = clamp(value + step); text = format(value)
-                }
-            }
+            valueWell
+            unitText
+                // A unit must never truncate. `0.25` with no `mL` has two plausible
+                // readings on a U-100 barrel and nothing on screen disambiguates.
+                .fixedSize()
         }
     }
 
@@ -1782,26 +1938,15 @@ private struct NumberField: View {
         }
     }
 
-    /// `id` is per FIELD, not per symbol. Every ranged field on a screen renders a
-    /// −/+ pair with the same "Decrease"/"Increase" labels, so `buttons["Increase"]
-    /// .firstMatch` resolves to whichever field is highest in the tree — on TRT that
-    /// is vial strength, and a test stepped that while asserting on weekly dose.
-    private func stepButton(_ symbol: String, id: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(Theme.tealTextStrong)
-                .frame(width: Theme.minTarget, height: Theme.minTarget)
-                .background(
-                    RoundedRectangle(cornerRadius: Theme.Radius.control)
-                        .fill(Theme.accentSoft)
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(id)
-        .accessibilityLabel(symbol == "minus" ? "Decrease" : "Increase")
-    }
+    // `stepButton` IS GONE, with `step_up_<key>` / `step_down_<key>`. It is recorded
+    // here rather than silently deleted because the reason it existed is still true
+    // and still honoured by what replaced it: a bare `Stepper` renders 46 x 32pt,
+    // 12pt under the HIG floor (finding F6), which is why the ± were hand-rolled at
+    // 44 x 44 with a real gap between two controls that act in opposite directions
+    // on a dose. `TickDrum` is a single 44pt-tall drag target with an `.adjustable`
+    // accessibility action, so the floor and the VoiceOver path both survive the
+    // change; what does not survive is the −/+ pair squeezing the value cell on the
+    // same line (F1, twice).
 
     private func clamp(_ d: Double) -> Double {
         guard let range else { return d }

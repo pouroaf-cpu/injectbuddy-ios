@@ -22,6 +22,14 @@ struct CalculatorInput: Identifiable, Equatable {
     /// than they type an arbitrary one. Typing still works — these are a shortcut,
     /// never the only way in.
     var quick: [Double] = []
+    /// The tick-ruler gradations shown beside a numeric field — the web's
+    /// `DrumPicker` values (T-01a #7). EMPTY MEANS NO RULER, which is the honest
+    /// default: a scale is a claim about the plausible range of a quantity, and the
+    /// web only makes that claim where it has an array for it. Never derived from
+    /// `range`/`step` — those are what the field ACCEPTS, which is a wider and
+    /// different thing (iOS's vial strength accepts 1…500 by 1; the web's ruler
+    /// shows 10…400 by 10).
+    var drum: [Double] = []
 
     var id: String { key }
 
@@ -35,6 +43,15 @@ struct CalculatorInput: Identifiable, Equatable {
         case segmented(options: [PickerOption], defaultValue: Double)
         /// A picker of string-valued options (e.g. ester type).
         case stringPicker(options: [String], defaultValue: String)
+        /// A string-valued SEGMENTED control whose options carry a display label
+        /// separate from the stored value — the calculator's dosing MODE, where the
+        /// label is `Every N Days` and the value written to `config.mode` is `ndays`.
+        ///
+        /// A separate case rather than a flag on `stringPicker`, because the two are
+        /// not the same control: this one is always visible and switches which OTHER
+        /// FIELDS the form shows (see `CalculatorScreen.shouldShow`), which a menu
+        /// picker of strings never did.
+        case modePicker(options: [ModeOption], defaultValue: String)
         /// A boolean toggle.
         case toggle(defaultValue: Bool)
         /// A whole-number "every N days" stepper.
@@ -48,14 +65,25 @@ struct CalculatorInput: Identifiable, Equatable {
         var id: String { label }
     }
 
+    /// A labeled option for the mode switcher. The VALUE is what reaches
+    /// `saved_dosages.config.mode` and it must match the web's string exactly —
+    /// `ndays` / `perweek` / `ml2mg`, from `app.js`. The database de-duplicates on
+    /// the whole config, so a mode spelled differently is a different protocol.
+    struct ModeOption: Equatable, Identifiable {
+        let label: String
+        let value: String
+        var id: String { value }
+    }
+
     // Convenience constructors keep the catalog terse.
     static func number(_ key: String, _ label: String, unit: String? = nil,
                        default def: Double, range: ClosedRange<Double>? = nil,
                        step: Double? = nil, help: String? = nil,
-                       quick: [Double] = []) -> CalculatorInput {
+                       quick: [Double] = [],
+                       drum: [Double] = []) -> CalculatorInput {
         CalculatorInput(key: key, label: label,
                         kind: .number(unit: unit, defaultValue: def, range: range, step: step),
-                        help: help, quick: quick)
+                        help: help, quick: quick, drum: drum)
     }
 
     static func segmented(_ key: String, _ label: String,
@@ -77,6 +105,13 @@ struct CalculatorInput: Identifiable, Equatable {
                              help: String? = nil) -> CalculatorInput {
         CalculatorInput(key: key, label: label,
                         kind: .stringPicker(options: options, defaultValue: def), help: help)
+    }
+
+    static func modePicker(_ key: String, _ label: String,
+                           options: [ModeOption], default def: String,
+                           help: String? = nil) -> CalculatorInput {
+        CalculatorInput(key: key, label: label,
+                        kind: .modePicker(options: options, defaultValue: def), help: help)
     }
 
     static func toggle(_ key: String, _ label: String, default def: Bool,
@@ -109,6 +144,7 @@ struct CalculatorValues: Equatable {
             case let .segmented(_, def):               v.numbers[f.key] = def
             case let .stepperDays(def, _):             v.numbers[f.key] = def
             case let .stringPicker(_, def):            v.strings[f.key] = def
+            case let .modePicker(_, def):              v.strings[f.key] = def
             case let .toggle(def):                     v.bools[f.key] = def
             }
         }

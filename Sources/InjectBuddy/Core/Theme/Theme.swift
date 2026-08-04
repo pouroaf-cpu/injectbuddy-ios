@@ -63,6 +63,52 @@ enum Theme {
     /// field, which is exactly what it is on this form.
     static let fieldBorder = Color(hex: 0x8E8E93)
 
+    // MARK: - Calculator parity tokens (T-01a)
+    //
+    // SAMPLED PER-PIXEL from `injectbuddy-design-refs/screens/30-calc-trt-result.png`,
+    // not read out of the CSS cascade and not eyeballed. The frame is 1170x4227; the
+    // coordinate each value came from is on the line, so the next person re-measures
+    // rather than re-derives. Two of them landed on tokens this file already had —
+    // the page canvas sampled #FAFAFB, exactly `canvas` — which is the check that the
+    // sampling is reading what it thinks it is reading.
+
+    /// The result bar's fill. (300,2505) → #00FFEE. The web's sticky `Show result`
+    /// bar is full-bleed BRIGHT CYAN and it is unmistakably the primary action.
+    ///
+    /// FILL ONLY, and more so than `accent`: #00FFEE is 1.35:1 against white. The
+    /// label on it is `navy`, which measures 12.7:1 — the reference frame draws it
+    /// dark for the same reason.
+    static let ctaCyan = Color(hex: 0x00FFEE)
+
+    /// A calculator field ROW's fill. (70,545) → #F1F1F4, uniform across the row.
+    ///
+    /// The web's numeric row is one flat grey group holding label, value and ruler,
+    /// which is what makes it read as a single control. Note what the sampling
+    /// SETTLED: T-01a #8 describes the label as sitting "in a grey pill"; the pill
+    /// and the row measure the same #F1F1F4, so the pill is not a separate fill. The
+    /// placement half of #8 (label left, same row) is right; the pill half is not.
+    static let fieldRowFill = Color(hex: 0xF1F1F4)
+
+    /// The value well inside a field row. (560,545) → #E6E6E9 — DARKER than the row
+    /// it sits in, i.e. a recessed well rather than a raised white box.
+    static let valueWell = Color(hex: 0xE6E6E9)
+
+    /// The value well's border. (520,545) → #243C73. This is the "heavy navy-outlined
+    /// box" of T-01a #9 and it is what makes the number the focus of the row.
+    static let valueWellBorder = Color(hex: 0x243C73)
+
+    /// The mode switcher's recessed track. (700,248) → #E6E6EE. The active pill is
+    /// #FFFFFF, sampled at (210,248).
+    static let modeTrack = Color(hex: 0xE6E6EE)
+
+    /// The plotter link's tint. (300,1370) → #E4F3F3. Deliberately NOT `accentSoft`
+    /// (#EAFAF8): they are close and they are not the same, and this file's whole
+    /// premise is that "close enough" is how the two apps drifted.
+    static let plotTint = Color(hex: 0xE4F3F3)
+
+    /// The formula card's inner well. (200,3450) → #F5F5F5, inside a #FFFFFF card.
+    static let formulaWell = Color(hex: 0xF5F5F5)
+
     // MARK: - Semantic (kept where no brand token exists)
 
     static let background = Color(.systemBackground)

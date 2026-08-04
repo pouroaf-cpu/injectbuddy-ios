@@ -93,7 +93,7 @@ final class CalculatorViewModel: ObservableObject {
             switch field.kind {
             case .number, .picker, .segmented, .stepperDays:
                 obj[field.key] = .number(values.number(field.key))
-            case .stringPicker:
+            case .stringPicker, .modePicker:
                 obj[field.key] = .string(values.string(field.key))
             case .toggle:
                 obj[field.key] = .bool(values.bool(field.key))
