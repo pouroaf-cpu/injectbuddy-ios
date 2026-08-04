@@ -226,8 +226,8 @@ dropped for being hard, and "it's for SEO" is a reason to ask, not to skip.
 
 ---
 
-### T-01b … — every other screen, not yet compared
-**Priority 9/10** · **Owner:** win · **Status:** open
+### ~~T-01b … — every other screen, not yet compared~~ — **DONE 2026-08-04**
+**Priority 9/10** · **Owner:** win + mac · **Status:** done
 
 **What:** twelve of the twenty iOS frames have no partner comparison yet. The reference set covers
 dashboard (empty and populated), calendar, log-dose sheet, tools hub, add and confirm-start,
@@ -238,6 +238,24 @@ planner, blood tests, chat, suggestions, peptide tracker. Those are features, no
 subsume the old "what is the dashboard's v1 scope" question: **the answer is what the web does.**
 
 **Done when:** each screen has its own `T-01x` entry with its difference list.
+
+**DONE — every screen now has one. Nineteen screens, two documents, both halves complete.**
+
+| | screens | where |
+|---|---|---|
+| calculators (mac) | 13 — `T-01b-i` … `T-01b-vi`, `T-01b-1` … `T-01b-7` | `CALC-PARITY.md` |
+| shell (win) | 6 — `S-01` … `S-06` | `SHELL-PARITY.md` |
+
+**What the comparison produced is not what it was set up to find.** T-01b was written as a layout
+exercise. It returned **T-41** (a unit flip that multiplies a dose by 1000), **T-42** (a fabricated
+number labelled as a lab result), **T-43** (the same unit bug on a second screen), **T-44**
+(injectable inputs for oral-only compounds), **T-45** (a vial concentration with no correct option,
+drawing 25% over) and **T-81** (a protocol that silently ages out of the dashboard). **Every one came
+from comparing maths and write paths, not pictures.** The method is the finding: the frames said
+where to look, the source said what was wrong.
+
+**Two screens were compared from source alone** — settings and confirm-start — because the harness
+cannot photograph them (**T-55**). Their entries say so rather than pretending to a frame.
 
 **Split, agreed 2026-08-04:** mac took the thirteen calculator screens — T-01a's twelve differences
 are mostly chrome the web wraps around *every* calculator, so splitting them would have had both
@@ -2031,8 +2049,8 @@ records its holder's pid **as information**, so a waiter can tell a dead holder 
 without that pid ever becoming the exclusion mechanism. Demonstrated by a compile and a capture that
 neither falsely block nor falsely pass, and by a waiter correctly identifying a dead holder.
 
-## T-57 — The web silently drops two protocol types, and three ACTIVE protocols are invisible today
-**Priority 7/10** · **Owner:** win · **Status:** doing — derivation built and measured; the visibility clause is not done
+## ~~T-57 — The web silently drops two protocol types, and three ACTIVE protocols are invisible today~~ — **DONE 2026-08-04**
+**Priority 7/10** · **Owner:** win · **Status:** done
 
 **What:** `lib/account-schedule.ts`'s `deriveDose` returns `null` for any `calculator_type` it has no
 branch for, and `deriveProtocols` discards a null — `if (!dose) return`, with **no `console.warn`, no
@@ -2099,10 +2117,36 @@ Four changes in `lib/account-schedule.ts`:
 - **An unrecognised type is now `console.error`'d** naming the type and the row id and saying what
   to do about it. Never thrown — one bad row must not take the dashboard down.
 
-**Still open, deliberately.** The third clause — a non-schedulable protocol staying visible to its
-owner — is NOT done. `femalehrt` still vanishes from the dashboard; it is now a stated decision
-rather than a fall-through, but the user still cannot see a protocol they saved. That is a UI change,
-not a derivation change, and it is the remaining work here.
+**The third clause is now done too — `b66577b9`.** `UnscheduledProtocol` is its own minimal type,
+`{id, label, calc, color, reason}`, with **no route, dose, volume, sites or inventory to forge**.
+Returned by `deriveUnscheduled`, never merged into `protocols`. Deliberately NOT a flag on
+`DerivedProtocol`: that type's `freqDays`/`vol`/`sites`/`inv` are non-optional and feed `isDoseDay`,
+`eventsForDay` and the inventory and stats loops, so making them optional would put a schedule-shaped
+hole into the calendar, rotation and inventory paths.
+
+**The sharper half of the bug, found while fixing it:** `UpcomingDoses` returned `null` outright when
+`protocols.length === 0` — so a user whose only active protocol is non-schedulable saw a **blank
+dashboard with no explanation**, not merely a missing card.
+
+**MEASURED — both functions run over the real production configs:**
+
+```
+scheduled:   1  -> oilblend(275 mg, 1mL, every 2.33d)
+unscheduled: 3
+   femalehrt        -> patch, cream or oral dose, so no injection schedule to show
+   femalehrt        -> patch, cream or oral dose, so no injection schedule to show
+   bioavailability  -> a one-off estimate, not an ongoing protocol
+overlap between the two lists: 0   (a row is in exactly one)
+unscheduled carry no schedule fields: true
+every active row accounted for: 4/4 YES
+```
+
+**4 of 4, where two were previously invisible.** Zero overlap, and the unscheduled rows provably
+carry none of the schedule fields, so nothing can place them on a calendar day, a rotation track or
+an inventory meter.
+
+**Severity note so it is not overstated later:** no user currently holds ONLY non-schedulable
+protocols, so the blank-dashboard case is **latent**. The invisibility itself was live and is fixed.
 
 ## ~~T-58 — Every bpc157 protocol shows "Draw volume unknown", from a config-key mismatch~~ — **DONE 2026-08-04**
 **Priority 6/10** · **Owner:** win · **Status:** done
@@ -2275,8 +2319,8 @@ single source of truth is either made true or removed. Verified by a script that
 disagree — **the check has to outlive the fix**, because nothing detected this for however long it
 has been true.
 
-## T-61 — The web's dashboard greeting paints its own text at 1.50:1
-**Priority 6/10** · **Owner:** win · **Status:** open
+## ~~T-61 — The web's dashboard greeting paints its own text at 1.50:1~~ — **DONE 2026-08-04**
+**Priority 6/10** · **Owner:** win · **Status:** done
 
 **What:** `components/account/dashboard/DashStyles.tsx:691-693`:
 
@@ -2306,6 +2350,30 @@ worth a look at whether anything else animates unguarded.
 
 **Done when:** the midpoint stop is a colour that clears 3:1 on white, measured, with the sweep still
 reading as a sweep. iOS's three-stop ramp is the working reference.
+
+**DONE `dedcc572` — and the fix is the opposite of what this task assumed.** Measured against the
+real background, `--ib-bg: #fafafb`, not white:
+
+| stop | luminance | contrast |
+|---|---|---|
+| old midpoint `#5fe8da` | 0.6521 | **1.43:1** — fails the 3:1 large-text floor |
+| base `#0a9d90` | 0.2621 | 3.23:1 — legal, but only just |
+| new midpoint `#075e56` | 0.0872 | **7.34:1** |
+
+**There was no lighter colour that could work, which is why "pick a lighter highlight" was the wrong
+brief.** The base is itself only 3.23:1, so on a near-white canvas *brighter* and *higher-contrast*
+pull in opposite directions — every lighter peak fails harder than the one it replaces. Fixed by
+inverting the sweep to peak **dark**. Worst case is now 3.23:1 at the base instead of 1.43:1 at the
+peak.
+
+**Divergence from iOS, recorded so nobody "corrects" it:** iOS uses the same two colours in the
+opposite direction — a `#075E56` base peaking lighter at `#0A9D90`. Both are legal and share the same
+worst case, so there is **no accessibility difference**. The web keeps `#0a9d90` as its resting
+colour purely so a live product's greeting does not change appearance for zero measurable gain.
+
+**Audited for the same pattern:** `public/home.js`'s hero headline uses the same
+`background-clip:text` technique at 4.77:1 and is fine. No other occurrence in the codebase.
+`prefers-reduced-motion` still disables the animation.
 
 ## T-62 — iOS corner radii are roughly double the web's, everywhere
 **Priority 4/10** · **Owner:** mac · **Status:** open
