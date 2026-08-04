@@ -148,6 +148,35 @@ final class ProtocolSummaryTests: XCTestCase {
         XCTAssertNil(ProtocolSummary.amount(for: blend))
     }
 
+    /// **T-24 — the stale mode gate.** `ndays` is the web's default TRT mode and 21 of
+    /// the 39 TRT rows in production carry it. `evaluate` has run all three TRT branches
+    /// since T-01a #1, but `modeIsEvaluatedAsSaved` still said "trt means perweek", so
+    /// every one of those rows was refused: no volume on the log, and after T-53 no dose
+    /// on the card either. This assertion was RED before that gate was corrected.
+    func testATrtProtocolSavedInNdaysIsEvaluated() {
+        let ndays = dosage(id: "n", type: "trt", label: "TRT Dose", config: """
+        {"mode":"ndays","nDays":3.5,"mgWeek":100,"mlDrawn":0,"strength":200,
+         "esterType":"Testosterone Enanthate","syringeMl":1,"injPerWeek":0}
+        """)
+        // 100 mg/wk every 3.5 days = 50 mg per injection, 0.25 mL from a 200 mg/mL vial.
+        XCTAssertEqual(ProtocolSummary.amount(for: ndays), DoseAmount(value: 50, unit: "mg"))
+        XCTAssertEqual(DoseVolume.perInjectionMl(for: ndays) ?? 0, 0.25, accuracy: 0.00001)
+        XCTAssertEqual(NewDoseLogPin(for: ndays, dosedOn: "2026-08-04").doseLabel, "50 mg")
+    }
+
+    /// `ml2mg` stays refused, and the reason is the WEB, not iOS. `evaluate` runs it
+    /// (`mlDrawn × strength`); the web's `deriveDose` has no `ml2mg` branch for `trt` and
+    /// computes the dose from `mgWeek` instead. A volume iOS is sure of and the web
+    /// contradicts is worse than a NULL.
+    func testATrtProtocolSavedInMl2mgIsStillRefused() {
+        let ml2mg = dosage(id: "m", type: "trt", label: "TRT Dose", config: """
+        {"mode":"ml2mg","nDays":0,"mgWeek":0,"mlDrawn":0.5,"strength":200,
+         "esterType":"Testosterone Enanthate","syringeMl":1,"injPerWeek":2}
+        """)
+        XCTAssertNil(ProtocolSummary.amount(for: ml2mg))
+        XCTAssertNil(DoseVolume.perInjectionMl(for: ml2mg))
+    }
+
     /// The mode gate is shared with the volume. A steroid row saved `perweek` is one
     /// this build's `evaluate` does not run, and it already refuses to state a volume —
     /// so it must not state a dose either.

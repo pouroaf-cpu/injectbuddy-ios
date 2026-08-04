@@ -141,21 +141,37 @@ enum DoseVolume {
 
     /// Whether `evaluate` would run this config under the mode it was SAVED in.
     ///
-    /// `evaluate` hard-codes a mode for three families — trt is `.perweek`, microdose
-    /// and steroid are `.ndays` — because that is the one mode the iOS form offers. The
-    /// web's pages offer more (`ndays`, `perweek`, `ml2mg`) and write the mode into the
-    /// config, and the same row evaluated in the wrong mode yields a DIFFERENT volume
-    /// from the same numbers.
+    /// `evaluate` hard-codes a mode for two families — microdose and steroid are both
+    /// `.ndays` — because that is the one mode their iOS form offers. The web's pages
+    /// offer more (`ndays`, `perweek`, `ml2mg`) and write the mode into the config, and
+    /// the same row evaluated in the wrong mode yields a DIFFERENT volume from the same
+    /// numbers.
     ///
     /// So a row saved in a mode this build does not run is refused rather than
     /// approximated. Refusing writes NULL, which under-reports consumption and is
     /// visible; approximating writes a wrong volume, which mis-decrements a vial and is
     /// not. This is not a second derivation — it is the one derivation declining to
     /// answer outside its domain.
+    ///
+    /// **T-24: `.trt` used to be on that list and had stopped being true.** It read
+    /// `mode == "perweek"`, which was correct when `evaluate` hard-coded `.perweek` for
+    /// TRT — but T-01a #1 made `mode` a real field and `evaluate` has honoured all three
+    /// branches ever since. The stale gate was refusing **21 of 39 TRT rows across 13 of
+    /// 22 TRT users** — every protocol saved in `ndays`, which is the web's own default —
+    /// so those doses logged a NULL volume and, after T-53, showed no dose on their card
+    /// and no amount field to correct. Refusing on a rule that is no longer true is not
+    /// caution, it is the same wrong answer given confidently.
+    ///
+    /// **`ml2mg` stays refused, and not for iOS's sake.** `evaluate` runs it correctly
+    /// (`mgPerInj = mlDrawn × strength`), but the WEB's `deriveDose` has no `ml2mg`
+    /// branch for `trt` — it spaces by `injPerWeek` and computes the dose from `mgWeek`
+    /// like `perweek`. The two clients therefore disagree about what such a row means,
+    /// and a volume iOS is sure of and the web contradicts is worse than a NULL. One row
+    /// in production. Filed against T-24.
     private static func modeIsEvaluatedAsSaved(_ config: JSONValue, slug: CalculatorSlug) -> Bool {
         guard let mode = config["mode"]?.string, !mode.isEmpty else { return true }
         switch slug {
-        case .trt:                  return mode == "perweek"
+        case .trt:                  return mode == "ndays" || mode == "perweek"
         case .microdose, .steroid:  return mode == "ndays"
         // The rest either ignore `mode` in `evaluate` (glp1 reads conc/dose only) or
         // never carry one (hcg, bpc157, bpc157blend, eod).

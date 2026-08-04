@@ -84,10 +84,18 @@ final class LogDoseAmountRoundTripUITests: XCTestCase {
             .matching(NSPredicate(format: "identifier BEGINSWITH 'logDose.protocol.'"))
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 10), "No protocol cards in the sheet.")
 
+        // A SwiftUI Button carrying traits usually collapses its children into ONE
+        // accessibility element, so the labels may live on the row itself rather than on
+        // staticText descendants. Read both and prefer whichever is non-empty: a check
+        // that silently compared five empty strings would report the defect it was
+        // written to detect, on a build that had fixed it.
         let texts: [String] = rows.allElementsBoundByIndex.map { row in
-            row.descendants(matching: .staticText).allElementsBoundByIndex
-                .map(\.label).joined(separator: " | ")
+            let children = row.descendants(matching: .staticText).allElementsBoundByIndex
+                .map(\.label).filter { !$0.isEmpty }
+            return children.isEmpty ? row.label : children.joined(separator: " | ")
         }
+        XCTAssertFalse(texts.contains(where: \.isEmpty),
+                       "A card rendered no text at all — the query is wrong, not the app.")
         XCTAssertGreaterThan(texts.count, 1, "Only one protocol — this account cannot show the defect.")
         for text in texts { print("T-53 CARD: \(text)") }
         XCTAssertEqual(Set(texts).count, texts.count,
@@ -107,6 +115,17 @@ final class LogDoseAmountRoundTripUITests: XCTestCase {
         XCTAssertNotEqual(seeded, typedAmount, "Fixture clash: the derived dose is the value being typed.")
 
         amount.tap()
+
+        // **The field must still be on screen with the keypad up.** The first run of this
+        // test passed while the sheet pushed the amount entirely off-screen behind the
+        // keyboard and the pinned CTA — `typeText` does not care whether a field is
+        // visible, so a round trip alone will go green on a build where the user is
+        // typing a dose they cannot see. On a dosing app that is the failure, not a
+        // detail. `isHittable` is false for an off-screen element, which is the check.
+        XCTAssertTrue(amount.isHittable,
+                      "The DOSE AMOUNT field is off-screen while it is being edited.")
+        attachScreenshot(named: "T-52 amount field visible with the keypad up")
+
         // Clear whatever was seeded, character by character — a decimal pad has no
         // select-all, and a field that appended would log 74.512.75.
         let deletes = String(repeating: XCUIKeyboardKey.delete.rawValue, count: seeded.count + 2)
@@ -117,11 +136,20 @@ final class LogDoseAmountRoundTripUITests: XCTestCase {
 
         attachScreenshot(named: "T-52 dose amount edited")
 
+        // `.decimalPad` has no return key and the CTA is withdrawn while the keypad is
+        // up, so this button is the only way back to `Log dose`. Asserting it exists is
+        // asserting the sheet is not a dead end.
+        let done = app.buttons["logDose.amount.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5),
+                      "No Done above the keypad — the amount field is a one-way door.")
+        done.tap()
+
         let cta = app.buttons["logDose.submit"]
-        XCTAssertTrue(cta.waitForExistence(timeout: 5), "No Log dose CTA.")
-        // The keypad can sit over the CTA; the CTA is pinned outside the list, so
-        // dismissing the keyboard is enough to reach it.
-        if !cta.isHittable { app.swipeDown() }
+        XCTAssertTrue(cta.waitForExistence(timeout: 5), "No Log dose CTA after dismissing the keypad.")
+        // If the CTA is ever unreachable, scroll the LIST — never `swipeDown`, which on a
+        // sheet is the dismiss gesture and would end the test by closing the thing under
+        // test while reporting nothing.
+        if !cta.isHittable { app.swipeUp() }
         XCTAssertTrue(cta.isEnabled, "CTA disabled — the typed amount was not accepted.")
         cta.tap()
 

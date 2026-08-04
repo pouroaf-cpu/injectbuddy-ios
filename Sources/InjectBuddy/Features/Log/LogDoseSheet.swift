@@ -46,6 +46,14 @@ import SwiftUI
 struct LogDoseSheet: View {
     @EnvironmentObject private var navigator: ShellNavigator
     @EnvironmentObject private var network: NetworkMonitor
+    /// **The pinned CTA is dropped while the keypad is up.** With both on screen the
+    /// bar and the keyboard together consumed enough of the sheet that the DOSE AMOUNT
+    /// field — the one being typed into — went entirely off-screen: the user was
+    /// entering a dose they could not see. Photographed, not reasoned about
+    /// (`docs/ui-audit/2026-08-04-logdose/`). Same treatment `MainShell` already gives
+    /// the raised hero for the same reason, and the field being visible while it is
+    /// edited outranks a CTA that cannot be committed until the keypad goes down anyway.
+    @StateObject private var keyboard = KeyboardObserver()
     @Environment(\.backend) private var backend
     @Environment(\.dismiss) private var dismiss
 
@@ -199,6 +207,20 @@ struct LogDoseSheet: View {
             .foregroundStyle(Theme.ink)
             .accessibilityIdentifier("logDose.amount")
             .accessibilityLabel("Dose amount in \(derived.unit)")
+            // **Not decoration — the only way out of this keypad.** `.decimalPad` has
+            // no return key, and the CTA is withdrawn while the keyboard is up, so
+            // without this a user who edits the amount can never reach `Log dose`
+            // again. Sized at the 44pt floor like every other target.
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { amountFocused = false }
+                        .font(.body.weight(.semibold))
+                        .tint(Theme.tealTextStrong)
+                        .frame(minWidth: Theme.minTarget, minHeight: Theme.minTarget)
+                        .accessibilityIdentifier("logDose.amount.done")
+                }
+            }
 
             // The unit sits BESIDE the value at `sm 8` — side by side is the 8pt
             // relationship (UX-UI-RULES §4). It never truncates and never scales away:
@@ -403,7 +425,7 @@ struct LogDoseSheet: View {
             // rendering two sizes, and the log sheet's simply not scaling with
             // Dynamic Type. A CTA sized for default text at AX5 is not acceptable.
             .safeAreaInset(edge: .bottom) {
-                if !isLoading && !protocols.isEmpty {
+                if !isLoading && !protocols.isEmpty && !keyboard.isVisible {
                     PrimaryButton(
                         title: "Log dose",
                         isLoading: isSaving,
