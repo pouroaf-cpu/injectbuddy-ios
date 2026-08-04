@@ -532,8 +532,8 @@ work is not blocked by it. Candidates (B) and (C) are now the live ones again, a
 network-layer question, and (C) — `reload()` mutating `@State` before its await — looks better than
 it did, because a `Task` cancelled by a view update would produce exactly this null.
 
-## T-06 — The web drops every `microdose` protocol on the floor
-**Priority 5/10** · **Owner:** win · **Status:** open
+## ~~T-06 — The web drops every `microdose` protocol on the floor~~ — **DONE 2026-08-04**
+**Priority 5/10** · **Owner:** win · **Status:** done
 
 **What:** `lib/account-schedule.ts`'s `deriveDose` has branches for `trt`, `eod`, `steroid`,
 `peptide`, `semaglutide`, `tirzepatide`, `retatrutide`, `bpc157`, `bpc157blend`/`blend` and `hcg`,
@@ -549,6 +549,18 @@ ever reached it.
 
 **Done when:** `deriveDose` handles `microdose` (it is TRT's math), or the web states why it will
 not and iOS stops offering the calculator.
+
+**DONE `c07a1bf5`.** `lib/account-schedule.ts:122` — `if (calc === 'trt' || calc === 'eod' || calc ===
+'microdose')`. **One word, because the config turned out to be key-for-key identical to trt's**,
+checked against production before the change rather than assumed:
+`{mode, nDays, mgWeek, mlDrawn, strength, esterType, syringeMl, injPerWeek}`.
+
+**Measured, not inspected** — `deriveProtocols` run over the real production config:
+`microdose · dose=10 mg · vol=0.05 · freqDays=3.5 · route=IM · conc=200`.
+
+Closed alongside **T-57**, which is the same defect's general case: this task named the one type
+anybody had noticed, and the sweep found that `femalehrt` and `oilblend` were being dropped too —
+those had live users and `microdose` had none.
 
 ## T-07 — Two of the three iOS log paths still write a NULL site
 **Priority 4/10** · **Owner:** mac · **Status:** open
@@ -1033,8 +1045,8 @@ means no field to correct.
 **Done when:** a steroid protocol saved `perweek` states a dose per injection on its card and logs a
 non-NULL `draw_ml`, verified by a `select` on a row logged from the sheet.
 
-## T-22 — The web's `DOSE AMOUNT` field is discarded, so iOS and web now disagree
-**Priority 5/10** · **Owner:** win · **Status:** open
+## ~~T-22 — The web's `DOSE AMOUNT` field is discarded, so iOS and web now disagree~~ — **DONE 2026-08-04**
+**Priority 5/10** · **Owner:** win · **Status:** done
 
 **What:** found while reading the web's own source for T-52, on `feature/dosage-status-model`.
 `DashLogFlow.tsx:23` holds `amount` in state and seeds it from `p.doseLabel` (line 38), the input
@@ -2457,3 +2469,20 @@ plus an exact-entry box — so "the web has chips here" is only true on the unme
 
 **Done when:** either a chip row is specified by the owner and built, or this is closed as
 deliberately absent with the deployed build cited.
+
+
+---
+
+**T-22 closure note (win, 2026-08-04).** Fixed in `eb2a5b1d`. `DashLogFlow.tsx:106` now passes
+`amount` to `markDone`; `DashboardContext.tsx:399,404` write `drawMlFor(ev, amount)` and
+`doseLabelFor(ev, amount)` instead of the plan.
+
+**The two clients agree, derived independently, which is the part worth keeping.** iOS computed
+`12.75` over a `74.5 mg` plan as `12.75 ÷ 200 = 0.064 mL`. The web reaches `0.064` by a different
+route — `0.373 × (12.75 ÷ 74.5)`, scaling the planned volume rather than recomputing from strength.
+Two implementations, neither having seen the other, same number. A cross-check is worth more than
+either side testing itself twice.
+
+**One deliberate narrowing:** `draw_ml` scales only for a bare number. `0.5 mL` typed against a
+`74.5 mg` plan is a volume, not a dose, and scaling it would write `0.0025 mL` — a dosing app must
+not compute through an ambiguous unit. The label takes what the user said; the volume stays planned.
