@@ -772,6 +772,78 @@ one is on the maths path — it reaches the saved protocol and the logged dose.
 `handleUnitToggle`; a unit test pins mcg→mg→mcg round-tripping to the original number; and the
 behaviour is shown on the device — set 500 mcg, flip to mg, photograph the field reading 0.5.
 
+## T-42 — The plotter labels a fabricated number as a lab result
+**Priority 9/10** · **Owner:** mac · **Status:** open
+
+**What it does now:** `CyclePlotterViewModel.rebuild` multiplies the curve by
+`CalculatorEngine.testoNgdlFactor = 13.5` whenever every selected compound is a testosterone, and
+`CyclePlotterScreen:48` titles the axis **`Estimated level (ng/dL)`**. The frame peaks around
+1,500 for 100 mg/week Test E — exactly the units and the range of a real serum testosterone result.
+
+**What the web says, and it is addressed to us.** `spec/math-spec.md` §4.1 on
+`feature/dosage-status-model`:
+
+> **Units.** This yields **mg-equivalents of active drug, not ng/dL.** … the chart is labelled in mg
+> and must never claim a lab number. **A port must not add a unit conversion here.**
+
+Both halves verified in place rather than taken on report: `grep -rn 'testoNgdlFactor' Sources/`
+and `git show FETCH_HEAD:spec/math-spec.md`. **iOS does the exact thing the shared spec forbids, in
+a sentence written for ports.**
+
+**Why it is a 9.** Every other parity item is the app showing less than the web. This one shows
+something the web deliberately refuses to show, wearing the units of a measurement the user can go
+and have taken. A number labelled ng/dL invites comparison against real bloodwork — and a user
+whose lab result disagrees with this curve has been given a reason to change a dose.
+
+**It is not the only divergence on this screen, and the others compound it.** iOS derives `ka` by
+bisecting for a per-compound `tmax` that exists nowhere in the web's data (the web uses
+`ka = ln2 / max(0.01, halfLife × 0.25)`); it skips the web's `SMOOTH_FRAC = 0.5` moving average
+entirely; and its compound table — commented "verbatim from app.js `PLOTTER_COMPOUNDS`", **a symbol
+that does not exist in the web tree** — disagrees with `spec/compounds.json` on 15 half-lives (Tren
+A at 1.5 d against 3.0) and 4 units (TB-500, PT-141, MT-II mcg-vs-mg; HGH mcg-vs-IU). See
+`CALC-PARITY.md`.
+
+**Done when:** the axis is labelled in the units the model actually produces and the ng/dL factor is
+gone, OR the owner rules that iOS keeps a calibrated estimate — in which case it says on the screen
+that it is not a lab value. The half-life and unit table is reconciled against `spec/compounds.json`
+and the "verbatim from app.js" comment is corrected, since it cites a symbol that does not exist.
+
+## T-43 — Flipping the Free T Index unit does not convert the value either
+**Priority 8/10** · **Owner:** mac · **Status:** open
+
+**What it does now:** the same defect as T-41 on a second screen. The total-testosterone unit picker
+changes the unit and leaves the number, so the shipped default turns **FAI 40.0 "Normal" into 1.4
+"Low"** with no blood value changed.
+
+**The web converts, and its own source names the exact consequence** — `changeTtUnit` carries a
+comment about "a 28.84× wrong FAI/band". So this is a known, annotated hazard on the web that the
+port dropped.
+
+**Why it is filed separately from T-41:** same shape, different screen, different conversion factor,
+and Free T Index is currently WITHDRAWN from Tools — so it cannot be photographed (T-55) and a user
+cannot reach it today. That is the only reason this is an 8 and T-41 is a 9.
+
+**Done when:** flipping the unit converts the value; a unit test pins the round trip; and the FAI
+band is shown not to move when only the unit changes.
+
+## T-44 — The steroid calculator offers injectable inputs for oral-only compounds
+**Priority 7/10** · **Owner:** mac · **Status:** open
+
+**What it does now:** `28-calculator-steroid.png` opens on **Oxandrolone (Anavar)** — `cls:'oral'`
+in the web's `IB_STEROIDS`, `canInject: false` in iOS's own `SteroidCatalog` — showing a vial
+strength of 200 mg/mL and a syringe barrel, and `evaluate` returns **0.75 mL / 75 units for a
+tablet**. The picker enumerates `SteroidCatalog.all` unfiltered; five of the twelve are oral-only
+and the web has no injectable path to any of them.
+
+**iOS already holds the flag it needs.** `canInject` exists and is correct; nothing consults it.
+
+**A second wrong number on the same screen:** the ester is unpickable. The web expands esters into
+the compound dropdown as separate entries ("Trenbolone Enanthate"); iOS forces `esters.first`, so
+300 mg/week Tren E reports **261 mg active instead of 213 mg — 22.5% high**.
+
+**Done when:** an oral compound renders no injectable inputs and no draw volume, the ester is
+selectable, and the Tren E case is shown returning 213 mg.
+
 ## T-51 — iOS logs no injection time, so the web plots its doses at an assumed noon
 **Priority 5/10** · **Owner:** mac · **Status:** open
 
