@@ -234,6 +234,27 @@ enum AppRoute: Hashable {
     /// Last step: a protocol exists, confirm the day it starts.
     case addConfirm(dosageId: String)
     case calculator(CalculatorSlug)
+    /// The cycle plotter, OPENED ON SOMETHING — T-17.
+    ///
+    /// A SECOND ROUTE TO THE SAME SCREEN, and enumerated rather than folded into
+    /// `.calculator(.cyclePlotter)`, because the two are different destinations even
+    /// though they draw the same view. `.calculator(.cyclePlotter)` is the drawer's
+    /// and the Tools hub's route: nothing has been calculated, so there is nothing to
+    /// open on and an empty plotter is the correct arrival. This one is the route out
+    /// of a calculator's "See your levels over time", where the user has just typed a
+    /// compound, a dose and an interval — and T-17 is that they were made to type
+    /// them again.
+    ///
+    /// Adding the payload to `.calculator` instead was the other option and it is
+    /// worse: every construction of `.calculator(slug)` in the app would have to say
+    /// what it is not carrying, and `NavItems.calculators` would grow a `nil` on all
+    /// fifteen entries to serve one of them.
+    ///
+    /// STILL `Hashable`, which is not free — `AppRoute` is a `navigationDestination`
+    /// value and the drawer's selection. `PlotterSeed` is a struct of a `String`, two
+    /// `Double`s and a `CalculatorSlug`, all `Hashable`, so the synthesised conformance
+    /// carries through.
+    case plotter(seed: PlotterSeed)
     case settings
 
     var title: String {
@@ -246,6 +267,9 @@ enum AppRoute: Hashable {
         case .addConfirm: return "Start day"
         case .settings: return "Settings"
         case .calculator(let slug): return slug.title
+        // The same title as the unseeded route. It is the same screen, and the back
+        // control of anything pushed from it should read the same either way.
+        case .plotter: return CalculatorSlug.cyclePlotter.title
         }
     }
 
@@ -259,6 +283,7 @@ enum AppRoute: Hashable {
         case .addConfirm: return "calendar.badge.clock"
         case .settings: return "gearshape"
         case .calculator(let slug): return slug.icon
+        case .plotter: return CalculatorSlug.cyclePlotter.icon
         }
     }
 }

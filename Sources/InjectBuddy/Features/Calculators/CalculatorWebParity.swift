@@ -338,13 +338,46 @@ struct TickDrum: View {
 // cancellation and VoiceOver behaviour — DESIGN-PARITY §6, native controls stay
 // native. It also sidesteps the menu-picker overlap defect entirely rather than
 // inheriting it.
-struct CompoundCombobox: View {
+//
+// ─── T-16: THE SAME CONTROL NOW CARRIES A NUMBER ─────────────────────────────
+//
+// The overlap defect was recorded against "12 picker fields across 8 calculators".
+// Replacing the `stringPicker` sites with this closed the STRING half; the numeric
+// `.picker` half — TRT's `Frequency`, the GLP-1 concentration and dose pairs, the
+// peptide dose unit, the free-T unit, the steroid `Compound` picker that the
+// measurement itself was taken on, and the plotter's own two menus — still drew
+// outside their chrome.
+//
+// So the control is split in two: `Combobox` below is the face and the sheet, and
+// `CompoundCombobox` / `ValueCombobox` are thin call-site wrappers over it. ONE
+// control, per UX-UI-RULES §6 — what is fixed here is fixed on every calculator,
+// and the string and numeric sites can no longer drift apart.
+//
+// IT TAKES AN INDEX, NOT A BINDING, and that is deliberate rather than awkward. A
+// generic `Binding<Value>` would decide "which option is selected" by `==`, and on
+// the numeric sites the value can arrive from a saved config rather than from the
+// option array — so each wrapper owns its own idea of a match and hands down the
+// index it settled on. `ValueCombobox` matches within a tolerance for exactly that
+// reason; a `Double` that misses by a float ulp would otherwise render a control
+// with no selected row.
+struct Combobox: View {
+    /// The field's own name — the sheet's title and the accessibility label.
     let label: String
+    /// What the face shows. NEVER EMPTY at a numeric call site: a control with a
+    /// value and a blank face is the same class of defect as a hidden number.
+    let display: String
+    /// Draws the face in the placeholder tone. Only true where there is genuinely
+    /// no selection yet.
+    let isPlaceholder: Bool
     let options: [String]
-    @Binding var selection: String
+    /// Which row carries the checkmark, and what "already selected" means to the
+    /// sheet. `nil` when the current value is not one of the options.
+    let selectedIndex: Int?
     /// Field key, for the identifier. `control_<key>` matches what the menu picker
-    /// published, so `CaptureCurrentState` keeps resolving this control.
+    /// published, so `CaptureCurrentState` and `PinnedBarReachabilityUITests` keep
+    /// resolving this control under the name they already use.
     let key: String
+    let onPick: (Int) -> Void
 
     @State private var isPresented = false
 
@@ -356,9 +389,9 @@ struct CompoundCombobox: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(Theme.secondaryLabel)
                     .accessibilityHidden(true)
-                Text(selection.isEmpty ? "Search \(label.lowercased())" : selection)
+                Text(display)
                     .font(Theme.Typeface.cardTitle)
-                    .foregroundStyle(selection.isEmpty ? Theme.secondaryLabel : Theme.ink)
+                    .foregroundStyle(isPlaceholder ? Theme.secondaryLabel : Theme.ink)
                     .multilineTextAlignment(.leading)
                     // The defect the menu picker has and this does not: the value
                     // takes the height it needs instead of drawing over the label.
@@ -376,28 +409,55 @@ struct CompoundCombobox: View {
         }
         .buttonStyle(.plain)
         .fieldChrome()
+        // ONE element for VoiceOver: "Compound, Oxandrolone (Anavar), button".
+        //
+        // IT IS NOT ONE ELEMENT IN THE AUTOMATION SNAPSHOT, and that was measured
+        // rather than assumed — twice, because the first assumption was wrong twice.
+        // On Steroid Dosage at AX5 the snapshot carries the merged
+        // `StaticText 'Oxandrolone (Anavar)' (16.0, 337.7, 370.0, 265.3)` — the whole
+        // face's frame, not the text's — AND `Image 'magnifyingglass'
+        // (38.0, 444.7, 50.7, 51.3)` as a separate leaf inside it. Neither
+        // `accessibilityHidden(true)` on each glyph (present, below) nor
+        // `accessibilityHidden(true)` on the whole face removed the Image. The glyph
+        // sits LEFT of the text and nothing draws on anything; what the snapshot shows
+        // is a child alongside the husk its own siblings collapsed into.
+        //
+        // The consequence is `LeafOverlapUITests`'s, not the user's, and it is carried
+        // there as a declared debt with T-35 rather than by distorting this control to
+        // suit the harness. Do not "fix" it by deleting the magnifier: it is the web's,
+        // it is half of what makes this read as a search field, and it is not what is
+        // wrong.
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("control_\(key)")
         .accessibilityLabel(label)
-        .accessibilityValue(selection)
+        .accessibilityValue(isPlaceholder ? "" : display)
         .accessibilityAddTraits(.isButton)
         .sheet(isPresented: $isPresented) {
-            CompoundSearchSheet(title: label, options: options, selection: $selection)
+            ComboboxSheet(title: label, options: options,
+                          selectedIndex: selectedIndex) { index in
+                onPick(index)
+            }
         }
     }
 }
 
-private struct CompoundSearchSheet: View {
+private struct ComboboxSheet: View {
     let title: String
     let options: [String]
-    @Binding var selection: String
+    let selectedIndex: Int?
+    let onPick: (Int) -> Void
 
     @State private var query = ""
     @Environment(\.dismiss) private var dismiss
 
-    private var filtered: [String] {
-        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return options }
-        return options.filter { $0.localizedCaseInsensitiveContains(query) }
+    /// Filtered but still carrying the ORIGINAL index, so picking the third visible
+    /// row after a search still writes the option the user is looking at. Filtering
+    /// into a new array and reading its index back is the classic way to write the
+    /// wrong value from a filtered list, and on a dosing control that is a wrong dose.
+    private var filtered: [(index: Int, label: String)] {
+        let all = options.enumerated().map { (index: $0.offset, label: $0.element) }
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return all }
+        return all.filter { $0.label.localizedCaseInsensitiveContains(query) }
     }
 
     var body: some View {
@@ -408,17 +468,17 @@ private struct CompoundSearchSheet: View {
                         .font(.subheadline)
                         .foregroundStyle(Theme.secondaryLabel)
                 } else {
-                    ForEach(filtered, id: \.self) { option in
+                    ForEach(filtered, id: \.index) { row in
                         Button {
-                            selection = option
+                            onPick(row.index)
                             dismiss()
                         } label: {
                             HStack {
-                                Text(option)
+                                Text(row.label)
                                     .foregroundStyle(Theme.ink)
                                     .fixedSize(horizontal: false, vertical: true)
                                 Spacer(minLength: Theme.Spacing.sm)
-                                if option == selection {
+                                if row.index == selectedIndex {
                                     Image(systemName: "checkmark")
                                         .foregroundStyle(Theme.tealTextStrong)
                                         .accessibilityHidden(true)
@@ -428,8 +488,9 @@ private struct CompoundSearchSheet: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityIdentifier("option_\(option)")
-                        .accessibilityAddTraits(option == selection ? [.isButton, .isSelected] : .isButton)
+                        .accessibilityIdentifier("option_\(row.label)")
+                        .accessibilityAddTraits(row.index == selectedIndex
+                                                ? [.isButton, .isSelected] : .isButton)
                     }
                 }
             }
@@ -446,6 +507,85 @@ private struct CompoundSearchSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+/// The string call site — the ester list, and the plotter's compound menu, where the
+/// stored value is an id rather than the label the user reads.
+struct CompoundCombobox: View {
+    let label: String
+    /// Display strings, in order.
+    let options: [String]
+    /// What each option STORES, positionally paired with `options`. Defaults to the
+    /// labels themselves, which is what the ester field wants.
+    var values: [String]? = nil
+    @Binding var selection: String
+    let key: String
+
+    private var stored: [String] { values ?? options }
+
+    private var selectedIndex: Int? { stored.firstIndex(of: selection) }
+
+    var body: some View {
+        let index = selectedIndex
+        Combobox(label: label,
+                 display: index.map { options[$0] } ?? "Search \(label.lowercased())",
+                 isPlaceholder: index == nil,
+                 options: options,
+                 selectedIndex: index,
+                 key: key) { picked in
+            selection = stored[picked]
+        }
+    }
+}
+
+/// The numeric call site — T-16. Everything `.pickerStyle(.menu)` rendered for a
+/// `Double`: frequency, concentration, dose, dose unit, compound index, syringe
+/// barrel.
+///
+/// THE MATCH IS TOLERANT, not `==`. These values round-trip through
+/// `saved_dosages.config` as JSON numbers and arrive back as `Double`; an exact
+/// comparison that missed by an ulp would show a control whose face said one thing
+/// and whose sheet had nothing ticked. The tolerance is the same 0.0001 `SegmentedRow`
+/// and `QuickValueRow` already use, so the three numeric selectors agree on what
+/// "this option is the current one" means.
+struct ValueCombobox: View {
+    let label: String
+    let options: [CalculatorInput.PickerOption]
+    @Binding var selection: Double
+    let key: String
+    /// Suffix for a value that is NOT on the option list — see `display` below.
+    /// `nil` where the bare number reads correctly on its own (a concentration, a
+    /// dose), set where it does not: a lone `5` in a field called `Frequency` could
+    /// be five days or five injections.
+    var unit: String? = nil
+
+    private var selectedIndex: Int? {
+        options.firstIndex { abs($0.value - selection) < 0.0001 }
+    }
+
+    /// A value off the option list. It happens — a protocol read back from a saved
+    /// config, or a plotter line seeded from a calculator whose interval is not one of
+    /// the eight the web lists (T-17).
+    private var unmatchedDisplay: String {
+        let n = TickDrum.format(selection)
+        return unit.map { "\(n) \($0)" } ?? n
+    }
+
+    var body: some View {
+        let index = selectedIndex
+        Combobox(label: label,
+                 // NEVER a placeholder. A numeric field always holds a number, so a
+                 // value off the option list is SHOWN — formatted — rather than
+                 // replaced by prompt text. Hiding a dose the app is calculating with
+                 // is the defect this file exists to remove.
+                 display: index.map { options[$0].label } ?? unmatchedDisplay,
+                 isPlaceholder: false,
+                 options: options.map(\.label),
+                 selectedIndex: index,
+                 key: key) { picked in
+            selection = options[picked].value
+        }
     }
 }
 
@@ -590,11 +730,14 @@ struct FormulaCard: View {
 // steady-dose testosterone calculators say "See your levels over time" because
 // they are about serum curves, everything else says "Plot this protocol over time".
 //
-// WHAT THIS DOES NOT DO YET, stated rather than left to be discovered: the web's
-// href carries `?from=<calcId>` and the plotter reads it. This pushes the plotter
-// WITHOUT the protocol loaded, because `AppRoute.calculator` takes a slug and
-// nothing else — carrying the compound, dose and interval across needs a route
-// that can hold them. Filed as its own task rather than half-built here.
+// THE NOTE THAT WAS HERE SAID "the web's href carries `?from=<calcId>` and the
+// plotter reads it". **IT DOES NOT** — read on `feature/dosage-status-model`, the
+// plotter's only use of that parameter is `get('from') === 'planner'`, which
+// `from=trt` fails, after which it proceeds as if there were no query string. The
+// correction and the whole reading are on `PlotterSeed`, which is where T-17 was
+// built anyway: iOS now carries the compound, dose and interval across, through
+// `AppRoute.plotter(seed:)`, using the web's own `mapDosage` formulas. Where iOS
+// has no compound it can honestly draw, it carries nothing rather than guessing.
 struct PlotLevelsCTA: View {
     let slug: CalculatorSlug
     let resultValid: Bool

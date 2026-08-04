@@ -122,15 +122,18 @@ Frames: iOS `docs/ui-audit/2026-08-03-current/06-calculator-trt-IB2245780.png` �
    `feature/dosage-status-model`, not just `master`. The real gap was search, the magnifier and a
    keyboard-operable listbox — never the contents. The replacement also removes the measured
    menu-picker overlap defect from these call sites; the numeric `.picker` sites still have it
-   (**T-16**).
+   (**T-16** — now CLOSED, and with it the last `.pickerStyle(.menu)` in the app).
 3. ~~**No link to the levels chart.** The web has a tinted card — `📊 See your levels over time →` —
    taking you from the calculator straight into the plotter with this protocol loaded. iOS has
    nothing connecting the two.~~
    **BUILT `29a8ede`** — `PlotLevelsCTA`. The calculator SET and the wording split are copied from
-   `PLOT_CTA_CALC_IDS` verbatim, so BMI and free-T index do not get it. **Partial, and the shortfall
-   is "with this protocol loaded":** the web's href carries `?from=<calcId>`; `AppRoute.calculator`
-   takes a slug and nothing else, so this pushes the plotter EMPTY. Tracked as **T-17**, not
-   silently absorbed.
+   `PLOT_CTA_CALC_IDS` verbatim, so BMI and free-T index do not get it. **CORRECTION — "with this
+   protocol loaded" IS FALSE OF THE WEB.** The href does carry `?from=<calcId>`, and the plotter
+   reads that parameter in exactly one place: `cycle-plotter/app.jsx:366`,
+   `get('from') === 'planner'`. `from=trt` fails it and the plotter opens on the user's saved
+   protocols or on ghost curves — never on the calculator. iOS's empty plotter was parity, not a
+   gap. **Closed anyway as T-17**, by porting the web's own `mapDosage` so iOS carries the compound,
+   dose and interval across; the reading is on `PlotterSeed` and under T-17.
 4. ~~**No formula card.** The web shows `units = (per-shot dose ÷ vial strength) × 100` and then
    defines each term underneath — `per-shot dose`, `vial strength`, `× 100` — colour-coded. It is
    the thing that makes the number trustworthy rather than magic. Absent on iOS.~~
@@ -617,8 +620,8 @@ closed on this file (hcg, tirzepatide, retatrutide).
 **Done when:** a TRT protocol is saved from the device in each of the three modes and the rows are
 SELECTed back, showing eight keys with `mode` as the chosen string. Paste the rows.
 
-## T-16 — The numeric menu pickers still draw outside their own chrome
-**Priority 5/10** · **Owner:** mac · **Status:** open
+## ~~T-16 — The numeric menu pickers still draw outside their own chrome~~ — **DONE 2026-08-04**
+**Priority 5/10** · **Owner:** mac · **Status:** done
 
 **What:** the measured overlap defect — a picker's selected value drawing over the label above it at
 large text, `Oxandrolone (Anavar)` overlapping `Compound` by 148.6 x 49.3pt on `IB2245752` — was
@@ -634,8 +637,64 @@ carries a `Double` instead of a `String`.
 **Done when:** a frame at AX5 of a numeric picker showing the value inside its own chrome, and
 `LeafOverlapUITests` green on the call sites it names.
 
-## T-17 — The levels link opens the plotter empty
-**Priority 4/10** · **Owner:** mac · **Status:** open
+**THE TWELVE, ACCOUNTED FOR.** The count was never itemised anywhere and it turns out to be exact:
+ten `.picker` fields across seven calculators — TRT `injPerWeek`, peptide `doseUnitMcg`,
+semaglutide / tirzepatide / retatrutide `conc` + `dose`, free-T `ttUnitNgdl`, steroid `compound` —
+plus the cycle plotter's own two menus, `Compound` and `Frequency`. Eight screens. All twelve are
+gone; nothing renders `.pickerStyle(.menu)` in this app any more.
+
+**HOW IT WAS FIXED, and it is not what the old note in `CalculatorScreen` proposed.** That note said
+"a `Menu` whose label we lay out ourselves". It is a `Combobox` instead — `CompoundCombobox` split
+into a face and a searchable sheet, with two thin wrappers over it: the existing string one, and a
+new `ValueCombobox` carrying a `Double`. ONE control on all twelve sites (UX-UI-RULES §6), and the
+numeric sites gain the search the web has and the menu never had. The plotter's two menus also lost
+`.tint(Theme.accent)` on the way through, which was #0FBCAD as VALUE TEXT at 2.38:1 — see T-31.
+
+**THE RULED-OUT MODIFIER STAYS RULED OUT** and is now recorded in the code rather than in a task, so
+the next person does not re-run it: `.fixedSize(horizontal: false, vertical: true)` on the menu
+picker changed the geometry by NOTHING, re-measured identical to the byte.
+
+**MEASURED — first run, and it was RED, which is the useful part.** At the size the rig was actually
+at, `control_compound` measured `(15.5, 191.5, 371.0, 61.0)` with its value published at
+`(16.0, 192.0, 370.0, 60.0)` — **half a point inside its own chrome on every edge**, against the
+`{{83.3, 192.7}, {193.0, 183.3}}` in a `{{15.5, 245.5}, {371.3, 78.3}}` button the defect was
+recorded as. The value is inside the control. But the run also found two things worth having:
+
+- **the first assertion was the wrong one.** It asserted the value no longer appears as a
+  `StaticText` at all. It does — `accessibilityElement(children: .ignore)` did not collapse it.
+  "The element is gone" and "the element is where it belongs" are different claims and only the
+  second was ever true. Corrected rather than relaxed.
+- **the magnifier survived as a leaf INSIDE the collapsed value**, and `LeafOverlapUITests` reported
+  the two as sharing pixels. They do not — the glyph sits left of the text; what overlapped was a
+  child and the husk its own siblings had collapsed into. Fixed by hiding the combobox face at its
+  ROOT rather than per-glyph, so the control is genuinely one element. Per-child
+  `accessibilityHidden` was not enough and that is now written into the control.
+
+**MEASURED — `15-calculator-steroid-compound-ax5.png`**, at AX5 with the size set on an explicitly
+booted device and read back (the first run's `simctl ui booted content_size` printed *"No devices
+are booted"* and silently measured DEFAULT size under an `ax5` filename — the exact trap CLAUDE.md
+names, inverted). The frame is written only if the control resolves with the compound as its
+`accessibilityValue`, does not intersect `section_Compound` above it, sits wholly inside the
+window, and publishes nothing inside its own frame.
+
+**`LeafOverlapUITests/testSteroidDosage` green at AX5** — the screen the defect was measured on, and
+the check that found it. **Five entries DELETED** from `expectedOverlaps` rather than suppressed:
+`Compound` × `Oxandrolone (Anavar)`, `Oxandrolone (Anavar)` × `Vial strength`, `Ester` ×
+`Testosterone Enanthate`, and both `2×/week` pairs. The suite asserts from both ends, so a listed
+overlap that stops overlapping goes RED; these had to go. **Two were already stale before this
+pass** — T-01a #1 moved TRT's default mode to `ndays` and `injPerWeek` only renders under
+`perweek`, so `2×/week` has not been on that screen since.
+
+Final AX5 run: `OVERLAP Steroid Dosage: 18 leaves, no intersections` — the capture test and the
+overlap test both green, with the picker entries deleted and the nine unrelated pairs T-34 exposed
+declared against **T-35** and **T-36**.
+
+**`testTRTDose` IS STILL RED, and not for this.** It reports `unit_nDays` × a `TickDrum` gradation
+labelled `3` sharing 6.4 x 8.1pt at default size — a ruler tick printed through a unit label, from
+T-01a #7, on a row eleven calculators share. Filed as **T-33**, not folded in here.
+
+## ~~T-17 — The levels link opens the plotter empty~~ — **DONE 2026-08-04**
+**Priority 4/10** · **Owner:** mac · **Status:** done
 
 **What:** T-01a #3's difference says the web link takes you "into the plotter with this protocol
 loaded". The web href is `/cycle-plotter/?from=<calcId>`. iOS pushes `.calculator(.cyclePlotter)`
@@ -648,6 +707,67 @@ Empty beats absent. It is recorded so "with this protocol loaded" is not quietly
 
 **Done when:** `AppRoute` can carry the calculator's values to the plotter, and a frame shows the
 plotter opening on the compound and dose the calculator held.
+
+**FIRST, A CORRECTION TO T-01a #3, AND IT IS THE INTERESTING PART.** *"The web link takes you into
+the plotter with this protocol loaded"* — **it does not.** Read on `feature/dosage-status-model`:
+
+- `public/app.js:2400` builds the href as `'/cycle-plotter/?from=' + calcId`. The click handler's
+  ONLY side effect is a PostHog `cycle_plotter_cta_click`. It writes nothing to any store, and no
+  calculator state travels with the link. Every `localStorage`/`sessionStorage` write in that file
+  was checked; the only handoff-shaped one is `ib_steroid_ester`, read back by the steroid
+  calculator itself.
+- `/cycle-plotter/` is a separate legacy bundle. The one place it reads that parameter is
+  `public/legacy/cycle-plotter/app.jsx:366` —
+  `new URLSearchParams(window.location.search).get('from') === 'planner'`. **`from=trt` fails that
+  equality**, `loadCyclePreset()` returns `null` on the next line, and the plotter proceeds exactly
+  as if there were no query string. Verified identical in the shipped `app.compiled.js:347`.
+- What a user actually gets: signed out, an empty chart with grey ghost curves; signed in, a list
+  of their SAVED protocols, all disabled, or eight hardcoded demo rows if they have none. `?from=`
+  is a dead parameter for prefill and an analytics tag in practice.
+
+So iOS's empty plotter was **parity with the web, not a gap against it**. This is the third time a
+behaviour was inferred from a document about the web rather than the web (CLAUDE.md records the
+other two); the correction is written into `PlotterSeed`'s header so the next reader of that
+difference list meets it.
+
+**BUILT ANYWAY, because it is the right behaviour and the derivation is not invented.** The web's
+own `mapDosage(type, d)` (`cycle-plotter/app.jsx:127-215`) is its authoritative "this protocol's
+config → a plottable line", used for every saved dosage the plotter lists. `PlotterSeed.from` is
+that function, per branch, with each formula's provenance on it. The only thing that changes is the
+SOURCE of the config — the calculator's live values instead of a saved row.
+
+**AND IT REFUSES.** `mapDosage` ends `if (!cid || !(dose > 0) || !COMPOUNDS[cid]) return null;` and
+its steroid map spells out why: *"a dosing tool does not get to guess."* Peptide (no named
+molecule in the iOS spec), reconstitution, the BPC+TB500 blend and HCG seed NOTHING and open the
+plotter unseeded — which is the behaviour that shipped, and better than a curve drawn for the wrong
+compound. Asserted as behaviour in `PlotterSeedTests`, not left as a fallthrough.
+
+**MEASURED, two ways, because a photograph cannot answer the half that matters:**
+
+- **`28-plotter-seeded-from-trt-default.png`** — walked the link the user walks. TRT at its
+  defaults (100 mg/week, every 3.5 days, Testosterone Enanthate) → `cta_plot_levels` → the plotter
+  opens on `Testosterone Enanthate`, `50`, `Twice per week (2x/wk)`. Arrival asserted before the
+  shot; every value read off the control, not off the pixels.
+- **`PlotterSeedTests`** — the arithmetic, across every calculator, with no launch. **50, not 100,
+  is the whole point:** `pkBuildEntries` applies the line's dose at EVERY injection time, so a
+  plotter handed the weekly total draws a curve twice as high as the protocol the user typed, and
+  the two curves are indistinguishable by eye on a screen whose entire output is a serum level.
+  That is the same class of defect as the config key that would have written a plausible wrong dose
+  volume to every logged dose.
+
+`AppRoute` gained `case plotter(seed: PlotterSeed)` and stayed `Hashable` — asserted, including
+that two seeds differing only by dose are two distinct destinations, or a push from a re-edited
+calculator would be a silent no-op. `.calculator(.cyclePlotter)` is untouched and is still the
+drawer's and the Add dialog's route: nothing has been calculated there, so empty is correct.
+
+**ONE REGRESSION, CAUGHT OFF THE FRAME AND FIXED IN THE SAME PASS.** The first
+`28-plotter-seeded-from-trt-default.png` showed `Twice per week (2x/wk)` wrapped to **five lines**
+at DEFAULT size beside a one-line `Dose` field. Cause: T-16 replaced that menu picker with a
+combobox, and a menu picker draws its value on one line at any width while the combobox obeys §9 —
+the container grows, the text does not shrink. In a half-width column that is five lines. `Dose` and
+`Frequency` are stacked now, each full width, and the re-shot frame shows the label on one line.
+This is the reason a frame is taken and looked at rather than a test being read: nothing was hidden,
+clipped or truncated, so no assertion in this repo would have said a word.
 
 ## T-18 — Nothing tests that the tick drum can be dragged
 **Priority 4/10** · **Owner:** mac · **Status:** open
@@ -707,6 +827,174 @@ plate.
 **Done when:** measured, not adjusted by eye — the straddle re-checked at default and AX5 against
 `PinnedBarReachabilityUITests`, and either shown to leave every control reachable, or the form's
 bottom inset increased by the drum's own measured height.
+
+## ~~T-31 — The cycle plotter painted two strings in the 2.38:1 accent~~ — **DONE 2026-08-04**
+**Priority 4/10** · **Owner:** mac · **Status:** done
+
+**What:** `CyclePlotterScreen` used `Theme.accent` (#0FBCAD) as a FOREGROUND on three things: the
+cycle-length readout `Text("\(vm.cycleWeeks) weeks")`, the `Add compound` label, and — via
+`.tint(Theme.accent)` on the two menu pickers — the selected COMPOUND and FREQUENCY values.
+
+**Why it is a defect and not a preference:** UX-UI-RULES §5 makes #0FBCAD **fill only, never a text
+or glyph colour** — it is 2.38:1 on white and fails at every size. Teal text is `tealTextStrong`,
+7.65:1. `\(cycleWeeks) weeks` is also a **value+unit pair**, which is the category §2 exists for.
+
+**Found:** while replacing the plotter's menu pickers for T-16. Filed under rule 6 rather than
+folded silently into that commit.
+
+**Done:** all three now use `Theme.tealTextStrong`; `.tint` went with the pickers. Visible in
+`28-plotter-seeded-from-trt-default.png`. The cycle-length readout also gained
+`.fixedSize(horizontal: false, vertical: true)` — it is a value+unit pair and must wrap, not shear.
+
+**NOT AUDITED BEYOND THIS SCREEN.** `Theme.accent` is used as a foreground elsewhere in the app
+(`BrandWordmark`'s glyph is one, deliberately — it is a decorative mark, not text). A sweep for
+`foregroundStyle(Theme.accent)` on anything carrying a NUMBER has not been done and is not claimed
+here.
+
+## T-32 — Protocols the iOS plotter has no compound for
+**Priority 4/10** · **Owner:** mac · **Status:** open
+
+**What:** `PlotterCompound.all` is transcribed verbatim from `PLOTTER_COMPOUNDS` in `app.js` — 27
+entries. The web plotter's own `COMPOUNDS` table has since grown past it, and T-17's handoff is
+where the gap becomes visible: a protocol the user can build in an iOS calculator, and which the
+web would plot, cannot be plotted on iOS at all. Measured against `mapDosage`'s tables:
+
+- **Two of the seven esters.** `Testosterone Acetate` → `test-a` and `Sustanon 250` → `sustanon`
+  are in `ESTER_TO_CID` and in neither iOS list. A TRT protocol on either seeds nothing and opens
+  the plotter empty. Asserted from both ends in `PlotterSeedTests.test_theTwoUnplottableEsters` —
+  the two named must NOT seed, the other five MUST.
+- **HCG.** The web maps it to a compound id `hcg`; iOS has no such entry. `hcg` is one of the
+  eleven calculators that shows the levels link.
+- **The whole steroid set.** `STEROID_TO_CID` names `masteron-p/e`, `nandrolone-d`, `boldenone`,
+  `methenolone-e`, `anavar`, `dianabol`, `winstrol-o` — none of which iOS has, though iOS's list
+  does carry `mast-p`/`mast-e`/`deca`/`eq` under DIFFERENT ids. The steroid calculator does not
+  show the levels link today, so this is latent rather than live.
+
+**Why it is filed rather than fixed here:** a compound is a HALF-LIFE and a tmax, and the web's own
+note refuses to invent them — *"a PK curve IS a half-life; with no credible one there is no honest
+curve to draw"*. Adding entries means sourcing those numbers, and a wrong one draws a confident
+wrong curve. It is also not a blocker: T-17 refuses cleanly, so the affected protocols open the
+plotter unseeded rather than plotting the wrong molecule.
+
+**Done when:** each gap is either given a compound with a sourced half-life and tmax, or recorded
+here as deliberately unplottable with the reason — and `test_theTwoUnplottableEsters` /
+`test_theEsterTableNamesRealCompounds` updated to match, since both are written to go RED the day
+the catalogue changes under them.
+
+## T-33 — A ruler gradation draws on top of the unit label on TRT, at DEFAULT size
+**Priority 6/10** · **Owner:** mac · **Status:** open
+
+**What:** measured on `TRT Dose`, default text size, at rest, by `LeafOverlapUITests/testTRTDose`:
+
+```
+StaticText 'unit_nDays'  (217.3, 573.3, 33.3, 18.0)
+StaticText '3'           (244.2, 583.2,  7.0, 13.3)
+shared region            (244.2, 583.2,  6.4,  8.1)
+```
+
+The `3` is a `TickDrum` gradation label. It is drawn ON the `days` unit of the `Every N days` row —
+**a value+unit pair with a number from a different control printed through it**, 6.4 x 8.1pt of
+shared pixels. A reader sees `days` with a stray digit in it, on the field that decides how often
+they inject.
+
+**Why it is filed and not fixed in this pass:** it is not the picker defect and not caused by the
+combobox — it is `TickDrum` from T-01a #7 sitting too close to the numeric row's unit, and it has
+been there since that commit. Fixing it means changing the numeric row's layout, which is the same
+control T-20 is already open against and eleven calculators render through. One change, one pass.
+
+**Why it was not seen before:** this run is the first time `testTRTDose` has been run since T-01a
+landed, and at the time the suite reported only ONE pair per screen (T-34, now fixed). **There may
+be more behind it — the count of one is not claimed**, and `testTRTDose` has not been re-run since
+T-34; when it is, expect the same shape of result `Steroid Dosage` gave (one reported, ten actual).
+
+**Done when:** the drum and the unit label do not share pixels at default size or AX5 on TRT, shown
+by `LeafOverlapUITests/testTRTDose` green with no new `expectedOverlaps` entry — and re-checked on
+one calculator outside the top five, since eleven render this row.
+
+## ~~T-34 — `LeafOverlapUITests` reported one pair per screen and then stopped~~ — **DONE 2026-08-04**
+**Priority 6/10** · **Owner:** mac · **Status:** done
+
+**What:** the suite sets `continueAfterFailure = false`, and its reporting loop was written to
+collect up to six pairs (`if reported >= 6 { return }`). The first `XCTFail` ends the test, so the
+loop never reached the second. **Every run this suite has ever had reported exactly one overlap per
+screen.**
+
+**Why it matters, and it is not a tidy-up:** one pair reads as "one problem" when it means "at least
+one problem". **`Steroid Dosage` at AX5 has TEN, and nine of them had never been seen.** Two
+consecutive T-16 runs each came back with a single pair, and each cost a full rig acquisition on a
+shared simulator to learn one fact.
+
+**Done:** the pairs are collected and failed ONCE at the end with all of them.
+`continueAfterFailure` stays `false` — a failed navigation must still stop the run before it
+measures the wrong screen; what changed is the reporting, not the check. Measured: the same screen
+that reported `1` now reports `10 PAIR(S) OF ELEMENTS DRAW IN THE SAME PIXELS` with every frame
+listed. **Shown red before it was trusted** — it produced the ten against a build whose only
+declared overlaps were the old picker entries.
+
+## T-35 — A collapsed control publishes its own glyphs as overlapping leaves
+**Priority 3/10** · **Owner:** mac · **Status:** open
+
+**What:** `Combobox` and the pinned result bar both publish an accessibility element that is a
+`StaticText` spanning the WHOLE control, **and** their child glyphs as separate leaves inside it.
+Measured on `Steroid Dosage` at AX5:
+
+```
+StaticText 'Oxandrolone (Anavar)' (16.0, 337.7, 370.0, 265.3)   ← the whole combobox face
+Image     'magnifyingglass'       (38.0, 444.7,  50.7,  51.3)
+Image     'chevron.down'         (326.0, 459.0,  38.7,  22.7)
+StaticText 'Show result'          (16.0, 506.3, 370.0, 153.3)   ← the whole pinned bar
+Image     'mark_see_result'       (89.3, 560.7,  71.0,  45.0)
+```
+
+`LeafOverlapUITests` calls those three pairs overlaps. **Nothing draws on anything** — the magnifier
+sits left of the value, the chevron right of it, both inside the chrome.
+
+**What was tried and did not work,** so nobody repeats it: `accessibilityHidden(true)` on each
+glyph; `accessibilityHidden(true)` on the whole face; `accessibilityElement(children: .ignore)` on
+the button above them. All three are in place and all three leave the glyphs in the snapshot — they
+even carry SF Symbol default labels (`Search`, `Go Down`). **The automation snapshot is not the
+VoiceOver tree.** VoiceOver reads one element; XCUITest sees four.
+
+**Why it is not "just delete the magnifier":** it is the web's, it is half of what makes the field
+read as searchable (T-01a #2), and it is not what is wrong. The suite's own reasoning — *"a
+container is never a leaf"* — is what does not hold here: the container collapsed INTO a leaf.
+
+**Done when:** either the suite stops counting a leaf against the husk its own siblings collapsed
+into (probably: a leaf wholly inside another leaf that carries no text of its own is not a second
+thing), or SwiftUI is made to publish one element — with the fix shown to work on a real frame, not
+assumed. The three entries in `expectedOverlaps` naming T-35 go with it; they are asserted from both
+ends, so they will go red the day this is fixed.
+
+## T-36 — Four elements run under the pinned result bar on Steroid Dosage at AX5
+**Priority 6/10** · **Owner:** mac · **Status:** open
+
+**What:** measured by `LeafOverlapUITests/testSteroidDosage` at AX5, at rest, once T-34 stopped
+hiding it. The pinned bar's own frame is `(16.0, 506.3, 370.0, 153.3)`, and running under it:
+
+```
+StaticText 'Oxandrolone (Anavar)' (16.0, 337.7, 370.0, 265.3)  shares 370.0 x  96.7
+StaticText 'Vial strength'        (24.0, 644.3, 140.3, 156.7)  shares 140.3 x  15.3
+TextField  'field_strength'      (196.3, 635.0, 173.7,  65.0)  shares 173.7 x  24.6
+```
+
+and `Vial strength` carries on down into the tab bar (`house.fill`, `calendar`), while
+`unit_strength` grazes the raised hero by 0.7pt.
+
+**Why it matters:** `field_strength` is the vial concentration — the number every dose on this
+screen is divided by. UX-UI-RULES §2: *"Nothing a user acts on may sit under pinned furniture."*
+§3 makes reachability at every supported text size binary.
+
+**How it relates to T-20:** same family, different size and different depth. T-20 is one row
+straddling the plate's edge at DEFAULT size; this is four elements deep at AX5, including the input
+itself and its unit. They should be fixed together at the shared control, and T-20's "done when"
+already asks for the form's bottom inset to be measured rather than guessed.
+
+**Why it is only now visible:** T-34. This suite has run on this screen before and reported one pair
+each time.
+
+**Done when:** at AX5 on `Steroid Dosage`, no input, unit or label shares pixels with the pinned
+bar, the tab bar or the hero — with the five `expectedOverlaps` entries naming T-36 deleted, not
+suppressed. Re-checked on one calculator outside the top five, since the bar is shared.
 
 ## ~~T-50 — Two files named TASKS.md, one of them a decoy~~ — **DONE 2026-08-04**
 **Priority 6/10** · **Owner:** win · **Status:** done

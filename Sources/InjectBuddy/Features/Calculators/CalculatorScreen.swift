@@ -115,7 +115,20 @@ struct CalculatorScreen: View {
                 // time", which only works after the number it is offering to plot.
                 if PlotLevelsCTA.shows(slug) {
                     PlotLevelsCTA(slug: slug, resultValid: vm.result.isValid) {
-                        navigator.push(.calculator(.cyclePlotter))
+                        // T-17 — the link carries the calculator's values now.
+                        //
+                        // `PlotterSeed.from` is the web's own `mapDosage`, per branch,
+                        // and it RETURNS NIL where iOS cannot honestly draw the
+                        // compound — a peptide with no named molecule, HCG, a blend.
+                        // Those fall through to the unseeded route, which is the
+                        // behaviour that shipped and is what the web does in every
+                        // case: `?from=<calcId>` is read by nothing on the plotter
+                        // side. See the note on `PlotterSeed`.
+                        if let seed = PlotterSeed.from(slug: slug, values: vm.values) {
+                            navigator.push(.plotter(seed: seed))
+                        } else {
+                            navigator.push(.calculator(.cyclePlotter))
+                        }
                     }
                 }
 
@@ -1287,39 +1300,32 @@ private struct FieldRow: View {
                         unit: unit, range: range, step: step, focusedKey: focusedKey)
 
         case let .picker(options, _):
-            Picker(field.label, selection: vm.numberBinding(field.key)) {
-                ForEach(options) { opt in
-                    Text(opt.label).tag(opt.value)
-                }
-            }
-            .pickerStyle(.menu)
-            .tint(Theme.tealTextStrong)
-            // OPEN DEFECT: this control's selected value DRAWS OUTSIDE ITS OWN CHROME
-            // at large text and lands on the label above it. Measured on IB2245752 —
-            // `Oxandrolone (Anavar)` occupies {{83.3, 192.7}, {193.0, 183.3}} inside a
-            // button of {{15.5, 245.5}, {371.3, 78.3}}, overlapping `Compound` by
-            // 148.6 x 49.3pt. App-wide: 12 picker fields across 8 calculators render
-            // through here. See BOARD §1 and `LeafOverlapUITests`.
+            // T-16 — THE NUMERIC HALF OF THE PICKER OVERLAP, closed.
             //
-            // RULED OUT, and recorded rather than banked: adding
-            // `.fixedSize(horizontal: false, vertical: true)` here — the obvious "let it
-            // grow" fix — changed the geometry by NOTHING. Re-measured after the change:
-            // the same 193.0 x 183.3 text in the same 371.3 x 78.3 button, identical to
-            // the byte. `.pickerStyle(.menu)` does not let its label's multiline height
-            // reach the control's frame, so the growth has to come from replacing the
-            // style with a `Menu` whose label we lay out ourselves. That is a change to
-            // a control on 12 call sites and it gets its own pass, not a rushed one.
-            .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
-            .padding(.horizontal, Theme.Spacing.md)
-            .fieldChrome()
-            // Addressable so the reachability sweep can ask whether this control is
-            // sheared by the pinned bar — `Frequency` is the control the T20 finding
-            // names, and it is a menu picker, so a sweep covering only `field_*`
-            // would have been green on the exact defect it was written for.
-            // A menu picker collapses to ONE button, so the identifier does not
-            // propagate to a row of children the way it would on a segmented row —
-            // which is why those stay uncovered rather than being named unsafely.
-            .accessibilityIdentifier("control_\(field.key)")
+            // WHAT WAS HERE: `.pickerStyle(.menu)`, whose selected value DRAWS OUTSIDE
+            // ITS OWN CHROME at large text and lands on the label above it. Measured on
+            // IB2245752 — `Oxandrolone (Anavar)` occupies {{83.3, 192.7}, {193.0, 183.3}}
+            // inside a button of {{15.5, 245.5}, {371.3, 78.3}}, overlapping `Compound`
+            // by 148.6 x 49.3pt. Ten `.picker` fields across seven calculators render
+            // through this one case, plus the plotter's own two menus — the "12 picker
+            // fields across 8 calculators" the finding was recorded against.
+            //
+            // WHAT WAS RULED OUT, kept because it is the expensive half of the work:
+            // adding `.fixedSize(horizontal: false, vertical: true)` to the menu picker
+            // — the obvious "let it grow" fix — changed the geometry by NOTHING.
+            // Re-measured after the change: the same 193.0 x 183.3 text in the same
+            // 371.3 x 78.3 button, identical to the byte. `.pickerStyle(.menu)` does not
+            // let its label's multiline height reach the control's frame, so the fix has
+            // to REPLACE THE STYLE rather than modify it. Do not retry the modifier.
+            //
+            // WHAT REPLACES IT: the same `Combobox` the ester field already uses, in its
+            // `Double`-carrying wrapper. The face is a button we lay out ourselves, so
+            // the value wraps inside the chrome and the chrome grows to hold it; and the
+            // list arrives with the web's search, which the menu never had.
+            ValueCombobox(label: field.label,
+                          options: options,
+                          selection: vm.numberBinding(field.key),
+                          key: field.key)
 
         case let .segmented(options, _):
             SegmentedRow(key: field.key, options: options,

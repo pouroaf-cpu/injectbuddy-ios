@@ -62,22 +62,83 @@ final class LeafOverlapUITests: XCTestCase {
         func matches(_ x: String, _ y: String) -> Bool { (a == x && b == y) || (a == y && b == x) }
     }
 
+    // ─── THE PICKER OVERFLOW IS GONE FROM THIS LIST — T-16 ──────────────────────
+    //
+    // Five entries were deleted here, not suppressed, and this note is what rule 7
+    // leaves behind in their place. All five were the SAME defect: `.pickerStyle(.menu)`
+    // drawing its selected value outside its own chrome.
+    //
+    //   Steroid Dosage · `Compound` × `Oxandrolone (Anavar)`     — the measured one
+    //   Steroid Dosage · `Oxandrolone (Anavar)` × `Vial strength`
+    //   TRT Dose       · `Ester` × `Testosterone Enanthate`      — closed by T-01a #2
+    //   TRT Dose       · `2×/week` × <tab bar>                   — the `Frequency` picker
+    //   TRT Dose       · `2×/week` × `syringe`
+    //
+    // WHAT CHANGED, and it is why these can be deleted rather than re-measured one by
+    // one: the menu picker published its value as a `StaticText` CHILD of its button,
+    // which is what let it be one half of a leaf pair. `Combobox` publishes ONE
+    // element with `accessibilityElement(children: .ignore)` and the value as the
+    // control's `accessibilityValue`, so `Oxandrolone (Anavar)` and `2×/week` are no
+    // longer leaves at all. There is nothing left to intersect.
+    //
+    // The two `2×/week` entries were ALREADY stale before this pass, and that is worth
+    // recording rather than quietly folding in: T-01a #1 moved TRT's default mode to
+    // `ndays`, and `injPerWeek` only renders under `perweek`, so the control those
+    // entries name has not been on the screen at all since that commit. A both-ends
+    // list only works if the entries are deleted when the debt is paid.
     static let expectedOverlaps: [ExpectedOverlap] = [
-        // The picker overflow — the finding this suite was written for. One root cause,
-        // two shapes: the value lands on its own label, and on TRT at AX5 it reaches
-        // past the plate into the tab bar.
-        .init(screen: "Steroid Dosage", a: "Compound", b: "Oxandrolone (Anavar)",
-              finding: "BOARD §1 — every menu picker draws outside its own control"),
-        .init(screen: "Steroid Dosage", a: "Oxandrolone (Anavar)", b: "Vial strength",
-              finding: "BOARD §1 — every menu picker draws outside its own control"),
-        // The same picker defect on a SECOND screen and a second picker — IB2245753,
-        // which is the frame that proved this is the shared control rather than one
-        // calculator.
-        .init(screen: "TRT Dose", a: "Ester", b: "Testosterone Enanthate",
-              finding: "BOARD §1 — every menu picker draws outside its own control"),
-        // CONTENT REACHES INTO THE TAB BAR at AX5, on two different screens and from two
-        // different sources — a picker value on TRT and a RESULT ROW on Reconstitution.
-        // Found by this suite; neither was on the board.
+        // ─── STEROID DOSAGE AT AX5 — TEN PAIRS, NINE OF WHICH HAD NEVER BEEN SEEN ────
+        //
+        // These arrived in one run only because the reporting bug below was fixed first
+        // (T-34): the suite used to stop after ONE pair per screen, so this screen had
+        // reported exactly one overlap on every run it has ever had, and read as "one
+        // problem" while carrying ten. That is the finding, not the entries.
+        //
+        // They split into two causes and neither is the picker overflow T-16 closed.
+
+        // (a) THE MERGED-HUSK ARTEFACT — T-35. A control whose accessibility element is
+        // a `StaticText` spanning the WHOLE control, with its own child glyphs published
+        // as separate leaves inside it. NOTHING DRAWS ON ANYTHING: the magnifier sits
+        // left of the value and the chevron right of it, both inside the chrome. The
+        // suite's own note says "a container is never a leaf" — here the container
+        // collapsed INTO a leaf, which is the case that reasoning does not cover. Both
+        // glyphs carry `accessibilityHidden(true)` and it does not remove them from the
+        // automation snapshot; see the note on `Combobox`.
+        .init(screen: "Steroid Dosage", a: "Oxandrolone (Anavar)", b: "magnifyingglass",
+              finding: "T-35 — a control's merged husk publishes its own glyphs as leaves"),
+        .init(screen: "Steroid Dosage", a: "Oxandrolone (Anavar)", b: "chevron.down",
+              finding: "T-35 — a control's merged husk publishes its own glyphs as leaves"),
+        .init(screen: "Steroid Dosage", a: "Show result", b: "mark_see_result",
+              finding: "T-35 — a control's merged husk publishes its own glyphs as leaves"),
+
+        // (b) CONTENT UNDER THE PINNED RESULT BAR AT AX5 — T-36, and this one is real.
+        // `Show result` is the pinned bar's own merged frame, 370 x 153.3 at y 506.3.
+        // The compound control, the `Vial strength` label and `field_strength` itself
+        // all run under it, and the label reaches on down into the tab bar. This is the
+        // same family as T-20 measured at default size; at AX5 it is four elements deep
+        // rather than one row straddling.
+        .init(screen: "Steroid Dosage", a: "Oxandrolone (Anavar)", b: "Show result",
+              finding: "T-36 — content runs under the pinned result bar at AX5"),
+        // The bar's ICON as well as its frame — the compound control is deep enough
+        // under the plate to reach the glyph, not just the plate's edge.
+        .init(screen: "Steroid Dosage", a: "Oxandrolone (Anavar)", b: "mark_see_result",
+              finding: "T-36 — content runs under the pinned result bar at AX5"),
+        .init(screen: "Steroid Dosage", a: "Vial strength", b: "Show result",
+              finding: "T-36 — content runs under the pinned result bar at AX5"),
+        .init(screen: "Steroid Dosage", a: "field_strength", b: "Show result",
+              finding: "T-36 — content runs under the pinned result bar at AX5"),
+        // ONE entry, two icons — `house.fill` and `calendar` both resolve to the tab-bar
+        // sentinel. Written with `tabBar` and not with the icon names the failure
+        // message prints, which is the trap this file already documents: `describe()`
+        // prints the raw key while the matcher compares the resolved one.
+        .init(screen: "Steroid Dosage", a: "Vial strength", b: LeafOverlapUITests.tabBar,
+              finding: "T-36 — content draws into the tab bar at AX5"),
+        // A 0.7pt graze against the raised hero. Listed rather than dismissed — §5.5
+        // exists because a 12.7pt overlap was once read as "grazing".
+        .init(screen: "Steroid Dosage", a: "unit_strength", b: "syringe",
+              finding: "T-36 — content collides with the raised hero at AX5"),
+
+        // CONTENT REACHES INTO THE TAB BAR at AX5.
         // The NAMED CONTENT element reaches into the TAB BAR — one finding, not one per
         // icon. Listing each collision separately was tried and is the wrong shape: the
         // overflowing string is wide enough to cross the whole row, so every entry
@@ -85,8 +146,6 @@ final class LeafOverlapUITests: XCTestCase {
         // side stays enumerated, because that is the thing that is wrong; the tab bar is
         // treated as the single region it is. This is NOT "exempt anything that overlaps
         // the tab bar" — an unnamed element landing there still fails.
-        .init(screen: "TRT Dose", a: "2×/week", b: LeafOverlapUITests.tabBar,
-              finding: "BOARD §1 — content draws into the tab bar at AX5"),
         .init(screen: "Reconstitution", a: "result_Add bac water", b: LeafOverlapUITests.tabBar,
               finding: "BOARD §1 — content draws into the tab bar at AX5"),
         // CONTENT COLLIDES WITH THE RAISED HERO at AX5. `MainShell.heroOverhang` is 22pt
@@ -95,8 +154,6 @@ final class LeafOverlapUITests: XCTestCase {
         // 0.7pt graze — listed rather than dismissed, because §5.5 exists precisely
         // because a 12.7pt overlap was once read as "grazing" off a downscaled montage.
         .init(screen: "Reconstitution", a: "Add bac water", b: "syringe",
-              finding: "BOARD §1 — content collides with the raised hero at AX5"),
-        .init(screen: "TRT Dose", a: "2×/week", b: "syringe",
               finding: "BOARD §1 — content collides with the raised hero at AX5"),
         .init(screen: "Reconstitution", a: "result_Add bac water", b: "syringe",
               finding: "BOARD §1 — content collides with the raised hero at AX5"),
@@ -275,7 +332,20 @@ final class LeafOverlapUITests: XCTestCase {
             declaredSeen.insert(node.identifier)
         }
 
-        var reported = 0
+        // COLLECTED, THEN FAILED ONCE — T-34, and it was costing real runs.
+        //
+        // This loop used to `XCTFail` per pair with a `reported >= 6` cap, "enough to
+        // diagnose; the rest is noise". `continueAfterFailure = false` in `setUp` means
+        // the FIRST `XCTFail` ends the test, so the cap was unreachable and every run
+        // reported EXACTLY ONE pair per screen. Two consecutive T-16 runs each came back
+        // with a single pair, fixed it, and had to be run again to see the next one — on
+        // a rig where a UI run is minutes and is shared with every other agent.
+        //
+        // Worse than the cost: one pair reads as "one problem" when it means "at least
+        // one problem". `continueAfterFailure` stays FALSE — a failed navigation must
+        // still stop the run before it measures the wrong screen — and the reporting is
+        // what changes.
+        var unexpected: [String] = []
         for i in leaves.indices {
             for j in leaves.index(after: i)..<leaves.endIndex {
                 let a = leaves[i], b = leaves[j]
@@ -293,19 +363,19 @@ final class LeafOverlapUITests: XCTestCase {
                     _ = known
                     continue
                 }
-                reported += 1
-                XCTFail("""
-                    \(screen): TWO ELEMENTS DRAW IN THE SAME PIXELS.
+                unexpected.append("""
                       \(a.describe())
                       \(b.describe())
                       shared region \(overlap)
-                    Nothing is truncated and nothing is clipped here — one view took the \
-                    height it wanted and drew over its neighbour. No truncation check can \
-                    see this.
-                    """, file: file, line: line)
-                if reported >= 6 { return }   // enough to diagnose; the rest is noise
+                    """)
             }
         }
+        XCTAssertTrue(unexpected.isEmpty, """
+            \(screen): \(unexpected.count) PAIR(S) OF ELEMENTS DRAW IN THE SAME PIXELS.
+            \(unexpected.joined(separator: "\n"))
+            Nothing is truncated and nothing is clipped here — one view took the height it \
+            wanted and drew over its neighbour. No truncation check can see this.
+            """, file: file, line: line)
 
         // Both ends. A listed overlap that has stopped overlapping is a debt that has
         // been paid and an entry that is now suppressing a real assertion.
