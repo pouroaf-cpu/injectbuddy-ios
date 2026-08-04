@@ -1,11 +1,29 @@
 import SwiftUI
 
 // ─── CalendarScreen ──────────────────────────────────────────────────────────
-// A month grid of projected injection days (dose dots coloured per protocol, today
+// A month grid of scheduled injection days (dose dots coloured per protocol, today
 // ringed), ‹ Today › month paging, and a DayAgenda for the tapped day. Tapping a
-// dose toggles "taken" (optimistic). Loads via CalendarViewModel; renders off its
-// LoadState. Projection window is 30 days but the grid renders full months so the
-// strip reads naturally — days outside the window simply have no dots.
+// dose toggles "taken". Loads via CalendarViewModel; renders off its LoadState.
+//
+// ─── T-09. THE PARAGRAPH THAT USED TO BE HERE DESCRIBED THE DEFECT AS A DESIGN ───
+//
+// It read: *"Projection window is 30 days but the grid renders full months so the
+// strip reads naturally — days outside the window simply have no dots."* Every clause
+// of that is true and the conclusion is a dosing error. A day with no dots is how this
+// grid says NOTHING IS DUE. Past day 30 it drew the same cell for "nothing is due" and
+// for "nobody asked" — so the screen answered a question it had not looked at, and
+// answered it "no". Five of the seven months a web user can page to were blank here.
+//
+// There is no window any more. `CalendarViewModel` holds SCHEDULES and answers per
+// date (see the T-09 note there), so every cell this grid draws has been asked. The
+// only bound left is which months a user can PAGE to — `CalendarWindow.offsets`,
+// which is the web's own `-1…+5` from `CalendarView.tsx:311-320` — and that is a
+// rendering bound with no effect on what a rendered day says.
+//
+// The chevrons are DISABLED at the ends rather than paging into months the pin fetch
+// does not cover. A dead-ended chevron says "this is as far as it goes"; a chevron
+// that keeps going into months whose taken-state was never fetched would put untaken
+// ticks on doses the user has logged, which is the same defect wearing the other sign.
 
 struct CalendarScreen: View {
     @EnvironmentObject private var navigator: ShellNavigator
@@ -13,7 +31,12 @@ struct CalendarScreen: View {
     @Environment(\.backend) private var backend
 
     @StateObject private var vm = CalendarViewModel()
-    @State private var visibleMonth: Date = Date()
+    /// A day TOKEN, never a bare instant. `Date()` is a moment; the month it belongs to
+    /// is a question about the viewer's zone, and reading it on the token frame's UTC
+    /// calendar named the previous month for the first hours of every day east of UTC
+    /// (T-82). `dpDayToken` asks locally, then hands back a token so the grid's day
+    /// arithmetic below stays zone-free.
+    @State private var visibleMonth: Date = dpDayToken(Date())
 
     init() {}
 
@@ -135,6 +158,8 @@ struct CalendarScreen: View {
                     month: visibleMonth,
                     selectedDay: vm.selectedDay,
                     data: data,
+                    canGoPrev: CalendarWindow.offsets.contains(visibleMonthOffset - 1),
+                    canGoNext: CalendarWindow.offsets.contains(visibleMonthOffset + 1),
                     onPrev: { shiftMonth(-1) },
                     onToday: { goToday() },
                     onNext: { shiftMonth(1) },
@@ -155,7 +180,7 @@ struct CalendarScreen: View {
     }
 
     private func reload() async {
-        visibleMonth = Date()
+        visibleMonth = dpDayToken(Date())
         // Counted BEFORE the await, so a reload that starts and never returns is
         // still visible. The question T-05 asks is whether the closure runs AT ALL —
         // the previous measurement could only see requests that reached Supabase, so
@@ -201,22 +226,29 @@ struct CalendarScreen: View {
         #endif
     }
 
+    /// How far the shown month is from the current one. The single number both chevrons
+    /// clamp against, so "can I page there" and "did I page there" are the same
+    /// arithmetic.
+    private var visibleMonthOffset: Int {
+        CalendarWindow.monthOffset(of: visibleMonth, from: dpDayToken(Date()))
+    }
+
     private func shiftMonth(_ delta: Int) {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
-        if let next = cal.date(byAdding: .month, value: delta, to: visibleMonth) {
+        let target = visibleMonthOffset + delta
+        // Clamped at the source and not only on the buttons' `disabled`. A disabled
+        // control is a hint; this is the rule. Anything that can call `shiftMonth` —
+        // a future gesture, a deep link, a test — gets the same answer.
+        guard CalendarWindow.offsets.contains(target) else { return }
+        if let next = CalendarWindow.utc.date(byAdding: .month, value: delta, to: visibleMonth) {
             withAnimation(.easeInOut(duration: 0.2)) { visibleMonth = next }
         }
     }
 
     private func goToday() {
+        let today = dpDayToken(Date())
         withAnimation(.easeInOut(duration: 0.2)) {
-            visibleMonth = Date()
-            vm.selectedDay = {
-                var cal = Calendar(identifier: .gregorian)
-                cal.timeZone = TimeZone(identifier: "UTC")!
-                return cal.startOfDay(for: Date())
-            }()
+            visibleMonth = today
+            vm.selectedDay = today
         }
     }
 }
@@ -227,14 +259,18 @@ struct MonthGrid: View {
     let month: Date
     let selectedDay: Date
     let data: CalendarData
+    /// Whether the month one step back / forward is inside `CalendarWindow.offsets`.
+    /// Passed in rather than derived here so the grid and the screen cannot disagree
+    /// about where the ends are.
+    var canGoPrev: Bool = true
+    var canGoNext: Bool = true
     let onPrev: () -> Void
     let onToday: () -> Void
     let onNext: () -> Void
     let onSelect: (Date) -> Void
 
     private var cal: Calendar {
-        var c = Calendar(identifier: .gregorian)
-        c.timeZone = TimeZone(identifier: "UTC")!
+        var c = CalendarWindow.utc
         c.firstWeekday = 2 // Monday, matching the wireframe header
         return c
     }
@@ -250,7 +286,12 @@ struct MonthGrid: View {
                     if let day {
                         DayCell(
                             day: day,
-                            isToday: isSameDay(day, Date()),
+                            // Was `isSameDay(day, Date())`, i.e. `dpFormatDay(Date())` —
+                            // the exact call T-82's own note forbids, since it asks the
+                            // zone-less token formatter which day an INSTANT falls on.
+                            // The ring sat on yesterday's cell for the first twelve hours
+                            // of every Auckland day. See `CalendarWindow.isToday`.
+                            isToday: CalendarWindow.isToday(day),
                             isSelected: isSameDay(day, selectedDay),
                             doses: data.occurrences(on: day),
                             onTap: { onSelect(day) }
@@ -265,13 +306,25 @@ struct MonthGrid: View {
 
     private var header: some View {
         HStack {
+            // Identified so a run can assert WHICH month it is looking at before it
+            // asserts anything about the cells. Three frames in the old archive were
+            // photographs of the previous screen; a month grid photographed after a
+            // chevron tap that did not land is the same failure, and this is what
+            // closes it.
             Text(monthLabel)
                 .font(.headline)
+                .accessibilityIdentifier("calendar_month")
             Spacer()
             Button(action: onPrev) { Image(systemName: "chevron.left") }
+                .accessibilityIdentifier("calendar_prev_month")
+                .accessibilityLabel("Previous month")
+                .disabled(!canGoPrev)
             Button("Today", action: onToday)
                 .font(.subheadline.weight(.medium))
             Button(action: onNext) { Image(systemName: "chevron.right") }
+                .accessibilityIdentifier("calendar_next_month")
+                .accessibilityLabel("Next month")
+                .disabled(!canGoNext)
         }
         .tint(Theme.accent)
     }
@@ -355,6 +408,23 @@ struct DayCell: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // ─── The dose count, in words, on every cell ─────────────────────────────
+        //
+        // The dots are the whole answer this cell gives and NOT ONE of them reached the
+        // accessibility tree: the cell read "17" whether a dose was due or not. Same
+        // defect `AgendaRow` already carries a note about, on the surface that is meant
+        // to be scannable — a VoiceOver user could not tell a dose day from an empty one
+        // on the calendar at all.
+        //
+        // It is also what makes T-09 assertable rather than merely photographable. "0
+        // doses" and "2 doses" are different strings; a blank cell and a not-calculated
+        // cell were the same pixels, which is exactly why the defect survived being
+        // looked at. A run can now read the answer instead of reading the picture.
+        //
+        // A VALUE, not a longer label, for the reason given at `AgendaRow`: it is this
+        // cell's state, and it arrives in `XCUIElement.value` where a test can take it.
+        .accessibilityIdentifier("day_\(dpFormatDay(day))")
+        .accessibilityValue(doses.count == 1 ? "1 dose" : "\(doses.count) doses")
     }
 }
 
@@ -378,9 +448,13 @@ struct DayAgenda: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            // Identified for the same reason as `calendar_month`: it is the proof of
+            // WHICH day an agenda belongs to, and without it a frame of the agenda is a
+            // frame of whatever day was selected last.
             Text("Selected · \(dayLabel)".uppercased())
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.secondaryLabel)
+                .accessibilityIdentifier("agenda_header")
 
             if occurrences.isEmpty {
                 Text("No doses scheduled")

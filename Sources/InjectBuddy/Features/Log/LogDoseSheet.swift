@@ -502,7 +502,7 @@ struct LogDoseSheet: View {
         // all — an oral steroid — and nil encodes as an ABSENT key, not a null, so that
         // case cannot blank a site already on the pin.
         let pin = NewDoseLogPin(for: dosage,
-                                dosedOn: Self.dayFormatter.string(from: day),
+                                dosedOn: Self.dosedOn(for: day),
                                 site: siteForSelection,
                                 amount: amount)
         do {
@@ -532,14 +532,21 @@ struct LogDoseSheet: View {
         }
     }
 
-    /// `dose_log.dosed_on` is a bare calendar day. Fixed-format and en_US_POSIX so it
-    /// is never localised into a shape the column rejects — same contract as
-    /// DoseProjection's day keys.
-    private static let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone.current
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
+    /// `dose_log.dosed_on` for the day showing in the picker — the day the user is
+    /// looking at, named the way they would name it.
+    ///
+    /// **T-82.** This used to be a private `DateFormatter` pinned to `TimeZone.current`,
+    /// and it was the RIGHT frame — the web writes every `dosed_on` as a local calendar
+    /// day (the `ymd` helper in `DashboardContext.tsx`) and both clients share one
+    /// `(protocol_id, dosed_on)` unique index. What was wrong was that it was a SECOND
+    /// frame: `DoseProjection` named the same day in UTC, so the same injection logged
+    /// here and on the dashboard on one Auckland morning upserted into two rows. It now
+    /// calls the app's one instant → calendar-day function, so there is nothing left for
+    /// the two surfaces to disagree about.
+    ///
+    /// Internal rather than private, and a function rather than a stored formatter, so a
+    /// test can pin a zone and assert THIS path — not a reimplementation of it.
+    static func dosedOn(for day: Date, in zone: TimeZone = .current) -> String {
+        dpLocalDay(day, in: zone)
+    }
 }

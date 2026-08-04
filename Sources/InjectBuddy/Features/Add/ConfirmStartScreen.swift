@@ -137,7 +137,7 @@ final class ConfirmStartViewModel: ObservableObject {
                 return
             }
             // Respect an existing start_date (re-confirming), else default to today.
-            if let existing = dosage.startDate, let parsed = Self.dayFormatter.date(from: existing) {
+            if let existing = dosage.startDate, let parsed = dpParseLocalDay(existing) {
                 startDay = parsed
             }
             summaryRows = Self.rows(from: dosage.config)
@@ -161,7 +161,7 @@ final class ConfirmStartViewModel: ObservableObject {
         isSaving = true
         errorMessage = nil
         do {
-            try await backend.updateStartDate(id: id, startDate: Self.dayFormatter.string(from: startDay))
+            try await backend.updateStartDate(id: id, startDate: dpLocalDay(startDay))
             isSaving = false
             return true
         } catch {
@@ -171,16 +171,13 @@ final class ConfirmStartViewModel: ObservableObject {
         }
     }
 
-    /// `start_date` is a bare calendar day, so this must be a fixed-format, UTC-free
-    /// yyyy-MM-dd — the same shape DoseProjection parses. A locale-sensitive formatter
-    /// would emit "30/07/2026" somewhere and silently fail the write.
-    private static let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone.current
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
+    // `start_date` is a bare calendar day. This screen used to hold its own private
+    // `DateFormatter` for it — correct in frame (local, fixed-format, en_US_POSIX),
+    // but the fourth such copy in the app, and the web proved on 2026-08-04 what a
+    // pile of private copies costs: two of ITS six reached for `toISOString` and
+    // shifted a real user's `start_date` and `measured_on` by a day. It now reads
+    // through `dpParseLocalDay` and writes through `dpLocalDay` — the named pair,
+    // read and write from the same frame by construction (T-82).
 
     /// Rendered generically from config rather than per calculator: there are 19 savable
     /// shapes on the web, and a switch over them is a second thing to update every time

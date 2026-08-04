@@ -11,12 +11,68 @@ import Foundation
 // for day arithmetic. Protocol `start_date` / dose_log `dosed_on` are "YYYY-MM-DD"
 // strings; parse them via the module-local `dpParseDay` helper (name kept unique to
 // avoid clashing with the Calculators module's own parsers).
+//
+// ── T-82: A CALENDAR DAY IS NOT AN INSTANT, AND ONLY ONE FRAME NAMES IT ──────────
+// This file deals in two different things and they used to be conflated:
+//
+//   • a DAY TOKEN — "which square on the wall calendar". `start_date`, `dosed_on`,
+//     an occurrence's day. It has no time zone at all. It is CARRIED as 00:00 UTC
+//     purely so it can be a `Date`, and all interval arithmetic runs on tokens in
+//     that fixed frame, where a day is always exactly 86400s and no DST transition
+//     can gain or lose an hour across an N-day step.
+//
+//   • an INSTANT — `now`, or the day the user picked in `LogDoseSheet`. A real
+//     moment, which falls on ONE calendar day and the answer depends on the zone
+//     you ask in.
+//
+// The defect was that the ONE conversion from an instant to a token — the start of
+// the projection window — was done in UTC. East of UTC that names yesterday from
+// local midnight until UTC midnight (twelve hours a day in Auckland), so a dose the
+// user would call Tuesday was projected, displayed and LOGGED as Monday, while the
+// same dose logged through `LogDoseSheet` was Tuesday. `dose_log`'s unique index is
+// `(protocol_id, dosed_on)`, so the two are different rows and one injection
+// upserts twice. **No instance of this was found in production (win, 2026-08-04) —
+// it is latent, not live.**
+//
+// **The frame is LOCAL, and that is the web's decision, not ours.** Every
+// web-written `dosed_on` comes from the `ymd` helper in `DashboardContext.tsx`,
+// whose own comment says: *"local 'YYYY-MM-DD' (matches parseLocalDate / a Postgres
+// `date`) — never toISOString (that would shift the calendar day for negative-UTC
+// offsets)"*. Both clients write through the same index, so iOS agreeing with the
+// web is not a preference; standardising on UTC would have made the two collide
+// while each believed it was right.
+//
+// ── AND THE REASON IT HAPPENED AT ALL: THERE WAS NO NAMED WRITER ─────────────────
+// Windows swept the web for this class on 2026-08-04 and found the same shape
+// there, twice and LIVE in the owner's own zone — `CalendarView` seeding a new
+// protocol's `start_date`, and `ProgressTracker` seeding `measured_on`, both with
+// `new Date().toISOString().slice(0, 10)`. The root cause was not two careless call
+// sites: `parseLocalDate` had always been exported to READ a Postgres date and
+// **nothing was exported to WRITE one**, so six components each grew a private
+// copy and the two that did not think about zones reached for `toISOString`. The
+// web's fix was to export `localYmd` beside `parseLocalDate` — one obvious,
+// shareable inverse — not to patch the two call sites.
+//
+// iOS was in exactly that state: `dpParseDay` to read, and four private
+// `DateFormatter`s to write. So the pair is now named and exported here, and it is
+// the ONLY way this app turns a moment into a day string:
+//
+//     read   day string → local Date   `dpParseLocalDay`   (the web's parseLocalDate)
+//     write  instant    → day string   `dpLocalDay`        (the web's localYmd)
+//
+// plus `dpDayToken`, which is `dpLocalDay` landed back on the token frame so an
+// instant can enter the arithmetic without dragging a zone in with it. The zone is
+// a parameter on all three so a test can pin one instead of inheriting the
+// machine's. **A new surface that needs a `dosed_on`, a `start_date` or any other
+// bare `date` column calls these. It does not build a fifth formatter.**
 
 // MARK: - Day-string parsing (shared, module-local)
 
-/// A single fixed UTC "YYYY-MM-DD" formatter. Used for both parsing protocol
-/// `start_date` and formatting projected occurrence days back to strings so they
-/// match what the backend stores in `dose_log.dosed_on`.
+/// A single fixed UTC "YYYY-MM-DD" formatter — the TOKEN frame.
+///
+/// UTC here is not a claim about anybody's day. It is the arbitrary fixed anchor a
+/// zone-less calendar day is carried on so that day arithmetic is exact; see the
+/// T-82 note above. Nothing that turns a real INSTANT into a day may use it.
 enum DoseDateFormat {
     static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -28,7 +84,7 @@ enum DoseDateFormat {
     }()
 }
 
-/// Parse a "YYYY-MM-DD" day string into a `Date` at 00:00 UTC. Returns nil on a
+/// Parse a "YYYY-MM-DD" day string into its token (00:00 UTC). Returns nil on a
 /// malformed / empty string.
 func dpParseDay(_ string: String?) -> Date? {
     guard let string, !string.isEmpty else { return nil }
@@ -37,16 +93,75 @@ func dpParseDay(_ string: String?) -> Date? {
     return DoseDateFormat.dayFormatter.date(from: dayPart)
 }
 
-/// Format a `Date` back to "YYYY-MM-DD" (UTC) for comparison with `dosed_on`.
+/// Format a day TOKEN back to "YYYY-MM-DD".
+///
+/// Correct only for a value that already IS a token — one produced by `dpParseDay`,
+/// `dpDayToken`, or a UTC-calendar day walk over either. Handing it `Date()` asks a
+/// question it cannot answer: use `dpLocalDay`.
 func dpFormatDay(_ date: Date) -> String {
     DoseDateFormat.dayFormatter.string(from: date)
+}
+
+/// **THE writer.** The day `instant` falls on, as the person holding the phone
+/// would name it — and the only way this app produces a `dosed_on`, a `start_date`
+/// or any other bare Postgres `date`.
+///
+/// This is iOS's `localYmd`, the counterpart of the `ymd` helper in the web's
+/// `DashboardContext.tsx`, and deliberately the same shape: read the
+/// year/month/day components in the local zone and print them. It is built from
+/// `DateComponents` rather than a shared `DateFormatter` on purpose — a
+/// `DateFormatter` holding `TimeZone.current` freezes the zone at first use, so it
+/// would keep answering in the old zone after the device changed country, and it
+/// would not be safe to retune per call from more than one thread.
+///
+/// `zone` defaults to the device's, and is a parameter so a test can pin Auckland
+/// or Los Angeles without the machine being set to either.
+func dpLocalDay(_ instant: Date, in zone: TimeZone = .current) -> String {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = zone
+    let parts = calendar.dateComponents([.year, .month, .day], from: instant)
+    guard let y = parts.year, let m = parts.month, let d = parts.day else {
+        return dpFormatDay(instant)
+    }
+    // `String(format:)` with `%d` is not locale-sensitive; `DateFormatter` would be.
+    return String(format: "%04d-%02d-%02d", y, m, d)
+}
+
+/// **THE reader that pairs with it** — a stored day string as the local midnight a
+/// date picker should show, so that what the user sees is the day the column holds.
+/// The web's `parseLocalDate`, and its comment applies here verbatim: reading a bare
+/// day as UTC midnight *"lands on the previous day for negative-UTC offsets (all of
+/// the US)"*.
+///
+/// Distinct from `dpParseDay`, which reads the same string into the zone-less TOKEN
+/// frame for arithmetic. Both are correct; they answer different questions, and the
+/// one thing that must not happen is a surface reading with one and writing with the
+/// other.
+func dpParseLocalDay(_ string: String?, in zone: TimeZone = .current) -> Date? {
+    guard let string, !string.isEmpty else { return nil }
+    let parts = String(string.prefix(10)).split(separator: "-")
+    guard parts.count == 3,
+          let y = Int(parts[0]), let m = Int(parts[1]), let d = Int(parts[2]) else { return nil }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = zone
+    var components = DateComponents()
+    components.year = y; components.month = m; components.day = d
+    return calendar.date(from: components)
+}
+
+/// The same answer as `dpLocalDay`, as a day TOKEN — so an instant can enter the
+/// token arithmetic above without dragging a time zone in with it.
+func dpDayToken(_ instant: Date, in zone: TimeZone = .current) -> Date {
+    dpParseDay(dpLocalDay(instant, in: zone)) ?? instant
 }
 
 // MARK: - A single projected dose
 
 /// One concrete projected injection on a given day, attributed to a protocol.
 struct DoseOccurrence: Equatable, Identifiable {
-    let date: Date            // 00:00 UTC on the dose day
+    /// The dose day as a TOKEN (00:00 UTC). Not an instant and not a claim about
+    /// anyone's clock — see the T-82 note at the top of this file. `dayKey` prints it.
+    let date: Date
     let protocolId: String
     let slug: CalculatorSlug?
     let label: String
@@ -253,19 +368,31 @@ enum DoseProjection {
     ///
     /// - Parameters:
     ///   - protocols: the user's saved protocols (only `is_active` ones are projected).
-    ///   - from:      reference date — the window starts at its calendar day (UTC).
+    ///   - from:      reference INSTANT — the window starts on the calendar day this
+    ///                moment falls on **in `zone`**.
     ///   - days:      window length in days (e.g. 30 for the calendar, 14 for the dash).
+    ///   - zone:      the zone that names the day. Defaults to the device's, which is
+    ///                the frame the web writes `dosed_on` in; a parameter so a test can
+    ///                pin one rather than inherit the machine's.
     /// - Returns: occurrences sorted ascending by date.
     static func projectedDoses(
         for protocols: [SavedDosage],
         from: Date,
-        days: Int
+        days: Int,
+        in zone: TimeZone = .current
     ) -> [DoseOccurrence] {
         guard days > 0 else { return [] }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
 
-        let windowStart = calendar.startOfDay(for: from)
+        // **T-82 — the one and only instant → day conversion in this engine, and it is
+        // LOCAL.** It was `calendar.startOfDay(for: from)` on a UTC calendar, which east
+        // of UTC named yesterday for the first twelve hours of every Auckland day: the
+        // window opened a day early and every occurrence in it — including the "next
+        // dose" the dashboard logs — was labelled and WRITTEN as the previous day, while
+        // `LogDoseSheet` wrote the same injection under today. Everything after this line
+        // stays in the token frame, so the interval arithmetic is still DST-free.
+        let windowStart = dpDayToken(from, in: zone)
         guard let windowEnd = calendar.date(byAdding: .day, value: days, to: windowStart) else {
             return []
         }
@@ -297,6 +424,11 @@ enum DoseProjection {
                 step = max(0, Int((elapsed / interval).rounded(.down)))
             }
 
+            // Iterations of the walk below — NOT the dose ordinal. See the guard at the
+            // bottom of the loop (T-81): conflating the two is what deleted long-running
+            // protocols from every schedule surface.
+            var emitted = 0
+
             // Emit occurrences within [windowStart, windowEnd).
             while true {
                 // Floor (not round-half-away) so a 3.5-day interval yields the
@@ -316,7 +448,39 @@ enum DoseProjection {
                 }
                 step += 1
                 // Safety: never loop forever on a degenerate interval.
-                if step > days * 4 + 8 { break }
+                //
+                // ── T-81 — THIS GUARD USED TO READ `if step > days * 4 + 8`, AND `step`
+                // IS NOT THE QUANTITY THAT BUDGET DESCRIBES. ────────────────────────────
+                // `step` is fast-forwarded above to *how many doses have occurred since
+                // the protocol began*; `days * 4 + 8` bounds *iterations of this loop*,
+                // which is a function of the WINDOW. Two different quantities compared to
+                // each other. Once a protocol was older than the budget, the loop broke
+                // after at most one emission — so a still-active, still-due protocol
+                // simply STOPPED APPEARING on the dashboard and the calendar. No error,
+                // no empty state, no "nothing scheduled" copy that would at least have
+                // been a visible claim. It aged out.
+                //
+                // A daily protocol running since January, projected over 30 days:
+                // `step` fast-forwards to ~200 against a budget of 128, and one day of
+                // thirty is emitted. The bug is a THRESHOLD, not a constant, which is why
+                // nothing ever caught it — a protocol projects perfectly right up until
+                // the day it silently does not.
+                //
+                // `emitted` counts iterations of THIS loop, so the guard now measures the
+                // quantity it is compared against. The bound itself is unchanged and is
+                // still doing its original job: at the smallest interval the app can
+                // produce, four doses a day, `days * 4` covers the window and `+ 8` is
+                // slack for the fractional-interval walk.
+                //
+                // **THIS FIXES THE INSTANCE, NOT THE CLASS.** The projection still builds
+                // the series statefully — a counter and a separately-derived bound that
+                // can drift apart again. The web cannot have this bug at all because its
+                // primitive is a pure per-date predicate (`isDoseDay(p, date)` in
+                // `lib/account-schedule.ts`) with no accumulator and no budget. Making
+                // this a per-date test would remove the class; that is a larger change
+                // and is tracked separately.
+                emitted += 1
+                if emitted > days * 4 + 8 { break }
             }
         }
 
@@ -329,8 +493,9 @@ enum DoseProjection {
     static func nextDose(
         for protocols: [SavedDosage],
         from: Date,
-        lookAheadDays: Int = 30
+        lookAheadDays: Int = 30,
+        in zone: TimeZone = .current
     ) -> DoseOccurrence? {
-        projectedDoses(for: protocols, from: from, days: lookAheadDays).first
+        projectedDoses(for: protocols, from: from, days: lookAheadDays, in: zone).first
     }
 }

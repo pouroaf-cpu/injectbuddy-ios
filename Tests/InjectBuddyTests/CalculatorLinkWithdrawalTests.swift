@@ -71,9 +71,19 @@ final class CalculatorLinkWithdrawalTests: XCTestCase {
 
     // MARK: - 1. No route in
 
+    /// **`unlistedCases` — the UNION of withdrawn and collapsed — because this test is
+    /// about absence from browse, whatever the reason for it.** The two invariant tests
+    /// below are the ones that must distinguish them.
+    ///
+    /// Naming it rather than re-deriving `filter { !$0.isListed }` inline is not style:
+    /// repointing the other tests at `withdrawnCases` left `unlistedCases` read by
+    /// nothing, and `scripts/unread-decls.py` — the T-47 sweep, minutes old — caught it.
+    /// A declaration nobody reads is silence, not an error, and this file is where the
+    /// silence would have been.
     func testNoBrowseSurfaceOffersAWithdrawnCalculator() {
+        let absent = Set(CalculatorSlug.unlistedCases)
         for surface in Self.browseSurfaces {
-            let leaked = surface.offered.filter { !$0.isListed }
+            let leaked = surface.offered.filter { absent.contains($0) }
             XCTAssertTrue(leaked.isEmpty,
                           "\(surface.surface) still links to \(leaked.map(\.title).joined(separator: ", "))"
                           + " — H6 withdrew them from every route in, not from the Tools list only.")

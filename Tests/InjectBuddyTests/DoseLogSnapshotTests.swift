@@ -201,27 +201,38 @@ final class DoseLogSnapshotTests: XCTestCase {
         XCTAssertEqual(moment.injectedAt, "2026-08-04T09:34:00.000Z")
     }
 
-    /// The projection labels occurrence days in UTC while the log sheet labels them in
-    /// the device zone, and east of UTC those disagree for half of every day (T-82).
-    /// A dashboard tap on today must not be demoted to noon by that.
-    func testTodayIsRecognisedInEitherDayFrame() {
-        let moment = InjectionMoment.forLog(dosedOn: "2026-08-04",
-                                            now: loggedAt, timeZone: auckland)
-        XCTAssertEqual(moment.time, "21:34", "local frame")
-
-        // 2026-08-04 09:00 NZST is still 2026-08-03 in UTC — the frame DoseProjection uses.
+    /// **T-82 · the workaround is gone and this is what it was costing.**
+    ///
+    /// `forLog` used to recognise "today" in EITHER day frame — the device's and UTC —
+    /// because `LogDoseSheet` named the day locally while `DoseProjection` named it in
+    /// UTC. Both surfaces now emit the local day, so the UTC arm had no true positive
+    /// left; what it still had was a false one. East of UTC, `dpFormatDay(now)` IS
+    /// yesterday's date for the first twelve hours of the day, so a user in Auckland
+    /// deliberately back-dating a dose to yesterday matched it — and the row was stamped
+    /// with THIS MORNING's clock time and instant, on a day the user said they were not
+    /// injecting. Keeping the workaround "defensively" would have kept that.
+    func testABackDatedLogIsNotStampedWithThisMorningsClock() {
+        // 2026-08-04 09:00 NZST is still 2026-08-03 in UTC — the old second frame.
         var c = DateComponents()
         c.year = 2026; c.month = 8; c.day = 4; c.hour = 9; c.minute = 0
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = auckland
         let morning = cal.date(from: c)!
-        XCTAssertEqual(dpFormatDay(morning), "2026-08-03", "precondition: the frames differ")
+        XCTAssertEqual(dpFormatDay(morning), "2026-08-03",
+                       "precondition: the UTC frame really does name this morning as yesterday")
 
-        let utcFramed = InjectionMoment.forLog(dosedOn: "2026-08-03",
+        let backDated = InjectionMoment.forLog(dosedOn: "2026-08-03",
                                                now: morning, timeZone: auckland)
-        XCTAssertEqual(utcFramed.time, "09:00")
-        XCTAssertEqual(utcFramed.injectedAt, "2026-08-03T21:00:00.000Z",
-                       "the instant is true whichever frame named the day")
+        XCTAssertEqual(backDated.time, InjectionMoment.defaultTime,
+                       "yesterday is not today, whatever UTC calls this moment")
+        // Noon in Auckland on 2026-08-03 (NZST, UTC+12) is 00:00Z the same day.
+        XCTAssertEqual(backDated.injectedAt, "2026-08-03T00:00:00.000Z")
+
+        // Today, in the one frame that remains, still gets the real moment.
+        let today = InjectionMoment.forLog(dosedOn: "2026-08-04",
+                                           now: morning, timeZone: auckland)
+        XCTAssertEqual(today.time, "09:00")
+        XCTAssertEqual(today.injectedAt, "2026-08-03T21:00:00.000Z")
     }
 
     /// A back-dated log gets the web's own default rather than an invented time.

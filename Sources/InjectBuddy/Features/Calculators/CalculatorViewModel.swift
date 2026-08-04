@@ -137,12 +137,16 @@ final class CalculatorViewModel: ObservableObject {
         return .object(obj)
     }
 
+    /// Today, as the person holding the phone would name it — the seed for
+    /// `start_date`, which BOTH projection engines derive every dose day from.
+    ///
+    /// **T-82.** This was a private `DateFormatter`, and it was already in the right
+    /// frame (`TimeZone.current`) — but it was one of four private copies of the same
+    /// conversion, and the web demonstrated on 2026-08-04 what that costs: it had six,
+    /// two of them reached for `toISOString`, and one of those two seeded exactly this
+    /// field, shifting a real Auckland user's whole schedule by a day. There is now one
+    /// named writer and this calls it.
     private static func todayString() -> String {
-        let f = DateFormatter()
-        f.calendar = Calendar(identifier: .iso8601)
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone.current
-        f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: Date())
+        dpLocalDay(Date())
     }
 }

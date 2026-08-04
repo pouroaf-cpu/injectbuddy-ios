@@ -205,14 +205,22 @@ enum InjectionMoment {
     /// `DashLogFlow` has a time picker. iOS has no such control: T-81.)
     ///
     /// When it IS today, `injected_at` is `now` verbatim rather than a recomposition of
-    /// `dosed_on` + `time`. Those two are not the same instant, because the day strings
-    /// reaching this function are not all in one frame: `LogDoseSheet` formats its day
-    /// in `TimeZone.current` while `DoseProjection` formats occurrence days in UTC, and
-    /// east of UTC those disagree for half of every day (T-82). `injected_at` is the
-    /// column the chart actually plots (`SerumChart.tsx:171` prefers it and only falls
-    /// back to `dosed_on + injection_time`), so it gets the instant that is true
-    /// regardless of which frame labelled the day — and matching EITHER frame's "today"
-    /// is what keeps a genuine same-day log from being demoted to noon.
+    /// `dosed_on` + `time`. `injected_at` is the column the chart actually plots
+    /// (`SerumChart.tsx` prefers it and only falls back to
+    /// `dosed_on + injection_time`), so it gets the instant that actually happened
+    /// rather than one rebuilt from a wall-clock day and a wall-clock time.
+    ///
+    /// **T-82 — "today" is now asked ONCE, in the user's zone, and the second answer is
+    /// gone.** This used to read `day(parts) == dosedOn || dpFormatDay(now) == dosedOn`,
+    /// recognising today in EITHER frame, because `LogDoseSheet` named the day locally
+    /// while `DoseProjection` named it in UTC and a dashboard tap would otherwise have
+    /// been demoted to noon. Both surfaces now emit the local day, so the UTC arm has no
+    /// true positive left — and it was never harmless: east of UTC, `dpFormatDay(now)`
+    /// IS yesterday's date for the first twelve hours of the day, so deliberately
+    /// back-dating a dose to yesterday in the sheet matched it and stamped the row with
+    /// THIS MORNING's clock time and instant. Keeping it "defensively" would have kept
+    /// that. It is not needed for web-written rows either: this function only ever sees
+    /// a `dosedOn` iOS just produced — nothing calls it while reading.
     static func forLog(dosedOn: String,
                        now: Date = Date(),
                        timeZone: TimeZone = .current) -> (time: String, timezone: String, injectedAt: String?) {
@@ -220,7 +228,7 @@ enum InjectionMoment {
         local.timeZone = timeZone
         let parts = local.dateComponents([.year, .month, .day, .hour, .minute], from: now)
 
-        let isToday = day(parts) == dosedOn || dpFormatDay(now) == dosedOn
+        let isToday = day(parts) == dosedOn
         guard isToday, let h = parts.hour, let mi = parts.minute else {
             return (defaultTime, timeZone.identifier,
                     instant(dosedOn: dosedOn, time: defaultTime, timeZone: timeZone))
