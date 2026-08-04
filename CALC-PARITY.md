@@ -26,6 +26,19 @@ screen and several became their own high-priority tasks (T-41, T-42, T-43, T-44)
 
 ---
 
+> **CORRECTION, 2026-08-04 — read before acting on any plotter compound-table item below.**
+> This document claims in places that `PLOTTER_COMPOUNDS` does not exist in the web tree. **That is
+> wrong.** It is at `public/app.js:10713` on `feature/dosage-status-model`, it carries a `tmax` on
+> every one of its 31 rows, and iOS's values match it to the digit — so the "verbatim from app.js"
+> comment in `CalculatorCatalog` is accurate. What is true instead: the web has TWO compound tables
+> that disagree with each other, `PLOTTER_COMPOUNDS` (live) and `spec/compounds.json` (claims sole
+> authority, has no `tmax`, is not what the plotter runs on). 13 of 19 name-comparable rows differ.
+> **Do not reconcile iOS to `spec/compounds.json`** — that would move iOS away from the live web on
+> the authority of a file the live web ignores. Tracked as T-60, owned by win, and it closes first.
+> The rest of the plotter findings — the ng/dL label (T-42), the `ka` derivation and the missing
+> `SMOOTH_FRAC` smoothing — are unaffected and stand.
+
+
 # T-01b — six calculator screens compared (2026-08-04)
 
 **Method:** T-01's. iOS frame → web partner → every difference listed, functional before visual,

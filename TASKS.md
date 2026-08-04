@@ -795,13 +795,34 @@ something the web deliberately refuses to show, wearing the units of a measureme
 and have taken. A number labelled ng/dL invites comparison against real bloodwork — and a user
 whose lab result disagrees with this curve has been given a reason to change a dose.
 
-**It is not the only divergence on this screen, and the others compound it.** iOS derives `ka` by
-bisecting for a per-compound `tmax` that exists nowhere in the web's data (the web uses
-`ka = ln2 / max(0.01, halfLife × 0.25)`); it skips the web's `SMOOTH_FRAC = 0.5` moving average
-entirely; and its compound table — commented "verbatim from app.js `PLOTTER_COMPOUNDS`", **a symbol
-that does not exist in the web tree** — disagrees with `spec/compounds.json` on 15 half-lives (Tren
-A at 1.5 d against 3.0) and 4 units (TB-500, PT-141, MT-II mcg-vs-mg; HGH mcg-vs-IU). See
-`CALC-PARITY.md`.
+**It is not the only divergence on this screen.** iOS derives `ka` by bisecting for a per-compound
+`tmax` where the web uses `ka = ln2 / max(0.01, halfLife × 0.25)`, and it skips the web's
+`SMOOTH_FRAC = 0.5` moving average entirely. Both stand.
+
+**~~and its compound table — commented "verbatim from app.js `PLOTTER_COMPOUNDS`", a symbol that
+does not exist in the web tree — disagrees with `spec/compounds.json` on 15 half-lives and 4
+units.~~ WITHDRAWN 2026-08-04, and the withdrawal is more useful than the claim was.**
+
+`PLOTTER_COMPOUNDS` **does** exist — `public/app.js:10713` on `feature/dosage-status-model` — and it
+carries a `tmax` on every one of its 31 rows. iOS's first three entries (`test-e` 4.5/2.0, `test-c`
+5.0/2.5, `test-p` 0.8/0.5) match it to the digit, so **the "verbatim from app.js" comment in
+`CalculatorCatalog` is accurate and iOS's tmax values have a real web origin.** Checked directly
+with `git show FETCH_HEAD:public/app.js`; I had repeated an agent's claim without verifying that
+half, having verified only the ng/dL half above. Recorded rather than quietly deleted, because the
+lesson is the transferable part: I checked the finding that sounded severe and passed on the one
+that sounded incidental.
+
+**What is actually true is worse for the web than for us.** There are TWO compound tables and they
+disagree: `PLOTTER_COMPOUNDS` (31 rows, has `tmax`, what the live plotter runs on) and
+`spec/compounds.json` (31 rows, no `tmax`, whose own `$comment` claims it is *"the single source of
+truth for compound half-lives across web, iOS and Android"*). Of 19 name-comparable rows, 13
+disagree — Tren A 1.5 vs 3.0 (**2×**), PT-141 0.113 vs 0.5 (**4.4×**). The remaining 12 do not match
+by name at all because the tables use different id vocabularies (`eq` vs `boldenone`), which is why
+nothing has ever flagged it. Filed by win as **T-60**.
+
+**Consequence for this task: DO NOT reconcile iOS's table to `spec/compounds.json`.** Doing so would
+move iOS away from what the live plotter actually does, on the authority of a file the live plotter
+ignores. T-60 closes first.
 
 **Done when:** the axis is labelled in the units the model actually produces and the ng/dL factor is
 gone, OR the owner rules that iOS keeps a calibrated estimate — in which case it says on the screen
