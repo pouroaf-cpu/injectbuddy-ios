@@ -71,14 +71,54 @@ final class PeptideDoseUnitTests: XCTestCase {
     }
 
     /// And the engine agrees with the field. The invariant the whole screen rests on
-    /// is that the number DISPLAYED is the number USED, so the result must be
-    /// unchanged by a flip that only renames the unit.
+    /// is that the number DISPLAYED is the number USED, so a flip that only renames
+    /// the unit must not move the dose.
+    ///
+    /// ── WHY THIS NO LONGER COMPARES THE WHOLE `CalculatorResult` ─────────────────
+    ///
+    /// It did, and it went red when T-41 and T-52 were merged — on a tree where BOTH
+    /// changes are correct. Worth writing down, because "a red test after a merge"
+    /// normally means one side is wrong and here neither was.
+    ///
+    /// T-52 added `dosePerInjection` to `CalculatorResult`, and it deliberately carries
+    /// **the user's own unit**, not the engine's internal mg — its own note says a
+    /// peptide dosed at 350 mcg must not come back as "0.35 mg", "the same dose written
+    /// in a way its owner never states it". So after a flip the struct legitimately
+    /// differs in exactly that field: `500 mcg` becomes `0.5 mg`. Every rendered row is
+    /// byte-identical (`0.100 mL`, `10` units, `5.00 mg/mL`, `0.500 mg` weekly,
+    /// `100.0` doses) and so is `drawMl` — the maths never moved.
+    ///
+    /// A whole-struct compare therefore asserts something stronger than the invariant:
+    /// it demands the RESULT be unchanged, when what must be unchanged is the DOSE.
+    /// Weakening it to "rows only" would have been the easy fix and the wrong one — it
+    /// would stop checking the thing T-41 exists to prevent. So the dose is still
+    /// asserted, in the one form that survives a rename: same physical quantity,
+    /// expressed in the unit now selected.
     func testTheEngineSeesTheSameDoseAfterAFlip() {
         let vm = peptideVM()
         let before = vm.result
         setUnit(vm, mg)
-        XCTAssertEqual(vm.result, before,
-                       "a unit flip changed the computed result — the value did not convert")
+
+        // Everything the user reads must be untouched.
+        XCTAssertEqual(vm.result.rows, before.rows,
+                       "a unit flip changed a displayed row — the value did not convert")
+        XCTAssertEqual(vm.result.drawMl, before.drawMl,
+                       "a unit flip changed the draw volume — the value did not convert")
+        XCTAssertEqual(vm.result.scheduleLine, before.scheduleLine)
+        XCTAssertEqual(vm.result.isValid, before.isValid)
+
+        // And the structured dose is the SAME DOSE, restated. 500 mcg = 0.5 mg.
+        // If the conversion is ever removed this reads 500 mg and fails here, which is
+        // the defect T-41 was filed for.
+        guard let after = vm.result.dosePerInjection,
+              let start = before.dosePerInjection else {
+            return XCTFail("peptide stopped reporting a structured dose per injection")
+        }
+        XCTAssertEqual(start.unit, "mcg")
+        XCTAssertEqual(after.unit, "mg")
+        XCTAssertEqual(after.value, start.value / 1000, accuracy: 1e-9,
+                       "the structured dose did not convert with the unit — a card or a "
+                       + "logged row would state a dose 1000x wrong")
     }
 
     // MARK: - The round trip, both directions
