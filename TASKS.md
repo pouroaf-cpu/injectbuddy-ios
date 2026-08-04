@@ -1893,8 +1893,8 @@ cannot reach it today. That is the only reason this is an 8 and T-41 is a 9.
 **Done when:** flipping the unit converts the value; a unit test pins the round trip; and the FAI
 band is shown not to move when only the unit changes.
 
-## T-44 — The steroid calculator offers injectable inputs for oral-only compounds
-**Priority 7/10** · **Owner:** mac · **Agent:** — · **Status:** doing — **BUILT AND GREEN, frame outstanding**
+## ~~T-44 — The steroid calculator offers injectable inputs for oral-only compounds~~ — **DONE 2026-08-04**
+**Priority 7/10** · **Owner:** mac · **Agent:** — · **Status:** done
 
 **Built by agent `t44-steroid`, reviewed by mac. Committed `bce1c7f` + `b4dc10e`. 163/163 unit
 tests green, shown red first. NOT closed: the done-when names a rendered screen and the frame has
@@ -1949,11 +1949,19 @@ defect, rather than a cascade that would have proven nothing.
    until the user edits it.** Two more instances of T-47's pattern, found while fixing the first one.
    **Filed as T-96.**
 
-**Done when** (unchanged, and only the last clause is outstanding): an oral compound renders no
-injectable inputs and no draw volume ✔, the ester is selectable ✔, the Tren E case returns 213 mg ✔,
-**and it is photographed.** The frame will differ from `28-calculator-steroid.png` by design — three
-tablet inputs and a Tablets/Per Dose/Daily result where there was a vial strength, a syringe barrel
-and 0.75 mL.
+**Done when** — ALL MET: an oral compound renders no injectable inputs and no draw volume ✔, the
+ester is selectable ✔, the Tren E case returns 213 mg ✔, **and it is photographed** ✔.
+
+**FRAME: `docs/ui-audit/t44-steroid-form/t44-01-steroid-oxandrolone-oral.png`**, and it differs from
+`28-calculator-steroid.png` exactly as predicted. Self-identifying: **Steroid Dosage**, compound
+**Oxandrolone (Anavar)**, and the form is **DAILY DOSE (mg) · TABLET STRENGTH (mg/tab) · DOSES PER
+DAY**, resolving to `Tablets 0.00 tab`. **No vial strength, no syringe barrel, no draw volume** —
+where the old frame showed 200 mg/mL, a barrel, and 0.75 mL / 75 units for a tablet.
+
+The UI test asserts arrival through `field_oralDose` specifically, which proves BOTH that the screen
+loaded AND that it opened on the oral form — a single element that cannot be satisfied by the defect.
+It then asserts `field_strength` and `field_mgWeek` are ABSENT, which is the half a frame alone
+cannot prove to a run.
 
 **What it does now:** `28-calculator-steroid.png` opens on **Oxandrolone (Anavar)** — `cls:'oral'`
 in the web's `IB_STEROIDS`, `canInject: false` in iOS's own `SteroidCatalog` — showing a vial
@@ -3281,8 +3289,8 @@ web does, Anadrol is shown seeding 50 mg/tab, and a test pins the re-seed for at
 of each kind.
 
 
-## T-97 — iOS floors fractional cadences where the web rounds, so E3.5 users inject on different days
-**Priority 6/10** · **Owner:** mac · **Agent:** — · **Status:** open
+## ~~T-97 — iOS floors fractional cadences where the web rounds, so E3.5 users inject on different days~~ — **DONE 2026-08-04**
+**Priority 6/10** · **Owner:** mac · **Agent:** — · **Status:** done
 
 **What:** for a fractional interval, iOS computes the day offset as `Int(Double(step) * interval)` —
 a FLOOR — giving `0, 3, 7, 10, 14` for E3.5D. The web rounds (`Math.round(k * f)`), giving
@@ -3300,6 +3308,43 @@ projected on, and therefore which `dosed_on` a tap on the calendar writes.
 changing which days a protocol falls on is a reschedule and would have been hidden inside a coverage
 fix.
 
-**Done when:** one rule produces both clients' dose days, chosen deliberately and recorded, and a test
-pins E3.5D's first five days against the web's. **Check the web's live behaviour before changing
-iOS** — the web is the one with users on it.
+**Done when:** ~~one rule produces both clients' dose days, chosen deliberately and recorded, and a
+test pins E3.5D's first five days against the web's~~ ✔ **ALL MET.**
+
+**ANSWERED FROM THE LIVE WEB FUNCTION, RUN RATHER THAN READ** — win executed `isDoseDay` over a
+28-day span and reported the grids, so the expected values in `testFractionalCadencesLandOnTheWebsDays`
+compare iOS against the WEB rather than against itself:
+
+```
+3.5 → 0,4,7,11,14,18,21,25,28      2.5 → 0,3,5,8,10,13,15,18,20,23,25,28
+1.5 → 0,2,3,5,6,8,9,11,…           7 → 0,7,14,21,28        2 → 0,2,4,…,28
+```
+
+**The rule is not "rounds" — a day is a dose day iff it is the NEAREST INTEGER DAY to some exact
+multiple of the interval.** iOS now emits `round(step × interval)`, which is that set generated
+forwards.
+
+**NEITHER CLIENT WAS ARITHMETICALLY WRONG, and that is why this survived.** Web 3.5 gives gaps of
+4,3,4,3; the old floor gave 3,4,3,4. **Both average exactly 3.5.** They differed only in PHASE, so no
+aggregate check could ever see it — only a user holding both clients.
+
+**iOS moved rather than the web, and the reason is DATA, not correctness.** The web holds the
+history: every `dose_log` row already written and every projection those users have seen was
+generated on its grid. Changing the web would misalign rows that already exist. (A tiebreaker only:
+flooring also injects *earlier*, leaning to marginally more drug sooner.)
+
+**Portability, pinned rather than assumed:** JS `Math.round` is half-UP; Swift `.rounded()` is
+`.toNearestOrAwayFromZero`, **identical for non-negative values and divergent for negatives**. The
+walk never produces a negative step, and `testRoundingMatchesJavaScriptForTheValuesTheWalkCanProduce`
+pins both the agreement and the divergence, so the guard is not mistaken for a nicety.
+
+**AN EXISTING GREEN TEST HAD TO CHANGE, AND IT WAS WRONG RATHER THAN MERELY OUTDATED.**
+`testProjection_TwiceWeeklyDates` pinned `06-01, 06-04, 06-08, 06-11, 06-15` and its comment called
+those "the rounded offsets", which they were not. **The test agreed with the code, the comment agreed
+with the test, and all three disagreed with the web.** Recorded in the test rather than quietly
+re-baselined: a green test whose expectation encodes the defect converts the bug into the
+specification.
+
+**The old source comment is deleted rather than corrected** — it claimed the floor was "matching the
+web schedule rather than 0,4,7,11,14", naming the web's actual behaviour as the thing it avoided.
+The test says it better than the prose could.

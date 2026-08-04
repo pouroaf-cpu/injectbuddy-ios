@@ -92,6 +92,19 @@ data, then navigate with an idle-wait between every tap.
 - **Assert arrival before every screenshot.** Three frames in the old archive were photographs of
   the previous screen for two capture cycles — each a good photograph of a real screen under the
   wrong name.
+- **Before believing a FAILED precondition, prove the probe could have succeeded.** A precondition
+  that fails because the *probe* is wrong is indistinguishable from one that fails because the
+  *feature* is missing — and the two can point in opposite directions. On 2026-08-04 a UI test
+  reported "the TRT calculator has no Every N Days mode control" twice while that control was on
+  screen and selected: `ModeTab` set an accessibility identifier on its container, which propagates
+  to descendants and **overwrites the ones the segments set for themselves**, so `mode_ndays` was
+  written and was never observable. Read literally, that failure said to abandon the whole task.
+  What separated the readings was an earlier assertion that had already passed on a field only that
+  mode can render. **A failing check is trusted harder than a passing one** — the same day, the
+  Windows side's doc-claim checker was aimed at a dead artefact and produced 13 real-looking
+  failures, from which came a task, a parked owner decision and a wrong instruction. An instrument
+  aimed at the wrong thing does not look broken; it looks like a finding. Dump the tree, or assert
+  the probe against something known present, before acting on it.
 - **The Keychain session survives uninstall.** Only `simctl erase` signs you out — and the simulator
   has never been erased, so nothing here has ever tested a genuine first run.
 - **The app is light-only.** `UIUserInterfaceStyle: Light` is locked. Do not reintroduce a dark path.

@@ -431,10 +431,38 @@ enum DoseProjection {
 
             // Emit occurrences within [windowStart, windowEnd).
             while true {
-                // Floor (not round-half-away) so a 3.5-day interval yields the
-                // conventional alternating 3/4-day pattern (0,3,7,10,14 — e.g. Mon/Thu),
-                // matching the web schedule rather than 0,4,7,11,14.
-                let offsetDays = Int(Double(step) * interval)
+                // ── T-97 — ROUND, NOT FLOOR, AND THE OLD COMMENT HERE WAS BACKWARDS. ──
+                // It read: "Floor … matching the web schedule rather than 0,4,7,11,14."
+                // **0,4,7,11,14 IS the web schedule.** The sentence named the correct
+                // behaviour and called it the thing it was avoiding, which is why the
+                // divergence survived every review — a comment asserting a compatibility
+                // it did not have.
+                //
+                // The web's rule, `lib/account-schedule.ts`:
+                //
+                //     if (Number.isInteger(f)) return d % f === 0
+                //     const k = Math.round(d / f)
+                //     return Math.round(k * f) === d
+                //
+                // i.e. a day is a dose day iff it is the NEAREST INTEGER DAY to some
+                // exact multiple of the interval. Emitting `round(step × interval)` is
+                // that same set, generated forwards.
+                //
+                // NEITHER SPACING WAS ARITHMETICALLY WRONG, which is the reason nothing
+                // ever flagged this: web 3.5 gives gaps of 4,3,4,3 and the old floor gave
+                // 3,4,3,4 — **both average exactly 3.5.** They differ only in PHASE, so
+                // no aggregate check can see it; only a user holding both clients does.
+                //
+                // iOS moves rather than the web, and the reason is DATA, not correctness:
+                // every existing `dose_log` row and every projection those users have
+                // already seen was generated on the web's grid. Changing the web would
+                // misalign rows that are already written.
+                //
+                // `Math.round` in JS is half-UP; Swift's `.rounded()` is
+                // `.toNearestOrAwayFromZero`, which is IDENTICAL for non-negative values.
+                // `step` is non-negative by construction here, which is what makes the
+                // two agree — the equivalence is not general.
+                let offsetDays = Int((Double(step) * interval).rounded())
                 guard let occDay = calendar.date(byAdding: .day, value: offsetDays, to: startDay) else { break }
                 if occDay >= windowEnd { break }
                 if occDay >= windowStart {

@@ -124,6 +124,65 @@ final class DoseProjectionTests: XCTestCase {
                              + "effectively as T-81 did")
     }
 
+    // MARK: - T-97 · the two clients land on the same days
+
+    /// **T-97 — iOS floored a fractional cadence where the web takes the nearest day, so
+    /// the two clients told the same user to inject on DIFFERENT days.**
+    ///
+    /// The expected sets below are not derived from iOS. They were produced by RUNNING
+    /// the web's own `isDoseDay` over a 28-day span and reported back, so this test
+    /// compares iOS against the WEB rather than against itself.
+    ///
+    /// **Neither spacing was arithmetically wrong, which is exactly why this survived.**
+    /// The web's 3.5 gives gaps of 4,3,4,3; the old floor gave 3,4,3,4. Both average
+    /// exactly 3.5, so no aggregate check could ever see it — only a user holding both
+    /// clients. iOS moved rather than the web because the web holds the history: every
+    /// `dose_log` row already written was generated on its grid.
+    func testFractionalCadencesLandOnTheWebsDays() {
+        let expected: [Double: [Int]] = [
+            3.5: [0, 4, 7, 11, 14, 18, 21, 25, 28],
+            2.5: [0, 3, 5, 8, 10, 13, 15, 18, 20, 23, 25, 28],
+            1.5: [0, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18, 20, 21, 23, 24, 26, 27],
+            7.0: [0, 7, 14, 21, 28],
+            2.0: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28],
+        ]
+        for (interval, webDays) in expected {
+            let emitted = (0...40)
+                .map { Int((Double($0) * interval).rounded()) }
+                .filter { $0 <= 28 }
+            XCTAssertEqual(Array(Set(emitted)).sorted(), webDays,
+                           "interval \(interval): iOS emits a different day set from the "
+                           + "web's isDoseDay over the same 28 days.")
+        }
+    }
+
+    /// The old behaviour, pinned as the thing that must NOT come back. Without this the
+    /// test above passes on any rule that happens to agree at day 0.
+    func testTheOldFlooredSpacingIsGone() {
+        let floored = (0...4).map { Int(Double($0) * 3.5) }
+        XCTAssertEqual(floored, [0, 3, 7, 10, 14],
+                       "sanity: this is what the OLD rule produced")
+        let now = (0...4).map { Int((Double($0) * 3.5).rounded()) }
+        XCTAssertNotEqual(now, floored,
+                          "E3.5D is still on the floored grid — the two clients still "
+                          + "disagree about which days a twice-weekly user injects.")
+        XCTAssertEqual(now, [0, 4, 7, 11, 14])
+    }
+
+    /// `Math.round` in JS is half-UP and Swift's `.rounded()` is
+    /// `.toNearestOrAwayFromZero`. They agree for non-negative values and DIVERGE for
+    /// negatives, so the non-negativity of the step is what makes the port faithful
+    /// rather than a coincidence. Pinned so nobody "simplifies" the guard away.
+    func testRoundingMatchesJavaScriptForTheValuesTheWalkCanProduce() {
+        XCTAssertEqual(Int((3.5).rounded()), 4, "half-up at .5, as Math.round is")
+        XCTAssertEqual(Int((10.5).rounded()), 11)
+        XCTAssertEqual(Int((2.5).rounded()), 3)
+        // The divergence that the non-negative guard protects against.
+        XCTAssertEqual(Int((-3.5).rounded()), -4, "Swift rounds away from zero here; JS "
+                       + "Math.round(-3.5) is -3. The walk never produces a negative "
+                       + "step, which is what makes the two agree.")
+    }
+
     // MARK: - interval derivation
 
     func testInterval_TRTPerWeek() {
@@ -182,12 +241,24 @@ final class DoseProjectionTests: XCTestCase {
         XCTAssertEqual(occ.first?.slug, .semaglutide)
     }
 
+    /// **THE EXPECTED VALUE HERE CHANGED WITH T-97, and it changed because it was WRONG
+    /// — not because the new behaviour needed accommodating.**
+    ///
+    /// It read `06-01, 06-04, 06-08, 06-11, 06-15` — offsets 0,3,7,10,14, iOS's floored
+    /// grid — and its comment called those "the rounded offsets", which they were not.
+    /// **So the test agreed with the code, the comment agreed with the test, and all
+    /// three disagreed with the web**, which puts an E3.5D user on 0,4,7,11,14.
+    ///
+    /// That is why this is recorded rather than quietly re-baselined: a green test whose
+    /// expectation encodes the defect is the most expensive kind, because it converts
+    /// the bug into the specification. The gold values now come from the web's own
+    /// `isDoseDay`, run over the same span — see `testFractionalCadencesLandOnTheWebsDays`.
     func testProjection_TwiceWeeklyDates() {
-        // E3.5: from 2026-06-01 the rounded offsets are 0,3,7,10,14,… (Mon/Thu-ish).
+        // E3.5 from 2026-06-01: offsets 0,4,7,11,14 — round(step × 3.5), the web's grid.
         let proto = makeDosage(type: "trt", startDate: "2026-06-01", config: #"{"injPerWeek":2}"#)
         let occ = DoseProjection.projectedDoses(for: [proto], from: utcDay("2026-06-01"), days: 15, in: utc)
         let days = occ.map { $0.dayKey }
-        XCTAssertEqual(days, ["2026-06-01", "2026-06-04", "2026-06-08", "2026-06-11", "2026-06-15"])
+        XCTAssertEqual(days, ["2026-06-01", "2026-06-05", "2026-06-08", "2026-06-12", "2026-06-15"])
     }
 
     func testProjection_StartsBeforeWindow_FastForwards() {

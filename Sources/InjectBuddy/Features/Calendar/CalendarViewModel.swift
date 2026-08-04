@@ -101,21 +101,23 @@ struct ScheduledProtocol: Equatable, Identifiable {
     ///
     /// It reproduces `projectedDoses`' day set EXACTLY rather than approximating it,
     /// and the equality is by construction rather than by argument. That loop emits day
-    /// `Int(Double(step) * interval)` for `step = 0, 1, 2, …`, so a day `d` is a dose
-    /// day iff some non-negative integer `step` satisfies `Int(Double(step) * interval)
-    /// == d`. Since the expression is monotonic in `step`, the only candidates are the
+    /// `Int((Double(step) * interval).rounded())` for `step = 0, 1, 2, …`, so a day `d` is a dose
+    /// day iff some non-negative integer `step` satisfies
+    /// `Int((Double(step) * interval).rounded()) == d`. Since the expression is monotonic in `step`, the only candidates are the
     /// integers around `d / interval` — and the check below is the emitter's own
     /// expression, character for character, so a floating-point quirk in one is a
     /// floating-point quirk in the other. (A BAND of candidates is swept rather than a
     /// single rounding, so a `7.000000000000001` cannot put the answer one step out.)
     ///
-    /// **This deliberately keeps iOS's FLOOR spacing (0,3,7,10,14 for E3.5D) and does
-    /// not adopt the web's rounding (0,4,7,11,14 — `isDoseDay` rounds `d / f` and
-    /// re-multiplies).** The two clients disagree about which days a fractional cadence
-    /// lands on. That is a real difference and it is NOT T-09's: T-09 is that days were
-    /// not answered at all. Changing the spacing here would move every twice-weekly
-    /// dose day in the same commit that fixes coverage, and no later reader could tell
-    /// which change did what.
+    /// **T-97 — THIS NOW MATCHES THE WEB'S GRID, and the change was made separately
+    /// from T-09 on purpose.** T-09 was that days past the window were not answered at
+    /// all; this is which days a fractional cadence lands on. Doing both in one commit
+    /// would have moved every twice-weekly dose day inside a coverage fix, and no later
+    /// reader could have told which change did what.
+    ///
+    /// The emitter and this predicate use the SAME expression — `round(step × interval)`
+    /// — so they cannot disagree, and `testPredicateMatchesTheSeriesDayForDayOver400Days`
+    /// holds them equal. Change one and you must change the other.
     func isDoseDay(_ day: Date) -> Bool {
         guard let elapsed = CalendarWindow.wholeDays(from: startDay, to: day), elapsed >= 0
         else { return false }
@@ -130,7 +132,7 @@ struct ScheduledProtocol: Equatable, Identifiable {
         var step = max(0, Int(approx.rounded(.down)) - 1)
         let last = Int(approx.rounded(.up)) + reach
         while step <= last {
-            if Int(Double(step) * intervalDays) == elapsed { return true }
+            if Int((Double(step) * intervalDays).rounded()) == elapsed { return true }
             step += 1
         }
         return false
