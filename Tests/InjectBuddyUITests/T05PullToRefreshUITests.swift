@@ -58,6 +58,37 @@ final class T05PullToRefreshUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
+
+        // ── THE FORWARDING STEP, AND IT IS TWO HOPS, NOT ONE ────────────────────
+        //
+        // The first run of this suite went red on its own "did the flag arrive?"
+        // guard, and the guard was right. `xcodebuild` copies host variables
+        // prefixed `TEST_RUNNER_` into the TEST RUNNER's environment with the prefix
+        // stripped — that is the trap CLAUDE.md records. What CLAUDE.md does not say,
+        // because nothing had needed it before, is that the runner and the APP UNDER
+        // TEST are different processes. `ProcessInfo.processInfo.environment` read
+        // inside `CalendarScreen` is the APP's environment, and nothing puts the
+        // runner's variables there.
+        //
+        // So the chain is: host sets `TEST_RUNNER_T05_EXPERIMENT` → runner sees
+        // `T05_EXPERIMENT` → THIS LINE puts it in `launchEnvironment` → app sees it.
+        // `CaptureCurrentState` already does exactly this for `BAR_SHARE_CAP` and
+        // `PLATE_MATERIAL`; this suite simply did not, and would have run the app in
+        // its default configuration while the filenames and assertions claimed
+        // otherwise.
+        //
+        // WORTH SAYING PLAINLY: without the arrival assertion this would have been a
+        // FALSE CONFIRMATION, not a failure. The app would have launched with the pull
+        // unarmed, the probe would have read zero reloads in BOTH conditions, and the
+        // control would have "reproduced the defect" perfectly while the candidate
+        // showed no improvement — which reads as "candidate (A) is dead" and would
+        // have sent the next person to chase (B) and (C) for nothing.
+        for key in ["T05_EXPERIMENT", "CALENDAR_INLINE_TITLE"] {
+            if let value = ProcessInfo.processInfo.environment[key] {
+                app.launchEnvironment[key] = value
+            }
+        }
+
         app.launch()
     }
 
