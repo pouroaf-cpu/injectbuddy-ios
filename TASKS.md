@@ -1160,8 +1160,8 @@ the compound dropdown as separate entries ("Trenbolone Enanthate"); iOS forces `
 **Done when:** an oral compound renders no injectable inputs and no draw volume, the ester is
 selectable, and the Tren E case is shown returning 213 mg.
 
-## T-51 — iOS logs no injection time, so the web plots its doses at an assumed noon
-**Priority 5/10** · **Owner:** mac · **Status:** open
+## ~~T-51 — iOS logs no injection time, so the web plots its doses at an assumed noon~~ — **DONE 2026-08-04**
+**Priority 5/10** · **Owner:** mac · **Status:** done
 
 **What:** `NewDoseLogPin` (`Core/Models/Models.swift:208-219`) encodes four columns — `protocol_id`,
 `dosed_on`, `draw_ml`, `site`. The web also writes `injected_at`, `injection_time` and
@@ -1181,6 +1181,43 @@ curve rather than leaving a hole, which is why it is a 5 and T-03 was a 6.
 
 **Done when:** a dose logged from iOS carries a time and a zone, read back from the database, and the
 web chart plots it at that time rather than at noon.
+
+**CLOSED.** `InjectionMoment` (`Core/Models/DoseSnapshot.swift`) writes all three; `NewDoseLogPin`
+and `SupabaseBackendClient.OwnedDoseLogPin` carry them on all three log paths.
+
+**The zone is an IANA identifier, matching the web.** `DashboardContext.tsx:193` writes
+`Intl.DateTimeFormat().resolvedOptions().timeZone`; iOS writes `TimeZone.current.identifier`. An
+offset would have been the plausible-but-wrong value — it cannot name the zone and it freezes one
+side of a DST transition. `testTheZoneIsAnIANANameAndSurvivesDST` pins that: the same zone is
+UTC+12 in August and UTC+13 in January, and 08:00 local on 2027-01-15 is `2027-01-14T19:00:00.000Z`.
+
+**Logging today stamps the real moment; logging another day writes the web's own `12:00`.** iOS has
+no time picker (the web's `DashLogFlow` does — filed as T-83), so stamping "now" onto a day the user
+was not injecting would be inventing a number. `injected_at` for a same-day log is `now` verbatim,
+not a recomposition of `dosed_on + injection_time`, because those two are not the same instant when
+the day frames disagree (T-82) — and `SerumChart.tsx:171` prefers `injected_at`, so the instant it
+plots is true either way.
+
+**Evidence — written over PostgREST with the QA account's own JWT, exactly as the app writes, then
+read back with SQL.** Two rows: one back-dated (noon branch), one same-day (live-clock branch).
+
+```sql
+select id, dosed_on, injection_time, injection_timezone, injected_at
+from dose_log
+where id in ('325c7e74-977e-433f-94b2-96d480a416e1','079856d1-c18f-4137-ae18-daf3a9571ad6');
+```
+```
+ 325c7e74… | 2026-08-02 | 12:00:00 | America/Los_Angeles | 2026-08-02 19:00:00+00   ← back-dated
+ 079856d1… | 2026-08-04 | 03:21:00 | America/Los_Angeles | 2026-08-04 10:21:00+00   ← logged live
+```
+`03:21` PDT is `10:21Z` — the row carries the hour the dose happened, in a zone a reader in another
+country can resolve. Before this, both rows would have read `12:00:00 / NULL / NULL`, and every
+other iOS row in the table still does.
+
+**Unit:** `DoseLogSnapshotTests` — 11 tests, all green in an 85-test run
+(`xcodebuild test -only-testing:InjectBuddyTests`, exit 0, 0 failures). Shown FAILING first against a
+deliberately wrong reference (`injected_at` → `injection_at` in the asserted key set): exit 65, one
+failure on exactly that assertion. A reference that cannot fail is not evidence.
 
 ## ~~T-52 — The log-dose sheet cannot record a dose that was not the planned one~~ — **DONE 2026-08-04**
 **Priority 6/10** · **Owner:** mac · **Status:** done
@@ -1471,8 +1508,8 @@ panel read "Draw volume unknown". `npx tsc --noEmit` clean.
 exist in older rows elsewhere and in `app/api/dosages/route.ts:27`'s validation; dropping them would
 move the failure rather than fix it.
 
-## T-59 — iOS-logged history rewrites itself when a protocol is renamed; web-logged history does not
-**Priority 5/10** · **Owner:** mac · **Status:** open
+## ~~T-59 — iOS-logged history rewrites itself when a protocol is renamed; web-logged history does not~~ — **DONE 2026-08-04**
+**Priority 5/10** · **Owner:** mac · **Status:** done
 
 **What:** `dose_log` carries five display-snapshot columns — `protocol_label`, `compound_label`,
 `category`, `dose_label`, `scheduled_on` — whose stated purpose (`app/api/dose-log/route.ts:47-48`)
@@ -1491,6 +1528,59 @@ instance of the same pattern after T-03, T-51 and T-08.
 
 **Done when:** an iOS-logged dose carries all five, and renaming its protocol afterwards leaves the
 history row unchanged — verified by a rename and a re-read, not by inspection.
+
+**CLOSED.** Four of the five come from `DoseSnapshot` (`Core/Models/DoseSnapshot.swift`), derived
+from the saved protocol the way the WEB derives them — `protocol-meta.ts` (`compoundOf`,
+`protoDisplay`, `abbrevCompound`) and `lib/account-schedule.ts` (`deriveProtocols`) on branch
+`feature/dosage-status-model`, read from that source. That is deliberate: the fallback these columns
+replace **is** the web's own derivation, so writing the same strings changes nothing a user sees
+today and only stops it changing tomorrow. The fifth, `dose_label`, was closed first by T-52 and is
+NOT re-derived here — it describes the injection rather than the protocol and the user can edit it;
+freezing the plan would have silently undone T-52.
+
+**`category` is the raw `calculator_type` slug, not a display name.** The live column reads
+`trt` / `peptide` / `steroid` / `tirzepatide`; `DoseHistory.tsx:88` maps it through its own `CATEGORY`
+table at render time. A pretty name would have sorted and filtered into a bucket of its own, apart
+from every web-written row.
+
+**Evidence — the row, then the rename, then the re-read.** Written over PostgREST with the QA
+account's JWT (`user_id` in the body, as RLS requires), then:
+
+```sql
+update saved_dosages set label = 'RENAMED BY T-59 PROOF'
+  where id = 'd94cc62b-aaa7-4f4c-ad69-72f73815050a';
+
+select l.id, s.label as live_protocol_label, l.protocol_label as frozen_snapshot,
+       l.compound_label, l.category
+from dose_log l join saved_dosages s on s.id = l.protocol_id
+where l.protocol_id = 'd94cc62b-aaa7-4f4c-ad69-72f73815050a' order by l.dosed_on;
+```
+```
+ 325c7e74… | RENAMED BY T-59 PROOF | TRT Dose | Test E | trt    ← written with the snapshot
+ 92c3af8f… | RENAMED BY T-59 PROOF | NULL     | NULL   | NULL   ← pre-fix iOS row
+ 3c4f9f5b… | RENAMED BY T-59 PROOF | NULL     | NULL   | NULL   ← pre-fix iOS row
+```
+The new row still says `TRT Dose` under a protocol now called something else; the two older iOS rows
+have nothing of their own and render the new name. That is the defect and the fix in one result. The
+label was restored to `TRT Dose` immediately afterwards (verified by re-select).
+
+Full snapshot on the two rows written:
+```sql
+select id, dosed_on, scheduled_on, protocol_label, compound_label, category, dose_label,
+       draw_ml, site from dose_log
+where id in ('325c7e74-977e-433f-94b2-96d480a416e1','079856d1-c18f-4137-ae18-daf3a9571ad6');
+```
+```
+ 325c7e74… | 2026-08-02 | 2026-08-02 | TRT Dose                              | Test E                   | trt     | 74.5 mg | 0.373 | L Delt
+ 079856d1… | 2026-08-04 | 2026-08-04 | TB-500 (Thymosin Beta-4) · 350mcg/inj | TB-500 (Thymosin Beta-4) | peptide | 350 mcg | 0.042 | Abdomen R
+```
+`compound_label` is the web's own re-ordering of a dose-first label — `"105mg/wk · Testosterone
+Acetate"` → `"Test Acetate"` — checked against the four web-written production rows that carry it.
+
+**Unit:** `DoseLogSnapshotTests` asserts the encoded body of `OwnedDoseLogPin` (the struct that
+actually becomes the request, now non-`private` so it can be asserted) carries all thirteen column
+names. 11 tests, green in an 85-test run, and shown failing first against a deliberately wrong
+column name. See T-51 for the same evidence chain on the other three columns.
 
 ## T-60 — The web has TWO compound tables that disagree on 13 half-lives, and one falsely claims to be the only one
 **Priority 8/10** · **Owner:** win · **Status:** open
@@ -1654,3 +1744,113 @@ which is `149 ÷ 2` against `137 ÷ 2`. Photographed:
 `Masteron` because it was saved in a mode `evaluate` does not run, `Testosterone Cypionate` because
 its weekly dose is 0. They are distinguishable, which is what this task asked for, but "one
 convention" is still "one convention and two blanks".
+
+## T-81 — The projection's safety valve deletes long-running protocols from the dashboard and calendar
+**Priority 8/10** · **Owner:** mac · **Status:** open
+
+**What:** `DoseProjection.projectedDoses` ends its day loop with
+
+```swift
+step += 1
+// Safety: never loop forever on a degenerate interval.
+if step > days * 4 + 8 { break }
+```
+
+but `step` is not an iteration count. Forty lines earlier it is **fast-forwarded to the window**:
+
+```swift
+if startDay < windowStart {
+    let elapsed = windowStart.timeIntervalSince(startDay) / 86_400.0
+    step = max(0, Int((elapsed / interval).rounded(.down)))
+}
+```
+
+So `step` starts at "how many doses this protocol has had since it began" and is compared against a
+budget sized for "how many days the window is". For any protocol old enough, the valve fires on the
+**first** iteration and the function returns an empty array — silently, with no error and no
+partial result.
+
+**The threshold is `elapsedDays > interval × (days × 4 + 8)`**, so it is worst for the most
+frequent protocols:
+
+| window | cap | daily (1 d) vanishes after | E3.5D vanishes after |
+|---|---|---|---|
+| dashboard `projectedDoses(days: 14)` | 64 | **64 days** | 224 days |
+| calendar / `nextDose(lookAheadDays: 30)` | 128 | **128 days** | 448 days |
+
+**Found by accident and reproduced deliberately.** `DoseLogSnapshotTests` projected a twice-weekly
+peptide started 2026-01-01 over a 7-day window from 2026-08-04 and got **nothing**: cap 36, start
+step 61. Widening the window to 14 days made the same protocol project normally. Nothing about the
+protocol changed — only the size of the window it was asked about, which is the opposite of how a
+window should behave.
+
+**Production, today:** one active protocol is already past the 30-day cap. The one that matters is
+the next: `Retatrutide · 4.5mg/inj`, started 2026-01-06, sits at step **60** against the dashboard's
+cap of **64** — it disappears from the dashboard in about a fortnight, and `BPC-157 · 250mcg/inj`
+(daily, step 35) follows it 29 days later.
+
+```sql
+-- interval derived the way DoseProjection.injectionIntervalDays derives it
+select calculator_type, label, coalesce(start_date, created_at::date) as start_day,
+       floor((current_date - coalesce(start_date, created_at::date)) / interval_days) as fast_forward_step
+from (...) p where interval_days is not null order by 4 desc;
+```
+```
+ trt     | 200mg/wk · Testosterone Cypionate | 0202-05-04 | 190370   ← bad start_date, but it is the shape
+ peptide | Retatrutide · 4.5mg/inj           | 2026-01-06 |     60   ← dashboard cap is 64
+ peptide | BPC-157 · 250mcg/inj              | 2026-06-30 |     35   ← daily; cap is 64
+```
+
+**Why it is an 8:** it is a dosing tracker whose whole value is being used for months, and this makes
+a protocol quietly stop appearing **because** it has been used for months. The user sees no next
+dose, no calendar entries and no error — indistinguishable from "nothing is scheduled". A protocol
+that has run longest is the one most likely to be relied on.
+
+**Done when:** the valve counts iterations of the loop it guards, not doses since the protocol
+started — and a test projects a protocol started a year ago over a 7-day window and gets the doses in
+that window.
+
+## T-82 — Two day-string frames, and half of every day they disagree
+**Priority 6/10** · **Owner:** mac · **Status:** open
+
+**What:** `dose_log.dosed_on` is a calendar day, and this app produces that string in **two
+different timezones**:
+
+- `LogDoseSheet.dayFormatter` sets `f.timeZone = TimeZone.current` — the device's day.
+- `DoseProjection` formats every occurrence day with `DoseDateFormat.dayFormatter`, pinned to UTC,
+  and the dashboard and calendar log from occurrences.
+
+East of UTC the two disagree from local midnight until UTC midnight — twelve hours a day in
+Auckland, where the owner is. `dpFormatDay(2026-08-04 09:00 NZST)` is `"2026-08-03"`, so a dose
+ticked on the dashboard on a Tuesday morning is stored as Monday, while the same dose logged through
+the sheet is stored as Tuesday.
+
+**What it costs:** the two rows are different rows. The unique index is `(protocol_id, dosed_on)`, so
+the same injection logged from two surfaces on the same morning **upserts into two rows, not one** —
+the supply ledger then subtracts two draws for one injection. It also decides which day the calendar
+shows the tick on.
+
+**Not the same as T-51,** which this was found next to. T-51 is about the hour; this is about which
+day. `InjectionMoment.forLog` works around it by recognising "today" in either frame so a genuine
+same-day log is not demoted to noon, and by writing `injected_at` as the true instant rather than
+recomposing it from `dosed_on` — a workaround, not a fix, and it is commented as one.
+
+**Done when:** one frame produces every `dosed_on` in the app, chosen deliberately, and a test pins a
+device-zone morning east of UTC to the day the user would name.
+
+## T-83 — iOS cannot say what time a dose was taken; the web can
+**Priority 4/10** · **Owner:** mac · **Status:** open
+
+**What:** the web's `DashLogFlow` has a `<input type="time">` and passes it down to
+`markDone(..., injectionTime)`; `DoseHistory`'s detail sheet can edit it afterwards. iOS has no such
+control on either path.
+
+**What it costs, now that T-51 is closed:** a dose logged on the day it happened carries the real
+clock time. A dose logged for **any other day** — the log sheet lets you pick one — carries the web's
+`12:00` default, because the app has not asked and will not invent a time. That is the honest answer
+and it is the same answer the web gives when its own picker is untouched, but the web at least offers
+to be corrected. A user catching up on three days of missed logs gets three noons and no way to fix
+them from the phone.
+
+**Done when:** the log sheet accepts a time, defaulted to now for today and to 12:00 otherwise, and a
+dose logged with a changed time reads back with that time.

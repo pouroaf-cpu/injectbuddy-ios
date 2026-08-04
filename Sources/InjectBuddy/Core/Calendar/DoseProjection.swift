@@ -66,6 +66,16 @@ struct DoseOccurrence: Equatable, Identifiable {
     /// history renders as "Dose". Nil wherever a single dose cannot be stated.
     var dose: DoseAmount?
 
+    /// What the PROTOCOL looked like, frozen for `dose_log`'s history ledger — the other
+    /// four display-snapshot columns.
+    ///
+    /// Carried here for the third time for the same reason: the dashboard and the
+    /// calendar log doses holding an occurrence and NOT the protocol behind it. Derived
+    /// once per protocol in `projectedDoses`, so the two log paths cannot write a
+    /// snapshot that disagrees with the projection — or, as before, write none at all
+    /// (T-59).
+    var snapshot: DoseSnapshot
+
     /// Stable identity for diffing/SwiftUI lists: protocol + day.
     var id: String { "\(protocolId)@\(dpFormatDay(date))" }
 
@@ -272,6 +282,8 @@ enum DoseProjection {
             // of the protocol, and re-evaluating it inside the day loop would run the
             // engine thirty times for one answer.
             let perInjection = DoseVolume.perInjection(for: proto)
+            // Same rule, same reason.
+            let snapshot = DoseSnapshot(for: proto)
 
             // Walk dose days from the protocol start. Interval may be fractional
             // (e.g. 3.5 for twice-weekly): accumulate in days and round to the day.
@@ -299,7 +311,8 @@ enum DoseProjection {
                                                  slug: slug,
                                                  label: label,
                                                  drawMl: perInjection.ml,
-                                                 dose: perInjection.dose))
+                                                 dose: perInjection.dose,
+                                                 snapshot: snapshot))
                 }
                 step += 1
                 // Safety: never loop forever on a degenerate interval.

@@ -280,7 +280,13 @@ struct SupabaseBackendClient: BackendClient {
     /// Nil `drawMl`/`site` encode as ABSENT keys, not nulls (synthesized Encodable
     /// uses encodeIfPresent), and PostgREST's upsert only writes the keys present. So
     /// a calendar toggle, which sends neither, cannot blank the draw volume or site on
-    /// a pin that already has them.
+    /// a pin that already has them. The four optional snapshot columns ride the same
+    /// rule: a protocol whose family has no per-injection dose label sends no
+    /// `dose_label` key rather than a null over one already there.
+    ///
+    /// The write is thirteen columns now, not five: the five display-snapshot columns
+    /// (T-59) and the three injection-moment columns (T-51) that iOS had never written.
+    /// See `DoseSnapshot` and `InjectionMoment`.
     func logDose(_ pin: NewDoseLogPin) async throws -> DoseLogPin {
         let owned = try await OwnedDoseLogPin(pin, userId: currentUserId())
         let rows: [DoseLogPin] = try await client
@@ -296,12 +302,26 @@ struct SupabaseBackendClient: BackendClient {
     /// same shape, same naming, same place in the file relative to its write. A second
     /// idiom for the same job is how the missing user_id survived on this table while
     /// saved_dosages was fixed.
-    private struct OwnedDoseLogPin: Encodable {
+    ///
+    /// NOT `private`: this — not `NewDoseLogPin` — is the struct that becomes the
+    /// request body, so this is the one whose encoded key names have to be asserted.
+    /// `DoseLogSnapshotTests` encodes it and compares against the column list in
+    /// `app/api/dose-log/route.ts`. A column name that is merely plausible is the
+    /// failure this project has already hit twice, and the only thing that catches it
+    /// before a user does is a test on the bytes actually sent.
+    struct OwnedDoseLogPin: Encodable {
         let protocolId: String
         let dosedOn: String
         let drawMl: Double?
         let site: String?
+        let scheduledOn: String
+        let protocolLabel: String?
+        let compoundLabel: String?
+        let category: String?
         let doseLabel: String?
+        let injectionTime: String
+        let injectionTimezone: String
+        let injectedAt: String?
         let userId: String
 
         init(_ p: NewDoseLogPin, userId: String) {
@@ -309,16 +329,29 @@ struct SupabaseBackendClient: BackendClient {
             dosedOn = p.dosedOn
             drawMl = p.drawMl
             site = p.site
+            scheduledOn = p.scheduledOn
+            protocolLabel = p.protocolLabel
+            compoundLabel = p.compoundLabel
+            category = p.category
             doseLabel = p.doseLabel
+            injectionTime = p.injectionTime
+            injectionTimezone = p.injectionTimezone
+            injectedAt = p.injectedAt
             self.userId = userId
         }
 
         enum CodingKeys: String, CodingKey {
-            case site
+            case site, category
             case protocolId = "protocol_id"
             case dosedOn = "dosed_on"
             case drawMl = "draw_ml"
+            case scheduledOn = "scheduled_on"
+            case protocolLabel = "protocol_label"
+            case compoundLabel = "compound_label"
             case doseLabel = "dose_label"
+            case injectionTime = "injection_time"
+            case injectionTimezone = "injection_timezone"
+            case injectedAt = "injected_at"
             case userId = "user_id"
         }
     }
