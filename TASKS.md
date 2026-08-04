@@ -1327,20 +1327,38 @@ everything else is held to.
 **Done when:** the harness can reach a calculator that is not listed in Tools, and Settings and
 confirm-start appear in the sweep.
 
-## T-56 — The rig's lock does not survive a killed capture run
+## T-56 — The rig's lock cannot tell compiling from driving the device
 **Priority 4/10** · **Owner:** mac · **Status:** open
 
-**What:** the full sweep takes **972 seconds**. Mac's first attempt on 2026-08-04 hit a 10-minute
-command timeout; the process was SIGKILLed and **the lock trap did not run**, leaving the rig locked
-with nothing holding it. It was released by hand.
+**NARROWED 2026-08-04, and the original framing was wrong — recorded rather than rewritten, per
+rule 7.** This was filed as "the lock does not survive a killed capture run", after a SIGKILLed
+sweep left the rig held and it was released by hand.
 
-**Why it matters:** the rig is the one serialised resource in this project — every device check goes
-through it. A lock that leaks whenever a run is killed will strand it again, and the next person to
-hit it has no way to tell a leaked lock from a live run. **Carried in a message; filed here per rule
-6.**
+**That is not a defect. The lease is TIME-based and self-clearing, and deliberately so.** Its own
+header says a pid check "provided NO mutual exclusion while printing that it had", that expiry
+"does not depend on any process still existing", and that an expired lease is reclaimed **loudly**
+— `EXPIRED LEASE from '<holder>' … reclaiming` — precisely because "an expired lease may mean the
+holder DIED MID-RUN". So the mechanism already handles the case the task was filed about. The
+hand-release was impatience, not repair: the killed sweep would have self-cleared in 900s. **The
+original "done when" — record the owning pid — would have made it worse**, reintroducing the exact
+check the design rejected.
 
-**Done when:** a killed sweep leaves no lock — demonstrated by killing one — or the lock records its
-owning pid so a stale one is recognisable.
+Confirmed in the wild the same day: the rig was held by a lease belonging to a GLP-1 agent that had
+died on a session limit. It cleared itself. Mac waited it out rather than stealing it, which is
+right — forcing a lock whose holder you *believe* is dead is the reasoning a time-based design
+exists to make unnecessary, and `testmanagerd` being resident means no one can prove from outside
+that nothing is mid-flight.
+
+**The real gap, which both sides converged on independently:** the lock guards ONE resource while
+two different ones are being contended. A `xcodebuild` compile contends for CPU; a test run contends
+for the **simulator**. One lease over both means either agents block each other for no reason, or —
+as observed — the lock warns that `xcodebuild` is already running while the lease is free, because a
+worktree agent was compiling without taking it. It cannot currently distinguish the two, so it is
+simultaneously too strict and too permissive.
+
+**Done when:** a build and a device run can be correctly serialised against each other — either two
+leases with the device one held only for the run, or one lease that records which resource it holds
+— demonstrated by a compile and a capture that do not falsely block or falsely pass.
 
 ## T-57 — The web silently drops two protocol types, and three ACTIVE protocols are invisible today
 **Priority 7/10** · **Owner:** win · **Status:** open
