@@ -20,6 +20,15 @@ job carried in a message does not survive a context clear.
    it, and stays.
 8. **Done means measured.** A photograph, a query, a run. Not "it should work now".
 
+9. **This file is edited in the checkout, and you pull before you write it.** On 2026-08-04 Windows
+   spent a session editing an untracked copy at `Projects\injectbuddy-ios\TASKS.md`; it showed T-03
+   open three days after it was closed with evidence, and mac was sent to re-do finished work. The
+   only copy that counts is the one in the repo.
+10. **Take IDs from your own block so a crossing write cannot collide.** Both sides push instantly.
+    **mac allocates upward from T-14; win allocates from T-50.** On the same day T-06, T-07 and T-08
+    each meant two different things at once — a merge conflict is recoverable, two tasks silently
+    sharing an ID is not.
+
 **Priority** is out of 10 — 10 is a user is being harmed today, 1 is tidy-up.
 **Status:** `open` · `doing` · `blocked` · `done` · `filed` (real, deliberately not being worked)
 **Owner:** `mac` · `win` · `pouroa`
@@ -114,6 +123,67 @@ planner, blood tests, chat, suggestions, peptide tracker. Those are features, no
 subsume the old "what is the dashboard's v1 scope" question: **the answer is what the web does.**
 
 **Done when:** each screen has its own `T-01x` entry with its difference list.
+
+**Split, agreed 2026-08-04:** mac took the thirteen calculator screens — T-01a's twelve differences
+are mostly chrome the web wraps around *every* calculator, so splitting them would have had both
+sides derive the same list. Win took the shell: dashboard, calendar, tools hub, add/confirm,
+log-dose, settings. Win's half is written up in `SHELL-PARITY.md`, which inlines the current iOS
+layout and cites the web target by file so a builder needs nothing else open.
+
+---
+
+### T-01c — Dashboard (compared 2026-08-04) — **9 differences**
+**Priority 9/10** · **Owner:** mac · **Status:** open
+
+**What:** the iOS dashboard is the web's `saved` panel — the protocol grid — put on the front page,
+while the web's actual default view was never built. `app/account/page.tsx:78-97` composes the
+`upcoming` panel from `InjectionDayPicker`, `UpcomingDoses`, `MobileInjectionCount`, `SerumChart`,
+`SiteRotation` and `LabHighlights`. **iOS built none of those six.** Plus: the primary metric is set
+as a text row rather than at display size, the disclaimer is absent, and the header shows the brand
+lockup where the web shows the screen name.
+
+**Full list with the current iOS layout inlined: `SHELL-PARITY.md` §S-01.** Not restated here, so
+there is one place to edit it.
+
+**Sequencing:** difference #1 (site rotation) needed T-03, which is now done — the site vocabulary
+and the web's own `nextSiteIdx` rotation already exist in `Core/Models/InjectionSite.swift`. Build
+the card on top of that rather than deriving a second rotation.
+
+**Done when:** each of the nine is built, or recorded in `SHELL-PARITY.md` with the reason it cannot
+be.
+
+---
+
+### T-01d — Calendar (compared 2026-08-04) — **8 differences**
+**Priority 9/10** · **Owner:** mac · **Status:** open
+
+**What:** one paged month against the web's seven continuous (`CalendarView.tsx:311-312`, one back
+and five forward); the week starts Monday against the web's Sunday (`CalendarView.tsx:48`); day cells
+carry colour dots where the web carries compound names; no add affordance; the day sheet gives the
+dose but not the draw volume or the site, where the web gives all three; no "How it works" and no
+references; the month is stated twice and the screen name once.
+
+**Full list with sources: `SHELL-PARITY.md` §S-02.**
+
+**Do T-05 first.** `CalendarScreen` has no `.refreshable` at all where `DashboardScreen` has one, and
+T-05's unmeasured cause — a large title owning the pull-down stretch — is inherited by anything added
+here.
+
+**Done when:** each of the eight is built, or recorded with the reason it cannot be.
+
+---
+
+### T-01e — Tools hub (compared 2026-08-04) — **7 differences**
+**Priority 8/10** · **Owner:** mac · **Status:** open
+
+**What:** a stock `.insetGrouped` list of titles against the web's cards, each with a category tag
+and two or three lines saying what the calculator is for. No search, no count, no category jump.
+**No brand token appears on the screen at all.** One of the seven is nearly free: `CalculatorCategory`
+already defines a `subtitle` per category and `ToolsScreen` never references it.
+
+**Full list with sources: `SHELL-PARITY.md` §S-03.**
+
+**Done when:** each of the seven is built, or recorded with the reason it cannot be.
 
 ---
 
@@ -260,3 +330,116 @@ it answers wrongly for exactly the rows iOS touches. Anything syncing or auditin
 them.
 
 **Done when:** `OwnedDoseLogPin` carries `updated_at` and a re-logged dose shows a moved timestamp.
+
+## T-09 — The Calendar tells the user nothing is due when it has simply not looked
+**Priority 7/10** · **Owner:** mac · **Status:** open
+
+**What:** the projection window is 30 days while the grid renders whole months
+(`CalendarScreen.swift` header). A day past the window draws **with no dots — pixel-identical to a
+day with nothing scheduled.** The web projects one month back and five forward
+(`CalendarView.tsx:311-312`), so five of the seven months a web user can see are blank on iOS.
+
+**Why this is not just another line in T-01d:** every other calendar difference is the app showing
+*less*. This one is the app showing something *false* — a dosing screen answering "is anything due"
+with "no" when the honest answer is "not calculated". A user planning a month ahead is told their
+schedule is empty.
+
+**Done when:** either the window covers what the grid renders, or unprojected days are visibly
+distinct from empty ones — photographed, at a date past the window.
+
+## ~~T-10 — Windows had no checkout of the iOS app~~ — **RESOLVED 2026-08-04**
+**Priority 7/10** · **Owner:** win · **Status:** done
+
+**What:** `Projects\injectbuddy-ios` on Windows has no `.git`; git commands there resolve up to
+`C:\Users\PFrew\.git` (origin `_agent-system`) and the whole iOS tree is untracked in it. Newest file
+in its `Sources/` was **2026-08-02 07:01** against mac's `3fe7302` — a two-day-old copy.
+
+**What it cost, before it was found:** the stale copy still listed `.bmi` and `.freeTestIndex` in
+Tools after mac had removed and photographed them, and it showed **T-03 as open after it had been
+closed with evidence** — on the strength of which win sent mac to spawn a subagent on finished work.
+That is the concrete damage from an untracked copy, recorded so the fix is not undone later.
+
+**Resolved:** cloned to `C:\Users\PFrew\Projects\injectbuddy-ios-repo`, branch
+`feature/tabview-shell` at `29a8ede`. Windows can now cite a SHA, so rule 7 is satisfiable from both
+sides.
+
+**Still open, and it is the dangerous half:** `Projects\injectbuddy-ios` still exists as an untracked
+copy holding an older `TASKS.md`. **Two files named TASKS.md, one of them a decoy.** It must be
+deleted or made a symlink to the checkout — owner's call, since it also holds `mac-docs/` and some
+Windows-only notes. Tracked as **T-50**.
+
+## T-11 — The cycle plotter ships and the Tools tab cannot reach it
+**Priority 5/10** · **Owner:** mac · **Status:** open
+
+**What:** `.cyclePlotter` is in no `CalculatorCategory`'s member list, and `ToolsScreen` renders only
+those members — so the plotter has no row on the browse surface. The calculator itself ships (frame
+`27-calculator-plotter`).
+
+**Confirmed on mac's tree 2026-08-04**, not read off the stale Windows copy. Two details that sharpen
+it: `isListed` is **true** for the plotter — only `bmi` and `freeTestIndex` are deliberately withdrawn
+— so this is a slug that is *meant* to be browsable and was left out of the only list that browses.
+And `ToolsScreen`'s own header comment says `members` "had never enumerated the plotter at all", so
+the file already knows and no task existed.
+
+**Renumbered from T-06**, which was already taken by the microdose finding.
+
+**Done when:** the plotter is reachable from Tools and photographed there.
+
+## T-12 — TRT EOD is the missing mode switcher wearing a second screen
+**Priority 6/10** · **Owner:** pouroa decides, mac builds · **Status:** open
+
+**What:** there is no TRT EOD calculator on the web and there never was one. `public/legacy/` holds
+21 calculator directories and the only TRT ones are `trt-calculator` and
+`trt-microdosing-calculator`. EOD is a *frequency inside* the TRT calculator —
+`trt-calculator/index.html:296`, "Supports weekly, E3.5D, and EOD dosing", and the live site serves
+the switcher today (`Every N Days` / `Per Week` / `mL → mg` on
+`https://www.injectbuddy.com/trt-calculator/`). iOS's `.eod` spec is the TRT spec with the help text
+"Hardcoded every-other-day interval (3.5 injections/week)".
+
+**So T-01a difference #1 and this screen are one defect seen from two ends:** iOS has no mode
+switcher, so it grew a screen to hold the mode. Building the switcher while leaving the screen up
+ships the mode twice.
+
+**Why it is the owner's call:** it is a shipping screen. It does not get deleted on the strength of a
+source reading.
+
+**Done when:** the owner has decided whether EOD collapses into the TRT calculator once the switcher
+exists, and the decision is written here.
+
+## T-13 — Four items exist partly to rank in search; decide them together
+**Priority 4/10** · **Owner:** pouroa · **Status:** open
+
+**What:** T-01a parked three — the calculator FAQ, the related-calculators carousel, the breadcrumb.
+`SHELL-PARITY.md` §S-03 adds the Tools hub's per-card guide links and its "How calculators work"
+FAQ. Those pages are public and indexed, so "it is for SEO" is a real argument there.
+
+**It is not a real argument on the calendar.** `app/calendar/page.tsx:8` sets
+`robots: { index: false, follow: false }`. Its "How it works" text and three citations — the 2018
+Endocrine Society guideline, the WEGOVY label, a 2016 ester-pharmacology paper — cannot be for
+search, because search never sees them. **That one is for the user and is being built** (T-01d #7).
+
+**Correction to T-01a #6 while this is parked:** the carousel's contents are not "TRT EOD, TRT
+Microdose". The web's own calculator navigation is TRT Dose · TRT Microdose · Semaglutide ·
+Tirzepatide · HCG, then Peptide Reconstitution · Peptide Dosage · BPC-157 · BPC-157 + TB-500 Blend ·
+BMI · Cycle Plotter. Take the target from the source.
+
+**Why together:** deciding them screen by screen is how a product ends up explaining itself in three
+places and nowhere.
+
+**Done when:** each of the four is marked build or won't-build, with the reason, here.
+
+## T-50 — Two files named TASKS.md, one of them a decoy
+**Priority 6/10** · **Owner:** pouroa · **Status:** open
+
+**What:** `Projects\injectbuddy-ios` (untracked copy) and `Projects\injectbuddy-ios-repo` (the real
+checkout) both carry a `TASKS.md`, a `CLAUDE.md` and a `Sources/`. The untracked one is the older.
+
+**Why it matters:** it has already caused one wasted subagent run and one wrong instruction from
+Windows to mac — see T-10. A stale copy that *looks* authoritative is worse than no copy, because
+nothing about opening it says which one you have.
+
+**Complication:** the untracked tree is not pure duplication — it also holds `mac-docs/` and some
+Windows-only notes that are not in the repo. So this is not a blind delete.
+
+**Done when:** the untracked tree is gone, or reduced to only the files that exist nowhere else, with
+its `TASKS.md` and `Sources/` removed either way.
