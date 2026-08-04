@@ -478,6 +478,60 @@ a closure count is not a re-read.
 `reload()` mutating @State before its await. Neither needs killing now that the behaviour is correct
 under both titles, but both stay written down in `CalendarScreen` in case the defect returns.
 
+### The request half — **MEASURED 2026-08-04. NULL RESULT: the closure fires and no query executes.**
+
+Two observers, neither able to fake the other's half: mac drove the device and cannot see the
+database; win read the database and cannot touch the device.
+
+```
+BASELINE   11:12:04Z   dose_log 4790   saved_dosages 14223   total 2118254   entries 615
+           11:12:42Z   dose_log 4790   saved_dosages 14223   total 2118254
+           11:12:56Z   dose_log 4790   saved_dosages 14223   total 2118254
+PULL       11:15:20Z -> 11:15:30Z        reloads 1 -> 2      (large title, shipping config)
+AFTER      11:16:06Z   dose_log 4790   saved_dosages 14223   total 2118254   entries 615
+```
+
+**Not one call on any counter, and no new entry**, read 36s after pull-end — ample, since
+`pg_stat_statements` records at statement end.
+
+**THE AMBIENT RATE IS THE DISCRIMINATOR AND IT IS WHY A NULL IS EVIDENCE HERE.** Record it beside
+the result, because a future reader needs the instrument and not just the conclusion: three
+readings across **52 seconds showed zero drift** on a LIVE production database whose counters
+demonstrably do move (2.1M historical calls). Without that, "nothing moved" is unreadable — it is
+indistinguishable from a stats table that is not counting what we think it counts. The quiet period
+exists to measure exactly this, and it did.
+
+**The escape hatch was checked too**, because "the counter did not move" and "the request went
+somewhere nobody is looking" are different claims: **zero new query shapes created inside
+11:15:15–11:15:40Z** (a shape the `WITH pgrst_source%` filter missed would have created an entry
+with `stats_since` in the window), and the newest PostgREST entry of any kind predates the pull by
+54 minutes.
+
+**So T-05's original observation was right about the symptom and WRONG ABOUT THE LAYER.** The
+gesture arms, `.refreshable` runs, the closure executes and the counter increments — and
+`CalendarViewModel.load` does not reach the network. A cache, a guard, or an early return.
+
+**WHAT IS NOT YET PROVEN, and it decides where to look next.** The database instrument sees
+**queries executed in Postgres**. It cannot separate:
+
+- **(a)** the app never made an HTTP request — a logic bug in `load`;
+- **(b)** the app made one that failed or was cancelled before PostgREST ran a statement — auth
+  refresh, cancelled task, dropped connection.
+
+Both produce exactly this reading, and **(b) is the worse of the two**: a request path that fails
+silently would also explain the original behaviour better than a logic bug does. Only the device
+side can tell them apart.
+
+**Done when:** the device says which. A `URLProtocol` log or an `os_log` at the point
+`SupabaseBackendClient` is actually called, driven through one pull, distinguishes (a) from (b) in a
+single cheap run — no database access needed. **Do not close this on the null alone: it proves
+nothing ARRIVED, not that nothing was SENT.**
+
+**Candidate (A) remains disproven** — see above; the large title is not the mechanism and header
+work is not blocked by it. Candidates (B) and (C) are now the live ones again, alongside the new
+network-layer question, and (C) — `reload()` mutating `@State` before its await — looks better than
+it did, because a `Task` cancelled by a view update would produce exactly this null.
+
 ## T-06 — The web drops every `microdose` protocol on the floor
 **Priority 5/10** · **Owner:** win · **Status:** open
 
