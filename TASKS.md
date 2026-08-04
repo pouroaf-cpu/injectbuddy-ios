@@ -796,8 +796,8 @@ The directory itself could not be removed — it is this session's working direc
 it — so it is **emptied, zero entries**. The decoy `TASKS.md` is gone, which was the point. The empty
 folder disappears on the next session.
 
-## T-41 — Flipping the peptide dose unit multiplies the dose by 1000
-**Priority 9/10** · **Owner:** mac · **Status:** open
+## ~~T-41 — Flipping the peptide dose unit multiplies the dose by 1000~~ — **DONE 2026-08-04**
+**Priority 9/10** · **Owner:** mac · **Status:** done
 
 **What it does now:** the Peptide calculator has a `Dose unit` picker (`doseUnitMcg`, 1 = mcg,
 0 = mg) and a `dosePerInj` number field defaulting to **500** with range `0...10000` and quick chips
@@ -825,6 +825,89 @@ one is on the maths path — it reaches the saved protocol and the logged dose.
 **Done when:** flipping the unit converts the value and re-bounds the field, matching
 `handleUnitToggle`; a unit test pins mcg→mg→mcg round-tripping to the original number; and the
 behaviour is shown on the device — set 500 mcg, flip to mg, photograph the field reading 0.5.
+
+**CLOSED by `6f40464`** (rebased onto `df98e60`).
+
+**Built — the mechanism, not a special case.** The bounds here are a function of another field's
+value, and `CalculatorInput.number` bakes ONE `range`/`step`/`quick` into the spec. So `UnitScaling`
+is declared **per field** in `CalculatorModels.swift` and the peptide dose carries one;
+`CalculatorScreen` stays generic across all fifteen calculators and is touched in exactly two places
+(`vm.spec.fields` → `vm.fields`), to keep the T-16/T-17 merge manageable. Two operations, kept
+separate on purpose:
+
+- the **spec scales** — `CalculatorInput.resolved(against:)`, pure, safe on every render, moving the
+  unit suffix, range, step, quick chips and drum together;
+- the **value converts** — `CalculatorSpec.convertingUnits(from:to:)`, applied once by the ViewModel
+  on the transition, re-entrancy guarded.
+
+A resolver that also converted would rescale the number on every layout pass — which is how a field
+comes to display a number the engine never used, the invariant on `NumberField.field`.
+
+**Converting alone would have been wrong,** and this is the half worth remembering. iOS held
+`0...10000` in BOTH units, so its own default of 500 in mg was **25× the web's entire allowable
+maximum**. mcg is now `0...20000`; mg resolves to `0...20`, step `1`/`0.001`, chips
+`250 · 500 · 750 · 1000 · 2000` / `0.25 · 0.5 · 0.75 · 1 · 2`.
+
+**Read from the web's SOURCE.** `public/app.js` on `feature/dosage-status-model`:
+`handleUnitToggle` at 6237-6245 and the four unit-derived bounds at 6232-6235.
+
+**The saved config is unchanged, and it was checked rather than assumed.** `app.js:6335` writes
+`{peptideType, peptideMg, bawMl, dosePerInj, doseUnit, injPerWeek, syringeMl}` — `dosePerInj` is the
+**displayed value in the current unit**, never canonicalised to mg. That is what iOS already did.
+`testSavedConfigCarriesTheDisplayedValueAndItsUnit` pins the exact seven-key set in both units,
+because the DB de-duplicates on the whole config.
+
+**One deliberate divergence, recorded rather than slipped in.** The web's floor is `1 mcg` / `0.001
+mg`; iOS keeps `0`. The web clamps on **blur**, iOS clamps on **every keystroke**, so a `0.001` floor
+rewrites the leading `0` of `0.5` and the remaining digits land on it — `0.0015`. A non-zero floor is
+safe on blur and hostile per keystroke.
+
+**Shown RED before trusted green, both mechanisms independently:** conversion disabled → 6 of 10
+tests fail (24 assertions); resolver disabled → the bounds test fails (4 assertions); both restored →
+**58/58 unit tests pass**. The bounds test stays green under the first and the round trips stay green
+under the second, which is the two mechanisms being covered separately rather than one test passing
+for both.
+
+**Round trip pinned in BOTH directions** — `mcg→mg→mcg` and `mg→mcg→mg` return the original — because
+a one-way test passes on an implementation that CLAMPS: 500 mcg into a `0...20` mg range gives 20,
+which is smaller and plausible. `testConversionIsNotAClamp` asserts that explicitly.
+
+**Device evidence:** `docs/ui-audit/t41-peptide-dose-unit/` — `t41-01-peptide-500-mcg.png` and
+`t41-02-peptide-0.5-mg.png`, both self-identifying (Peptide title, field label, unit suffix), plus a
+UI test that drives the picker and asserts the round trip on the device.
+
+**A trap caught in the harness itself, worth the next person's time:** the first version of the UI
+test wiped every `t41-*.png` in `setUp` — which XCTest runs before **every** test method — so the
+second test deleted the first's frames. The run reported `Executed 2 tests, with 0 failures`, printed
+both frame paths, and left **nothing on disk**. Staleness is now closed per name in `shot()`. Check
+the artefact, not the exit code.
+
+**T-43 gets this for free:** it is the same defect on the Free T Index total-testosterone picker
+with a factor of 28.84, and it now needs a `unitScaling:` declaration rather than a new mechanism.
+
+## T-45 — `step` is declared on every numeric field and read by nothing
+**Priority 3/10** · **Owner:** mac · **Status:** open
+
+**What it does now:** `CalculatorInput.Kind.number` carries a `step`, fifteen calculators declare one
+(`0.5` days, `0.05` mL, `10` mg/week…), `FieldRow` passes it into `NumberField`, and `NumberField`
+stores it in a `let` that nothing reads. It became inert when the hand-rolled `−`/`+` pair was
+replaced by `TickDrum`, which moves in `drum` values instead. **The web snaps to its step on blur**
+(`commitDose`: `Math.round((clamped - min) / step) * step + min`); iOS does not snap at all, so a
+peptide dose of `0.4567 mg` is accepted where the web would settle it to `0.457`.
+
+**Why this is a 3 and not higher.** No wrong number is displayed and no wrong number is saved — the
+field shows exactly what the engine uses, which is the invariant that matters. What is lost is
+tidiness of entry, and the value is the user's own typing rather than something the app invented.
+
+**Why it is filed at all:** a spec field that states a number nobody honours is a trap for whoever
+wires it up next. It was found during T-41, where the step had to be made unit-dependent to be
+correct — and it is correct now, and still unread. Either snap on blur like the web, or delete
+`step` from the model.
+
+**Done when:** either iOS snaps to `step` on blur and a test pins `0.4567 mg → 0.457`, or `step` is
+gone from `CalculatorInput.Kind.number` and its fifteen call sites.
+
+**Found by:** T-41, 2026-08-04.
 
 ## T-42 — The plotter labels a fabricated number as a lab result
 **Priority 9/10** · **Owner:** mac · **Status:** open
