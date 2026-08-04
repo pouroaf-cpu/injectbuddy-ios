@@ -666,8 +666,8 @@ plate.
 `PinnedBarReachabilityUITests`, and either shown to leave every control reachable, or the form's
 bottom inset increased by the drum's own measured height.
 
-## T-50 — Two files named TASKS.md, one of them a decoy
-**Priority 6/10** · **Owner:** pouroa · **Status:** open
+## ~~T-50 — Two files named TASKS.md, one of them a decoy~~ — **DONE 2026-08-04**
+**Priority 6/10** · **Owner:** win · **Status:** done
 
 **What:** `Projects\injectbuddy-ios` (untracked copy) and `Projects\injectbuddy-ios-repo` (the real
 checkout) both carry a `TASKS.md`, a `CLAUDE.md` and a `Sources/`. The untracked one is the older.
@@ -681,3 +681,79 @@ Windows-only notes that are not in the repo. So this is not a blind delete.
 
 **Done when:** the untracked tree is gone, or reduced to only the files that exist nowhere else, with
 its `TASKS.md` and `Sources/` removed either way.
+
+**Done — measured before deleting, not after.** All **324** files in the tree were content-hashed
+with `git hash-object` and each hash tested against every object in this repo. **320 were already
+preserved** — the docs markdown on the `docs/*` branches (`docs/account-deletion-spec` alone carries
+63 `.md`), the capture PNGs on this branch. Four were not, and two of those were superseded copies of
+`TASKS.md` and `SHELL-PARITY.md`. The other two were rescued to this repo in `ba6dfd5`:
+
+- `WIN-SIDE-README.md` — the Windows orientation. Carries things written down nowhere else: the `M:`
+  SSHFS mount to the Mac's home (read-only; git operations fail over it), the owner's ship-the-MVP
+  instruction and its three ship-blockers, and the usage split showing **BMI and Free T Index at zero
+  users**.
+- `tools/verify-math.js` — an independent recompute of the 14 golden vectors in a different language
+  from the Swift engine, so a transcription error in the EXPECTED values cannot hide. Run before the
+  delete: `ALL VECTORS PASS`.
+
+The directory itself could not be removed — it is this session's working directory and the OS holds
+it — so it is **emptied, zero entries**. The decoy `TASKS.md` is gone, which was the point. The empty
+folder disappears on the next session.
+
+## T-51 — iOS logs no injection time, so the web plots its doses at an assumed noon
+**Priority 5/10** · **Owner:** mac · **Status:** open
+
+**What:** `NewDoseLogPin` (`Core/Models/Models.swift:208-219`) encodes four columns — `protocol_id`,
+`dosed_on`, `draw_ml`, `site`. The web also writes `injected_at`, `injection_time` and
+`injection_timezone` (`DashboardContext.tsx:352`, `DoseHistory.tsx:287`).
+`grep -rn "injected_at" Sources/` returns nothing.
+
+**What it actually costs — checked, not assumed.** It does **not** break the serum chart.
+`SerumChart.tsx:169-178` falls back to ``new Date(`${row.dosed_on}T${row.injection_time || '12:00'}:00`)``
+so the point still plots. But every iOS-logged dose sits at **noon** on a curve whose own comment
+says it exists so that "logging one adds the time, so the curve jumps the moment it lands" — and that
+fallback string carries no zone, so it is parsed in **the viewer's** local time. The same iOS row
+lands at a different absolute moment for a reader in Auckland than in New York. `observedIntervalFor`
+then derives observed cadence from those timestamps, quantised to whole days.
+
+**Same shape as T-03** — a column iOS declines to fill that a web feature reads — but this degrades a
+curve rather than leaving a hole, which is why it is a 5 and T-03 was a 6.
+
+**Done when:** a dose logged from iOS carries a time and a zone, read back from the database, and the
+web chart plots it at that time rather than at noon.
+
+## T-52 — The log-dose sheet cannot record a dose that was not the planned one
+**Priority 6/10** · **Owner:** mac · **Status:** open
+
+**What:** the web's sheet has an editable `DOSE AMOUNT` field. iOS has none: `draw_ml` is derived
+from the selected protocol's config by `DoseVolume.perInjectionMl` and the user is asked nothing.
+
+**Why it matters:** a partial, split or adjusted dose gets recorded **as if it were the full one**.
+This is the write path of a dosing tracker, so it is the user's own history being rounded to the
+plan — and every downstream surface that reads it, including the serum chart, then models a dose
+that was not taken.
+
+**Not the same as the volume picker that "lean" deliberately dropped.** That decision was about not
+asking for a number the app can derive. This is about being unable to correct it when the derivation
+is wrong.
+
+**Done when:** the sheet accepts an amount, defaulted to the derived one, and a dose logged with a
+changed amount reads back with that amount.
+
+## T-53 — The log-dose sheet offers two protocols the user cannot tell apart
+**Priority 6/10** · **Owner:** mac · **Status:** open
+
+**What:** `docs/ui-audit/2026-08-03-current/08-logdose-sheet-IB2245782.png` lists **`TRT Dose`
+twice**, both with no supporting line, above cards that do carry one. They are legitimately distinct
+rows — the dedup index is `(user_id, calculator_type, config)`, so two TRT protocols with different
+configs are allowed — but nothing rendered distinguishes them.
+
+**Why it matters:** the user chooses which dose to log by guessing. It is the most serious item on
+S-04 for that reason, and it is not a styling difference.
+
+**Second, smaller, same screen:** the cards that do have meta mix conventions inside one list —
+`TB-500 · 350mcg/inj` is per injection, `Masteron · 300 mg/wk` and `Testosterone Cypionate · 0mg/wk`
+are per week, `TRT Dose` has none. Three conventions and a blank, stacked.
+
+**Done when:** every card in that list carries a line that distinguishes it from every other card, in
+one unit convention — photographed against an account holding two protocols of the same type.
