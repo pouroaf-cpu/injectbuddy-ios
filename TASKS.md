@@ -293,6 +293,7 @@ layout and cites the web target by file so a builder needs nothing else open.
 ---
 
 ### T-01c — Dashboard (compared 2026-08-04) — **9 differences**
+**Agent:** `t01c-dash` · **Status:** doing
 **Priority 9/10** · **Owner:** mac · **Status:** open
 
 **What:** the iOS dashboard is the web's `saved` panel — the protocol grid — put on the front page,
@@ -315,6 +316,7 @@ be.
 ---
 
 ### T-01d — Calendar (compared 2026-08-04) — **8 differences**
+**Agent:** `t01d-cal` · **Status:** doing
 **Priority 9/10** · **Owner:** mac · **Status:** open
 
 **What:** one paged month against the web's seven continuous (`CalendarView.tsx:311-312`, one back
@@ -1760,8 +1762,26 @@ gone from `CalculatorInput.Kind.number` and its fifteen call sites.
 
 **Found by:** T-41, 2026-08-04.
 
-## ~~T-42 — The plotter labels a fabricated number as a lab result~~ — **DONE 2026-08-04**
-**Priority 9/10** · **Owner:** mac · **Agent:** — · **Status:** done
+## ~~T-42 — The plotter labels a fabricated number as a lab result~~ — **DONE 2026-08-04 · STATUS UNDER OWNER REVIEW**
+**Priority 9/10** · **Owner:** mac · **Agent:** — · **Status:** done — **awaiting owner ruling, see note**
+
+**⚠ THE OWNER SAID "LEAVE THE MATHS ON THE CYCLE PLOTTER AND THE HALF-LIVES ALONE" — and that
+instruction arrived AFTER this was merged (`c16a20c`), not while it was in progress.** It is not
+half-finished; it is green, photographed and pushed. Flagged rather than either quietly kept or
+unilaterally reverted.
+
+**What the change actually did, so the ruling is made on facts:** the pharmacokinetics is bit-for-bit
+unchanged — `pkTotalLevel`, the `ka` derivation, `pkSolveKa`, every half-life, every `tmax` and the
+compound table were untouched. What changed is a **display scalar applied after the model**, the axis
+label, and explanatory copy. On the narrowest reading the maths was left alone; on the broadest, the
+number on screen moved. **Both readings are legitimate.**
+
+**Reverting is not neutral:** it restores a screen that multiplies by one global constant and labels
+the result `ng/dL`, the units of a blood test the user can go and have taken — the thing the web
+declined in writing because it needs per-compound Vd and bioavailability. That may still be the right
+call; it should be a decision, not a side effect.
+
+**`git revert c16a20c` takes it out whole** — one self-contained commit, nothing else attached.
 
 **CLOSED. Built by agent `t42-units`. 229/229 green, shown red first, photographed.
 The board's highest open item.**
@@ -2366,7 +2386,7 @@ checker. An exemption that exempts nothing, or that nobody can audit, is the §5
 project already knows.
 
 ## T-54 — Every shell screen's header says the brand where the web says the screen
-**Priority 5/10** · **Owner:** mac · **Status:** open
+**Priority 5/10** · **Owner:** mac · **Agent:** `t54-headers` · **Status:** doing
 
 **What:** on the web, the top bar names the screen you are on — `Dashboard`, `Injection Calendar`,
 `Add a protocol` — often with a breadcrumb back to where you came from (`‹ Dashboard`). On iOS every
