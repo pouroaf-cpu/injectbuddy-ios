@@ -170,7 +170,33 @@ final class T05PullToRefreshUITests: XCTestCase {
         // mislabelled boundary does damage — they would have had eight seconds of
         // arrival traffic and a gap they were told was empty.
         let quietFrom = stamp.string(from: Date())
-        Thread.sleep(forTimeInterval: 8)
+
+        // ── THE QUIET PERIOD IS NOW LONG ENOUGH FOR A HUMAN-SPEED HANDSHAKE ───────
+        //
+        // Windows cannot answer the timestamp question: the API log endpoint is down
+        // on that side, and `pg_stat_statements` is CUMULATIVE — it has `calls` and no
+        // per-call timestamp, so a ten-second window cannot be resolved out of it
+        // retrospectively at all.
+        //
+        // What does work is a DIFF: snapshot `queryid, calls` for every
+        // `WITH pgrst_source%` entry, pull, snapshot again. A counter that moves is a
+        // request that arrived — exact, needing no timestamps, and it survives the log
+        // endpoint being down.
+        //
+        // But the baseline has to be taken while the app is idle and BEFORE the pull,
+        // and 8 seconds is not long enough to send a message, have it read, and have a
+        // snapshot taken. So the quiet period is configurable and this run uses ~180s.
+        // The marker below is printed at its START so the main session can watch the
+        // log, announce "baselining" on the channel, and let the pull fire on its own.
+        //
+        // Baselining AFTER the screen has settled is what makes the diff structural
+        // rather than a matter of timing: the arrival read is already counted before
+        // the snapshot, so anything the diff shows belongs to the pull and nothing
+        // else.
+        let quietSeconds = ProcessInfo.processInfo.environment["T05_QUIET_SECONDS"]
+            .flatMap(Double.init) ?? 8
+        print("T05-QUIET-START at=\(quietFrom) seconds=\(quietSeconds)")
+        Thread.sleep(forTimeInterval: quietSeconds)
 
         let pullAt = stamp.string(from: Date())
         print("T05-WINDOW quiet-from=\(quietFrom)")
