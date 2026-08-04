@@ -845,7 +845,7 @@ the compound dropdown as separate entries ("Trenbolone Enanthate"); iOS forces `
 selectable, and the Tren E case is shown returning 213 mg.
 
 ## ~~T-45 — The GLP-1 option lists were truncated at the web's warning thresholds, and the warnings were gone with them~~
-**Priority 9/10** · **Owner:** mac · **Status: done** — `42dfb42` (the change) + `2b51fc8` (the
+**Priority 9/10** · **Owner:** mac · **Status: done** — `42dfb42` (the change) + `996a9b3` (the
 measurement, and two harness defects it found). Unit 19/19 in a target of 67/67, UI 3/3, two frames.
 
 **What it did:** `CalcConst` held PREFIXES of four `app.js` arrays. Counted on both sides
