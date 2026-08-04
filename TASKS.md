@@ -742,6 +742,36 @@ The directory itself could not be removed — it is this session's working direc
 it — so it is **emptied, zero entries**. The decoy `TASKS.md` is gone, which was the point. The empty
 folder disappears on the next session.
 
+## T-41 — Flipping the peptide dose unit multiplies the dose by 1000
+**Priority 9/10** · **Owner:** mac · **Status:** open
+
+**What it does now:** the Peptide calculator has a `Dose unit` picker (`doseUnitMcg`, 1 = mcg,
+0 = mg) and a `dosePerInj` number field defaulting to **500** with range `0...10000` and quick chips
+`250 · 500 · 750 · 1000 · 2000`. Flipping the picker from mcg to mg **changes nothing about the
+number in the field**. 500 mcg becomes 500 mg. The engine then calculates for 500 mg, and every
+number on the screen — draw volume, units, weekly total, doses per vial — is consistent with a dose
+**1000× larger than the one the user entered**.
+
+**Verified, not inferred.** `grep -rn 'doseUnitMcg' Sources/` returns six sites and every one is a
+READ: the evaluate call, `configOmittedKeys`, `configExtras`, a comment, `values(fromConfig:)` and
+the picker's own definition. Nothing writes `dosePerInj` when the unit changes, and the field's
+`range` is a single fixed `0...10000` that does not move with the unit either.
+
+**The web does convert.** `PeptidePage.handleUnitToggle` divides/multiplies `dosePerInj` by 1000 and
+re-bounds the field on every flip. This is not a feature iOS lacks — it is a conversion iOS drops
+silently on a field it is still willing to calculate from.
+
+**Why this is a 9 and not a 6.** The screen looks completely normal in the wrong state: no warning,
+no impossible-looking figure, and the quick chips are plausible in BOTH units. Peptides are the
+second-largest cohort in production (`peptide 16`, plus `bpc157 4`). And unlike a layout defect this
+one is on the maths path — it reaches the saved protocol and the logged dose.
+
+**Found by:** the T-01b comparison pass, and verified directly rather than taken on report.
+
+**Done when:** flipping the unit converts the value and re-bounds the field, matching
+`handleUnitToggle`; a unit test pins mcg→mg→mcg round-tripping to the original number; and the
+behaviour is shown on the device — set 500 mcg, flip to mg, photograph the field reading 0.5.
+
 ## T-51 — iOS logs no injection time, so the web plots its doses at an assumed noon
 **Priority 5/10** · **Owner:** mac · **Status:** open
 
