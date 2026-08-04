@@ -1256,7 +1256,26 @@ with the UI test keeping only the wiring assertion. Whichever, it must be shown 
 test that passes against a drum that ignores drags is the failure mode this project keeps finding.
 
 ## T-19 — Eight calculators the web has and iOS does not
-**Priority 5/10** · **Owner:** pouroa · **Status:** open
+**Priority 5/10** · **Owner:** pouroa · **Status:** filed · **Agent:** —
+
+**OWNER'S DECISION 2026-08-05: do not add these. "I don't want them in yet."** Not a deferral for
+capacity — an explicit hold. **Do not build them, and do not spec them either**: a spec written now
+would be a spec written against a web that will have moved by the time they are wanted, which is how
+the 2026-07-31 captures became the third-best source in a week.
+
+A spec pass was started on this and **stopped mid-run** the moment the instruction arrived. Nothing
+was added to the app and nothing is half-built.
+
+**Still true and still worth keeping** — the eight are `femalehrt`, `ftv`, `reverse`, `blend`
+(saved as `oilblend`), `glp1titration`, `nootropic`, `bioavailability`, `e2estimator`.
+
+**Two of them already exist as DATA even though they do not exist as SCREENS**, which is the thing to
+remember if this unparks: `femalehrt` has 2 active rows and `oilblend` 1, across 2 real users. Those
+were the protocols invisible on their own dashboards until T-57. So the web can already create rows
+of types iOS cannot open — **the absence of the screen is not the absence of the data.**
+
+**Done when:** the owner asks for them.
+
 
 **What:** the reference set and the live site carry eight calculators with no iOS counterpart —
 **ftv** (42), **reverse** (43), **blend** (44), **glp1titration** (45), **femalehrt** (46),
