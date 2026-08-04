@@ -396,21 +396,62 @@ build.
 **Done when:** it reads the one correct source (`DoseVolume`). Fold in only if it is a one-line
 repoint; otherwise it stays here.
 
-## T-05 — Calendar pull-to-refresh did nothing, and the cause is unknown
-**Priority 3/10** · **Owner:** mac · **Status:** filed
+## T-05 — Calendar pull-to-refresh did nothing — **MEASURED 2026-08-04, candidate (A) is DEAD**
+**Priority 3/10** · **Owner:** mac · **Status:** doing — the diagnosis is closed, the affordance is not back yet
 
-**What:** the gesture armed but issued zero requests — confirmed against the database's own API log
-— while the identical gesture on an identically-shaped Dashboard view re-read one minute earlier in
-the same run. The affordance was removed rather than shipped as a lie; the data path survives
-because the screen still re-reads when the tab re-appears.
+**What it was:** the gesture armed but issued zero requests — confirmed against the database's own
+API log — while the identical gesture on an identically-shaped Dashboard view re-read one minute
+earlier in the same run. The affordance was removed rather than shipped as a lie.
 
-**Leading candidate:** `RouteContent` gives the Dashboard an inline title and every other tab root a
-large one, and a large title owns the pull-down stretch above a plain ScrollView.
+**The leading candidate was (A):** `RouteContent` gives the Dashboard an inline title and every other
+tab root a large one, and a large title owns the pull-down stretch above a plain ScrollView. It was
+the strongest of three because it is one level up from either screen, which is why comparing the two
+files showed nothing.
 
-**Why it still matters with the affordance gone:** if that mechanism is real, **any future screen
-with a large title will silently not refresh.**
+### ~~(A) the large title owns the pull-down stretch~~ — **DISPROVEN, on the device**
 
-**Done when:** the candidate is measured — flip the Calendar to an inline title and pull once.
+Apparatus: `T05PullToRefreshUITests` at `78dc507`. Two DEBUG flags — `T05_EXPERIMENT=1` arms the
+pull and publishes a reload counter incremented BEFORE its await; `CALENDAR_INLINE_TITLE=1` flips
+the Calendar to the Dashboard's title so the two roots differ by nothing. One build, two runs.
+
+```
+CONTROL   (large title)  T05 inline=false before=1 after=2   ← THE PULL FIRED
+CANDIDATE (inline title) T05 inline=true  before=1 after=2
+```
+
+**The control refreshed.** The defect does not reproduce on this build under the shipping
+configuration, so the inline title is not the mechanism and **(A) is not established by the
+candidate run** — both conditions behave identically.
+
+**The control test is RED and that red is the result, not a broken test.** It asserts "no increment"
+because that is what the defect predicts; it got an increment. Written that way deliberately, and
+the outcome table was written into the suite BEFORE the run so the result could not be read to suit
+whatever came back.
+
+**What most likely fixed it, and it is already in the tree:** `CalendarScreen`'s own note names it —
+batch 4 item 1 stopped `CalendarViewModel.load` blanking to `.loading` on a refresh, so the
+ScrollView that owns the refresh control is no longer destroyed underneath it mid-pull. That note
+calls it "the cheapest thing to try first". It appears to have already happened, as a side effect of
+an unrelated change, and nobody re-measured.
+
+**The consequence that matters most is a fear cancelled.** The reason this stayed open with the
+affordance already removed was: *"if that mechanism is real, any future screen with a large title
+will silently not refresh."* **It is not real.** Large titles do not break `.refreshable` on this
+app, so T-54's header work is not blocked by this and does not need to route around it.
+
+**WHAT THIS DID NOT MEASURE, stated so the run is not over-read.** The counter proves the CLOSURE
+ran — which is strictly narrower than the original evidence, and deliberately so: the API log could
+not distinguish "the closure never fired" from "it fired and the request was suppressed downstream".
+This separates them and answers the first. **It does not prove a request reached Supabase.**
+
+**Done when** (the remaining half): `.refreshable` is restored unconditionally — not behind
+`T05_EXPERIMENT` — and a pull is shown to produce an actual read in the API log, the same observer
+that condemned it. Until that, the affordance stays off: this project removed it for lying once and
+a closure count is not a re-read.
+
+**Candidates (B) and (C) are moot rather than disproven** — (B) the harness's scroll target, (C)
+`reload()` mutating @State before its await. Neither needs killing now that the behaviour is correct
+under both titles, but both stay written down in `CalendarScreen` in case the defect returns.
 
 ## T-06 — The web drops every `microdose` protocol on the floor
 **Priority 5/10** · **Owner:** win · **Status:** open
