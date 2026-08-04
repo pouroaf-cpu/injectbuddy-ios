@@ -769,9 +769,34 @@ the file already knows and no task existed.
 ## T-12 — TRT EOD is the missing mode switcher wearing a second screen
 **Priority 6/10** · **Owner:** mac · **Status:** open — **DECIDED 2026-08-05: EOD COLLAPSES. Remove the whole calculator.**
 
-**What:** there is no TRT EOD calculator on the web and there never was one. `public/legacy/` holds
-21 calculator directories and the only TRT ones are `trt-calculator` and
-`trt-microdosing-calculator`. EOD is a *frequency inside* the TRT calculator —
+**⚠ THE PREMISE BELOW IS WRONG AND IS LEFT STANDING PER RULE 7. Correction first — mac caught it,
+from win's own source.**
+
+**There IS a TRT EOD calculator on the web. It is live, user-reachable, and it can still create `eod`
+rows today.** Verified in `public/app.js` on `feature/dosage-status-model`: `EODPage` is defined
+(`:6274`) and rendered on `page === 'eod'` (`:11708`); `PAGES` carries `id: 'eod'` (`:9235`); and
+`:6166` POSTs `{calculator_type: 'eod', label, config}` to `/api/dosages/`. `public/nav-items.js:23`
+exposes it as **"Testosterone (TRT) & EOD"** and `:79` lists it in the Hormone Tools group, so a user
+can navigate to it.
+
+**How win got it wrong, recorded because the method matters more than the fact:** win searched
+`public/legacy/` — the static calculator directories — found no `eod` folder, and concluded the
+calculator did not exist. **The web's calculators are a single-page app in `public/app.js`; the
+legacy directories are only some of them.** That is "it is not in the place I looked, therefore it
+does not exist" — the identical inference win had warned mac against hours earlier over a
+`pg_stat_statements` table. Same error, from the person who named it, on their own source.
+
+**The decision survives the correction, and is actually better supported by it.**
+`nav-items.js:23,59` point `eod` at **`/trt-calculator/` — the same URL as `trt`.** The web's own
+navigation already treats EOD as a way into the TRT calculator. So the owner's *"that option is
+inside the TRT calc anyway"* is not merely true of iOS; it is what the web's nav says. Removing the
+iOS EOD screen moves iOS **toward** the web's intent.
+
+---
+
+**What (as originally filed, now known to be wrong about the SPA):** there is no TRT EOD calculator on
+the web and there never was one. `public/legacy/` holds 21 calculator directories and the only TRT
+ones are `trt-calculator` and `trt-microdosing-calculator`. EOD is a *frequency inside* the TRT calculator —
 `trt-calculator/index.html:296`, "Supports weekly, E3.5D, and EOD dosing", and the live site serves
 the switcher today (`Every N Days` / `Per Week` / `mL → mg` on
 `https://www.injectbuddy.com/trt-calculator/`). iOS's `.eod` spec is the TRT spec with the help text
@@ -798,9 +823,16 @@ dose_log joined to those rows                →  0
 argument for the decision: the screen existed for a mode the TRT calculator now offers directly.
 
 **Scope, so this does not overshoot:**
-- Remove `.eod` from `CalculatorSlug`, its `CalculatorSpec`, its `CalculatorCategory` membership and
-  any nav entry. The engine's `TrtMode` is untouched — EOD lives on there as a *mode*, which is the
-  whole point.
+- ~~Remove `.eod` from `CalculatorSlug`~~ — **overruled by mac, correctly.** `CalculatorSlug.rawValue`
+  IS the decoder for `saved_dosages.calculator_type`. Deleting the case means a **web-created EOD
+  protocol stops decoding on iOS** — no error, no empty state, simply absent. That is T-57's shape and
+  T-81's shape, and the web can still create those rows (see the correction above). The enum case
+  stays. **This is win's own "a branch for a type no row uses is insurance" argument, applied
+  symmetrically to the decoder — mac spotted that win had not applied it to their own instruction.**
+- So: **removed as a CALCULATOR, retained as a PROTOCOL TYPE.** No Tools entry, no `allMembers`
+  membership, no spec, no engine, no create path. Decoding, title, icon, dashboard colour and
+  `DoseProjection`'s every-2-days interval all stay.
+- The engine's `TrtMode` is untouched — EOD lives on there as a *mode*, which is the whole point.
 - **Leave the web's `deriveDose` `eod` branch alone.** It costs nothing, and a branch that handles a
   type no row uses is insurance; removing it would be the reverse of T-57, where a missing branch
   silently dropped live protocols.
@@ -2722,3 +2754,24 @@ personalisation, the cycle planner's add/edit flows, blood-test review, calendar
 **T-63 above is the only survivor, and it is dead code rather than a discarded value.** So the class
 appears to be closed at two real instances, both already fixed.
 
+
+
+## T-64 — The web still ships an EOD calculator its own navigation points away from
+**Priority 3/10** · **Owner:** pouroa · **Status:** open
+
+**What:** raised by mac while executing T-12, and it is the same redundancy on the other platform.
+`public/app.js` has a live `EODPage` that can POST `calculator_type: 'eod'`, while
+`public/nav-items.js:23,59` point the `eod` nav id at **`/trt-calculator/`** — the same URL as `trt`.
+So the web has two calculators behind one URL, and the TRT one now carries the `Every N Days` mode
+switcher that makes the other redundant.
+
+**Why it is the owner's call and not win's:** the owner's reasoning for iOS — *"that option is inside
+the TRT calc anyway"* — applies identically here. But the web is the shipped, indexed product with
+existing users, and removing a page from it is a different decision from removing an unshipped screen
+from an app in development. **It is filed rather than done.**
+
+**Why it is only a 3:** nothing is wrong today. The page works and produces correct numbers. It is
+redundancy, not a defect — and `deriveDose` handles `eod` correctly, so a row created there behaves.
+
+**Done when:** the owner decides whether the web's EOD page is retired into the TRT calculator's mode
+switcher, or kept — and if kept, whether iOS should regain parity with it.

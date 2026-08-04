@@ -521,7 +521,24 @@ the web prints raw `String(v)`. If exact-text parity matters, **the web should m
 
 ## Findings that are not screen differences
 
-**F-01 — the web has no TRT EOD calculator, and iOS grew a screen to cover for that.**
+**F-01 — ⚠ WRONG, corrected 2026-08-04. The web DOES have a TRT EOD calculator.**
+
+`EODPage` is live in `public/app.js` (`:6274`, rendered at `:11708`), `PAGES` carries `id: 'eod'`
+(`:9235`), it POSTs `{calculator_type: 'eod'}` at `:6166`, and `public/nav-items.js:23` exposes it to
+users as *"Testosterone (TRT) & EOD"*. **This section searched `public/legacy/` — the static
+calculator directories — and concluded from an absence there that the calculator did not exist. The
+web's calculators are a single-page app; the legacy directories are only some of them.**
+
+**The conclusion below survives anyway, for a better reason than the one given.** `nav-items.js:23,59`
+point the `eod` id at **`/trt-calculator/` — the same URL as `trt`.** The web's own navigation already
+treats EOD as a route into the TRT calculator, so collapsing it on iOS follows the web rather than
+diverging from it. See TASKS **T-12** for the decision and **T-64** for the web's own copy of the
+redundancy.
+
+**Left standing rather than rewritten, because a wrong claim that is quietly corrected is one nobody
+can tell was ever wrong.** Original text follows.
+
+**F-01 (as originally written) — the web has no TRT EOD calculator, and iOS grew a screen to cover for that.**
 `public/legacy/` holds 21 calculator directories; the only TRT ones are `trt-calculator` and
 `trt-microdosing-calculator`. EOD is not a page on the web — it is a *frequency inside* the TRT
 calculator: `trt-calculator/index.html:296`, "Supports weekly, E3.5D, and EOD dosing".
