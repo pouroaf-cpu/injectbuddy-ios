@@ -1087,6 +1087,38 @@ the same. `oilblend` genuinely is injectable and genuinely should schedule.
 vanishing; and an unrecognised type is reported instead of discarded silently. Verified by the two
 affected users' protocols appearing on the dashboard.
 
+**BUILT 2026-08-04 — and measured by running the real function over the real production configs, not
+by inspection.** `npx tsx` against `deriveProtocols` with the exact configs read out of
+`saved_dosages`:
+
+```
+derived: 3 of 5
+  bpc157     dose=250 mcg  vol=0.1   freqDays=1     route=SubQ conc=2500
+  oilblend   dose=275 mg   vol=1     freqDays=2.33  route=IM   conc=275
+  microdose  dose=10 mg    vol=0.05  freqDays=3.5   route=IM   conc=200
+dropped: femalehrt, totallynew
+[account-schedule] active protocol dropped: no deriveDose branch for calculator_type "totallynew" …
+```
+
+Four changes in `lib/account-schedule.ts`:
+- **`microdose` joins the trt/eod branch.** Verified against production first: its config is
+  key-for-key identical to trt's, so this is one word, not a new derivation.
+- **`oilblend` gets a branch**, with the maths transcribed from the calculator itself
+  (`public/app.js:7705-7712`) rather than inferred — `totalMgMl` is the SUM of the components'
+  mg/mL and `injVol` is already the draw volume. The live row resolves to 275 mg in 1 mL every
+  2.33 days, which is the blend the user actually built.
+- **`femalehrt` and `bioavailability` go on `NON_SCHEDULABLE`, each with its reason.** femalehrt's
+  `route` is `patch`/`cream`/`oral` in every production row — a patch has no draw volume, no site
+  and no rotation, so it was correctly not on an injection schedule and was simply never *said* to
+  be. It still drops, but now deliberately and silently rather than accidentally and silently.
+- **An unrecognised type is now `console.error`'d** naming the type and the row id and saying what
+  to do about it. Never thrown — one bad row must not take the dashboard down.
+
+**Still open, deliberately.** The third clause — a non-schedulable protocol staying visible to its
+owner — is NOT done. `femalehrt` still vanishes from the dashboard; it is now a stated decision
+rather than a fall-through, but the user still cannot see a protocol they saved. That is a UI change,
+not a derivation change, and it is the remaining work here.
+
 ## T-58 — Every bpc157 protocol shows "Draw volume unknown", from a config-key mismatch
 **Priority 6/10** · **Owner:** win · **Status:** open
 
@@ -1112,6 +1144,18 @@ that produces a plausible wrong dose.** That was the failure mode worth fearing 
 **Done when:** `deriveDose` reads `vialMg`/`bawMl` and falls back to the legacy keys — the pattern
 already implemented correctly in `lib/edit-schema.json:186` — the duplicate in `ProtocolList.tsx` is
 repointed at the same helper, and the active bpc157 protocol shows a draw volume.
+
+**BUILT 2026-08-04.** Both readers fixed, current shape first and legacy second in each:
+`lib/account-schedule.ts`'s bpc157 branch, and `components/account/ProtocolList.tsx:119-126` — note
+the path, it is `components/account/`, not `components/account/dashboard/` as originally filed.
+
+Measured on the live active row `{dose:250, bawMl:2, vialMg:5, syringeMl:0.5}`: concentration now
+resolves to **2500 mcg/mL** and draw volume to **0.1 mL**, where both were `null`/`0` before and the
+panel read "Draw volume unknown". `npx tsc --noEmit` clean.
+
+**The legacy keys are kept rather than replaced.** No production row carries them today, but they
+exist in older rows elsewhere and in `app/api/dosages/route.ts:27`'s validation; dropping them would
+move the failure rather than fix it.
 
 ## T-59 — iOS-logged history rewrites itself when a protocol is renamed; web-logged history does not
 **Priority 5/10** · **Owner:** mac · **Status:** open
