@@ -288,8 +288,8 @@ here.
 
 ---
 
-### T-01e — Tools hub (compared 2026-08-04) — **7 differences**
-**Priority 8/10** · **Owner:** mac · **Status:** open
+### T-01e — Tools hub (compared 2026-08-04) — **7 differences** — **2 of 7 BUILT**
+**Priority 8/10** · **Owner:** mac · **Status:** doing — two built and pushed, five standing
 
 **What:** a stock `.insetGrouped` list of titles against the web's cards, each with a category tag
 and two or three lines saying what the calculator is for. No search, no count, no category jump.
@@ -301,6 +301,38 @@ already defines a `subtitle` per category and `ToolsScreen` never references it.
 **Done when:** each of the seven is built, or recorded with the reason it cannot be.
 
 ---
+
+**BUILT 2026-08-04, unphotographed.** Two of the seven, both in `9e792b4`/`f021f70`:
+
+1. ~~**Rows carry no description.**~~ Each Tools row now carries the web's own one-liner, transcribed
+   **verbatim** from `CALC_DESC` (`app.js`) rather than paraphrased — it is user-facing copy the web
+   has already settled, and rewording it means two products describing the same tool differently to
+   the same person. It lives in `Features/Tools/CalculatorDescriptions.swift` **only because
+   `NavItems.swift` was held by another agent at the time**; it is an extension on `CalculatorSlug`
+   and belongs beside `title`/`icon` — **fold it in, the move is a cut and paste with no call-site
+   change.**
+2. ~~**Category subtitles never rendered.**~~ `CalculatorCategory.subtitle` defined all four strings
+   and `ToolsScreen` referenced none of them. Now rendered under each section title.
+
+**Why the descriptions matter more than they look:** on a list where `TRT Dose`, `TRT & EOD` and
+`TRT Microdose` differ by one word, a bare title makes the user pick by opening three of them.
+
+**Deliberately NOT transcribed:** the eight `CALC_DESC` entries for calculators iOS does not have
+(T-19). A description for a screen that does not exist is a promise this app cannot keep.
+
+**One accessibility element per row**, combining title and description, so browsing fifteen
+calculators is fifteen VoiceOver stops rather than thirty.
+
+**Still standing — five of seven**, and they are the layout half rather than the content half. Not
+started; see `SHELL-PARITY.md` §S-03 for the list.
+
+**Evidence owed:** BUILD SUCCEEDED and 115 unit tests green, but **no frame**. Tools goes into the
+batched capture run with T-14/T-20/T-53.
+
+**A pattern this task fed, worth more than the task:** `subtitle` written and never called is the
+THIRD case found in one day of correct code nothing reaches — with `SteroidCatalog.canInject`
+(T-44) and the plotter's missing `members` entry (T-11). Three in a day is a pattern, not three
+tasks.
 
 ## T-02 — The web app leaves data behind when an account is deleted
 **Priority 8/10** · **Owner:** win · **Status:** doing — built, awaiting an end-to-end run
@@ -531,6 +563,40 @@ nothing ARRIVED, not that nothing was SENT.**
 work is not blocked by it. Candidates (B) and (C) are now the live ones again, alongside the new
 network-layer question, and (C) — `reload()` mutating `@State` before its await — looks better than
 it did, because a `Task` cancelled by a view update would produce exactly this null.
+
+### The last question — instrument BUILT, and it has answered NOTHING yet
+
+**What is still unknown.** The null above proves no statement executed in Postgres. It cannot
+separate **(a)** the app never made an HTTP request — a logic bug in `load` — from **(b)** a request
+was made and died before PostgREST ran a statement. **(b) is the worse of the two** and explains the
+original behaviour better than a logic bug does.
+
+**Built `2026-08-04`, committed, UNPROVEN.** Four DEBUG counters on `CalendarViewModel.load` —
+`entered`, `requested`, `returned`, `threw` — plus the error string, surfaced through the existing
+`t05_probe`. They sit exactly between the two measurements already taken: `reloads` proved the
+closure runs, the database proved no statement executed, and these say whether the backend call was
+reached and what it did. **If `threw` moves while `returned` does not, the pull reaches the network
+layer and is cancelled.**
+
+**IT HAS NOT RUN.** The attempt died in `setUp` — *"No Calendar tab appeared within 15s"* — on a
+cold isolated `DerivedData` where launch is slower than the helper's timeout. **No data was
+produced.** The instrument is committed so the next session does not rebuild it, NOT because it has
+shown anything. Raise the tab timeout or warm the build before re-running.
+
+**THE PRIME SUSPECT, and its own comment convicts it.** The `catch` in `CalendarViewModel.load`
+says: *"A cancelled load surfaces NOTHING and touches NO state."* A cancelled `Task` makes the
+`async let` pair throw `CancellationError`, `LoadFailure.message` returns nil for it **by design**,
+and the whole failure is swallowed — no state change, no banner, nothing on screen. **That is the
+exact shape of every observation so far:** the gesture arms, the closure runs, the counter
+increments, no statement executes, and the user sees a spinner return with stale data and no error.
+
+That is **candidate (C)** — `reload()` mutates `visibleMonth` (`@State`) **before** its await, which
+`DashboardScreen.reload()` does not do. It was the weakest of the three candidates when they were
+written and it is now the strongest, purely because (A) is dead and the null rules out the layers
+above it.
+
+**Next measurement, cheap and device-only:** one pull with the counters read. No database access, no
+coordination with the other side.
 
 ## ~~T-06 — The web drops every `microdose` protocol on the floor~~ — **DONE 2026-08-04**
 **Priority 5/10** · **Owner:** win · **Status:** done
@@ -1804,6 +1870,38 @@ are per week, `TRT Dose` has none. Three conventions and a blank, stacked.
 
 **Done when:** every card in that list carries a line that distinguishes it from every other card, in
 one unit convention — photographed against an account holding two protocols of the same type.
+
+## T-47 — Correct code that nothing calls, three times in one day
+**Priority 4/10** · **Owner:** mac · **Status:** open
+
+**What:** three separate defects found on 2026-08-04 turned out to be the same shape — an API that
+is present, correct, and referenced by nothing:
+
+- `CalculatorCategory.subtitle` — all four strings defined, `ToolsScreen` never mentioned it
+  (T-01e, now rendered).
+- `SteroidCatalog.canInject` — correct for all twelve compounds, consulted by nothing, so the
+  steroid calculator offers injectable inputs for oral-only compounds and returns 0.75 mL for a
+  tablet (T-44, still open).
+- `.cyclePlotter` — `isListed` is true, so it is *meant* to be browsable, but it appears in no
+  category's `allMembers` and `ToolsScreen` enumerates only `members` (T-11, still open).
+
+**Why this is a task and not an observation.** Each was found by accident, while doing something
+else. None would fail a build, a unit test or a UI test — **a declaration nobody reads is not a
+compile error, it is silence** — and the same silence is what CLAUDE.md already records for a source
+file missing from an Xcode target. Two of the three were shipping user-visible defects; one of them
+(`canInject`) produces a wrong dose figure for a tablet.
+
+**What makes it worth sweeping rather than fixing case by case:** three in a single day, all found
+incidentally, strongly suggests the population is larger than three. Nobody has ever looked.
+
+**Done when:** the app's own declarations are swept for unreferenced members — a script over
+`Sources/` listing every `var`/`func`/`case` on a shared type whose name appears exactly once in the
+tree — and each hit is either wired up, deleted, or recorded here with the reason it exists
+unreferenced. The sweep matters more than the list: **run it, keep it runnable, and pair it with
+win's doc-claim checker**, which is the same idea aimed at prose.
+
+**Not urgent, and priority 4 is deliberate:** the three known instances are already tracked
+individually. This exists so the fourth is found on purpose rather than by luck.
 
 ## T-54 — Every shell screen's header says the brand where the web says the screen
 **Priority 5/10** · **Owner:** mac · **Status:** open
