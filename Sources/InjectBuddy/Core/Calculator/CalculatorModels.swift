@@ -30,6 +30,10 @@ struct CalculatorInput: Identifiable, Equatable {
     /// different thing (iOS's vial strength accepts 1…500 by 1; the web's ruler
     /// shows 10…400 by 10).
     var drum: [Double] = []
+    /// Set when this field's number is READ AND WRITTEN IN A UNIT THE USER PICKS with
+    /// another field. See `UnitScaling`. Nil on every field that has one fixed unit,
+    /// which is all of them but the peptide dose today.
+    var unitScaling: UnitScaling?
 
     var id: String { key }
 
@@ -80,10 +84,11 @@ struct CalculatorInput: Identifiable, Equatable {
                        default def: Double, range: ClosedRange<Double>? = nil,
                        step: Double? = nil, help: String? = nil,
                        quick: [Double] = [],
-                       drum: [Double] = []) -> CalculatorInput {
+                       drum: [Double] = [],
+                       unitScaling: UnitScaling? = nil) -> CalculatorInput {
         CalculatorInput(key: key, label: label,
                         kind: .number(unit: unit, defaultValue: def, range: range, step: step),
-                        help: help, quick: quick, drum: drum)
+                        help: help, quick: quick, drum: drum, unitScaling: unitScaling)
     }
 
     static func segmented(_ key: String, _ label: String,
@@ -117,6 +122,150 @@ struct CalculatorInput: Identifiable, Equatable {
     static func toggle(_ key: String, _ label: String, default def: Bool,
                        help: String? = nil) -> CalculatorInput {
         CalculatorInput(key: key, label: label, kind: .toggle(defaultValue: def), help: help)
+    }
+}
+
+// MARK: - Unit-dependent fields  (T-41)
+
+/// Declares that a numeric field's VALUE AND ITS BOUNDS are expressed in a unit the
+/// user chooses with ANOTHER field on the same form.
+///
+/// ── WHY THIS SHAPE ──────────────────────────────────────────────────────────────
+/// `CalculatorInput.number` bakes ONE `range`, `step` and `quick` set into the spec at
+/// `CalculatorCatalog`. The peptide dose's bounds are not one set: `0…20000 mcg` is
+/// `0…20 mg`, and the chips `250 · 500 · 750 · 1000 · 2000` are nonsense in mg. Before
+/// T-41 the picker changed the unit and NOTHING else — 500 mcg became 500 mg, the
+/// engine computed a draw volume, units, weekly total and doses-per-vial for a dose
+/// 1000× too large, and every figure on the screen was internally consistent with it.
+///
+/// The alternatives, and why not:
+///   • a branch in `CalculatorScreen` (`if slug == .peptide`) — the screen renders
+///     fifteen calculators from these specs and must not know about any of them;
+///   • converting the value without moving the bounds — the fix the Windows side
+///     flagged as insufficient, and it is: with a single `0…10000`, iOS's own default
+///     of 500 in mg mode is 25× the web's entire allowable maximum;
+///   • a second spec per unit — two specs to keep in step, and `configJSON()` reads
+///     the key set off the spec, so a drifting second copy is a different protocol.
+///
+/// ── TWO OPERATIONS, DELIBERATELY SEPARATE ───────────────────────────────────────
+///   • the SPEC scales — `CalculatorInput.resolved(against:)`, pure, no side effects,
+///     safe to call on every render;
+///   • the VALUE converts — `CalculatorSpec.convertingUnits(from:to:)`, applied ONCE
+///     by `CalculatorViewModel` on the transition itself.
+/// A resolver that also converted would rescale the number on every layout pass, and a
+/// converter that ran on every render is how a field ends up showing a number the
+/// engine never saw — the invariant `NumberField.field` is built around.
+///
+/// ── PER FIELD, NOT PER CALCULATOR ───────────────────────────────────────────────
+/// Declared on the `CalculatorInput` so the next field that needs it declares it too
+/// rather than adding a slug branch anywhere. T-43 is the same defect on the Free T
+/// Index total-testosterone picker with a factor of 28.84.
+///
+/// Describes a BINARY selector — base unit or the one alternate. A third unit needs a
+/// different type, not another field on this one.
+struct UnitScaling: Equatable {
+    /// Key of the picker that chooses the unit.
+    let selectorKey: String
+    /// The selector value at which the field's own spec numbers are already correct.
+    /// The field's declared `unit` is therefore the BASE unit.
+    let baseSelectorValue: Double
+    /// Unit suffix shown, and announced, when the selector is off base.
+    let alternateUnit: String
+    /// Base units per alternate unit — 1000, because 1 mg is 1000 mcg. The alternate
+    /// reading is `base / factor`.
+    let factor: Double
+    /// Decimals each side rounds to. These are `app.js`'s, verbatim from
+    /// `PeptidePage.handleUnitToggle` (`public/app.js:6237-6245` on
+    /// `feature/dosage-status-model`):
+    ///   `newUnit === 'mg' ? Number((dosePerInj / 1000).toFixed(3))`
+    ///                     `: Number((dosePerInj * 1000).toFixed(0))`
+    /// Read from the source, not from a document about it.
+    let baseDecimals: Int
+    let alternateDecimals: Int
+
+    func isBase(_ selector: Double) -> Bool { selector == baseSelectorValue }
+
+    /// mcg → mg.
+    func toAlternate(_ v: Double) -> Double { Self.rounded(v / factor, alternateDecimals) }
+    /// mg → mcg.
+    func toBase(_ v: Double) -> Double { Self.rounded(v * factor, baseDecimals) }
+
+    func convert(_ v: Double, toBase wantsBase: Bool) -> Double {
+        wantsBase ? toBase(v) : toAlternate(v)
+    }
+
+    /// `toFixed(n)` — round half away from zero at `n` decimals, then back to a Double.
+    ///
+    /// The rounding is what makes the trip REVERSIBLE, and reversibility is the whole
+    /// test: 500 → 0.5 → 500 and 0.5 → 500 → 0.5. Divide-then-multiply without it
+    /// leaves float residue that a later comparison reads as a different dose.
+    static func rounded(_ v: Double, _ decimals: Int) -> Double {
+        let f = pow(10.0, Double(decimals))
+        return (v * f).rounded() / f
+    }
+}
+
+extension CalculatorInput {
+    /// This field expressed in the unit currently selected. Identity when the field has
+    /// no `unitScaling` or the selector is at its base value, so it is a no-op for the
+    /// fourteen calculators that do not use it.
+    ///
+    /// Scales EVERYTHING the field claims about the quantity — the bounds the entry
+    /// clamps to, the step, the quick chips and the tick ruler — because a number is
+    /// only ever as safe as the range around it. `0.5 mg` under a step of 1 and a
+    /// ceiling of 10000 is a different wrong answer, not a fix.
+    func resolved(against values: CalculatorValues) -> CalculatorInput {
+        guard let s = unitScaling,
+              case let .number(_, def, range, step) = kind,
+              !s.isBase(values.number(s.selectorKey, s.baseSelectorValue))
+        else { return self }
+
+        let scaledRange = range.map { r -> ClosedRange<Double> in
+            let a = s.toAlternate(r.lowerBound), b = s.toAlternate(r.upperBound)
+            // `min`/`max` rather than `a...b`: a ClosedRange traps on an inverted
+            // bound, and a crash on a dosing screen is not a better failure than a
+            // wide range.
+            return Swift.min(a, b)...Swift.max(a, b)
+        }
+        return CalculatorInput(
+            key: key, label: label,
+            kind: .number(unit: s.alternateUnit,
+                          defaultValue: s.toAlternate(def),
+                          range: scaledRange,
+                          step: step.map(s.toAlternate)),
+            help: help,
+            quick: quick.map(s.toAlternate),
+            drum: drum.map(s.toAlternate),
+            unitScaling: s)
+    }
+}
+
+extension CalculatorSpec {
+    /// The form's fields in the units currently selected. What the screen renders.
+    func resolvedFields(_ values: CalculatorValues) -> [CalculatorInput] {
+        fields.map { $0.resolved(against: values) }
+    }
+
+    /// The number a unit-scaled field must now show, when its selector has just moved.
+    ///
+    /// Returns nil when no selector moved, which is every change but the flip — the
+    /// caller must not write `values` back on an ordinary keystroke.
+    ///
+    /// THIS CONVERTS, IT DOES NOT CLAMP. A clamp passes a one-way test (`500 mcg` →
+    /// something smaller in mg) and fails the trip: the pass condition is that
+    /// mcg → mg → mcg returns the original number and mg → mcg → mg does too.
+    func convertingUnits(from old: CalculatorValues, to new: CalculatorValues) -> CalculatorValues? {
+        var out = new
+        var changed = false
+        for field in fields {
+            guard let s = field.unitScaling else { continue }
+            let was = old.number(s.selectorKey, s.baseSelectorValue)
+            let now = new.number(s.selectorKey, s.baseSelectorValue)
+            guard was != now else { continue }
+            out.numbers[field.key] = s.convert(new.number(field.key), toBase: s.isBase(now))
+            changed = true
+        }
+        return changed ? out : nil
     }
 }
 

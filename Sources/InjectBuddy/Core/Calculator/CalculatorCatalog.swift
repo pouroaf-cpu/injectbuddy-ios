@@ -405,8 +405,48 @@ enum CalculatorCatalog {
             return CalculatorSpec(slug: slug, savedType: "peptide", saveTitle: "Peptide", fields: [
                 .number("peptideMg", "Peptide in vial", unit: "mg", default: 50, range: 0...100, step: 1),
                 .number("bawMl", "Bac water", unit: "mL", default: 10, range: 0...30, step: 0.5),
-                .number("dosePerInj", "Dose per injection", default: 500, range: 0...10000, step: 50,
-                        quick: [250, 500, 750, 1000, 2000]),
+                // T-41 — THE DOSE IS DECLARED IN mcg AND SCALES WITH `doseUnitMcg`.
+                //
+                // `unitScaling` is the whole fix and `UnitScaling`'s own comment carries
+                // the reasoning. What is declared HERE is the numbers, and each of the
+                // four moved:
+                //
+                //   unit: was nil, so the field showed a bare number while a separate
+                //     picker named the unit somewhere else on the row. The web's dose
+                //     field carries the suffix AND the toggle (`QuickPickerField`
+                //     `unit: doseUnit` beside a `DrumUnitToggle`), and on a screen whose
+                //     defect was "500 means two different doses" the suffix is not
+                //     decoration — it is what makes the photograph readable.
+                //
+                //   range: was 0...10000 IN BOTH UNITS. The web's mcg ceiling is 20000
+                //     (`doseMax`), so the base moves 10000 → 20000 for parity and mg
+                //     becomes 0...20 — which is the number that matters, since the old
+                //     ceiling let mg run to 10000, i.e. 10 grams of peptide.
+                //
+                //   THE LOWER BOUND STAYS 0 AND THE WEB'S IS 1 mcg / 0.001 mg. A
+                //     DELIBERATE DIVERGENCE, recorded rather than slipped in: the web
+                //     clamps on BLUR (`commitDose`), iOS clamps on EVERY KEYSTROKE
+                //     (`NumberField.onChange(of: text)`). With a floor of 0.001 in mg,
+                //     typing `0.5` clamps the leading `0` up to `0.001`, rewrites the
+                //     text, and the remaining keystrokes land on it — `0.0015`. A
+                //     non-zero floor is safe on blur and hostile per keystroke, and 0 is
+                //     what every other dose field in this app already uses for the
+                //     not-yet-finished state.
+                //
+                //   step: was 50 in both units; the web's is 1 mcg / 0.001 mg. It is
+                //     inert today — nothing reads `step` since the ± pair was replaced
+                //     by `TickDrum` — but a spec that states a wrong number is a trap
+                //     for whoever wires it up next, so it is the web's and it scales.
+                //
+                //   quick: unchanged in mcg, and `250 · 500 · 750 · 1000 · 2000` divided
+                //     by 1000 in mg, which is exactly what the web does to its own
+                //     drum values (`DOSE_PEP_MCG_VALUES.map(v => v / 1000)`).
+                .number("dosePerInj", "Dose per injection", unit: "mcg",
+                        default: 500, range: 0...20000, step: 1,
+                        quick: [250, 500, 750, 1000, 2000],
+                        unitScaling: .init(selectorKey: "doseUnitMcg", baseSelectorValue: 1,
+                                           alternateUnit: "mg", factor: 1000,
+                                           baseDecimals: 0, alternateDecimals: 3)),
                 .picker("doseUnitMcg", "Dose unit", options: [
                     .init(label: "mcg", value: 1), .init(label: "mg", value: 0),
                 ], default: 1),

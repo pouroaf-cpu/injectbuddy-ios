@@ -88,7 +88,10 @@ struct CalculatorScreen: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 ScreenHeader(title: slug.title)
 
-                ForEach(vm.spec.fields) { field in
+                // `vm.fields`, NOT `vm.spec.fields` — the spec resolved into the units
+                // the user has selected (T-41). Identity is still the field key, so the
+                // resolution cannot re-create a field or lose its editing state.
+                ForEach(vm.fields) { field in
                     if shouldShow(field) {
                         FieldRow(field: field, vm: vm, focusedKey: $focusedKey)
                     }
@@ -226,7 +229,10 @@ struct CalculatorScreen: View {
         // `quick_mgWeek_400` is an ambiguous query, which fails at resolution
         // without ever reaching the assertion.
         if let key = focusedKey,
-           let field = vm.spec.fields.first(where: { $0.key == key }),
+           // Resolved (T-41): the chips above the keypad must be the same five values,
+           // in the same unit, as the row under the field. Reading `spec.fields` here
+           // would put mcg chips over a field in mg.
+           let field = vm.fields.first(where: { $0.key == key }),
            !field.quick.isEmpty {
             QuickValueRow(key: key,
                           values: field.quick,

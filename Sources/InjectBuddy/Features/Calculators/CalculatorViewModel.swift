@@ -11,7 +11,7 @@ import SwiftUI
 final class CalculatorViewModel: ObservableObject {
     let spec: CalculatorSpec
 
-    @Published var values: CalculatorValues { didSet { recompute() } }
+    @Published var values: CalculatorValues { didSet { valuesChanged(from: oldValue) } }
     @Published private(set) var result: CalculatorResult = .empty
     @Published var saveState: SaveState = .idle
     /// Row id from the last successful save, for the confirm-start-day step.
@@ -31,6 +31,36 @@ final class CalculatorViewModel: ObservableObject {
         let spec = CalculatorCatalog.spec(for: slug)
         self.spec = spec
         self.values = CalculatorValues.defaults(for: spec.fields)
+        recompute()
+    }
+
+    /// The spec's fields IN THE UNITS CURRENTLY SELECTED — what the screen renders.
+    ///
+    /// `spec.fields` is still the canonical key set and is what `configJSON()` walks;
+    /// this is the display resolution of it, and it is a computed property rather than
+    /// stored state so it cannot fall out of step with `values`. Identity for the
+    /// fourteen calculators with no unit-scaled field.
+    var fields: [CalculatorInput] { spec.resolvedFields(values) }
+
+    /// T-41 — the ONE place a unit flip converts the number it is the unit of.
+    ///
+    /// The spec resolution above is pure and happens on every render; the conversion is
+    /// a TRANSITION and must happen exactly once, which is why it lives on the `didSet`
+    /// edge where the old and new values are both in hand rather than in a view.
+    ///
+    /// RE-ENTRANCY IS REAL AND IS HANDLED, not hoped about: writing `values` here fires
+    /// this same `didSet` again. `isConverting` makes the second pass do the recompute
+    /// and nothing else, so the value settles in one step and the engine is evaluated
+    /// once, against the converted number.
+    private var isConverting = false
+
+    private func valuesChanged(from old: CalculatorValues) {
+        if !isConverting, let converted = spec.convertingUnits(from: old, to: values) {
+            isConverting = true
+            values = converted
+            isConverting = false
+            return  // the re-entrant pass above already recomputed, on the right values
+        }
         recompute()
     }
 
