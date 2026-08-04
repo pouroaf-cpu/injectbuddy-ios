@@ -303,7 +303,7 @@ already defines a `subtitle` per category and `ToolsScreen` never references it.
 ---
 
 ## T-02 — The web app leaves data behind when an account is deleted
-**Priority 8/10** · **Owner:** pouroa · **Status:** filed
+**Priority 8/10** · **Owner:** win · **Status:** doing — built, awaiting an end-to-end run
 
 **What:** `app/api/account/delete/route.ts` clears the `avatars` bucket only. `blood-tests` and
 `progress-photos` are cleared by nothing — storage is not in the foreign-key graph — and `feedback`
@@ -1836,7 +1836,7 @@ without that pid ever becoming the exclusion mechanism. Demonstrated by a compil
 neither falsely block nor falsely pass, and by a waiter correctly identifying a dead holder.
 
 ## T-57 — The web silently drops two protocol types, and three ACTIVE protocols are invisible today
-**Priority 7/10** · **Owner:** win · **Status:** open
+**Priority 7/10** · **Owner:** win · **Status:** doing — derivation built and measured; the visibility clause is not done
 
 **What:** `lib/account-schedule.ts`'s `deriveDose` returns `null` for any `calculator_type` it has no
 branch for, and `deriveProtocols` discards a null — `if (!dose) return`, with **no `console.warn`, no
@@ -1908,8 +1908,8 @@ owner — is NOT done. `femalehrt` still vanishes from the dashboard; it is now 
 rather than a fall-through, but the user still cannot see a protocol they saved. That is a UI change,
 not a derivation change, and it is the remaining work here.
 
-## T-58 — Every bpc157 protocol shows "Draw volume unknown", from a config-key mismatch
-**Priority 6/10** · **Owner:** win · **Status:** open
+## ~~T-58 — Every bpc157 protocol shows "Draw volume unknown", from a config-key mismatch~~ — **DONE 2026-08-04**
+**Priority 6/10** · **Owner:** win · **Status:** done
 
 **What:** `deriveDose`'s `bpc157` branch reads `cfg.concMcgMl` / `cfg.vialMcg` — the **legacy** config
 shape. Both the current web calculator (`public/app.js:10602-10620`, with an explicit comment about
