@@ -118,11 +118,39 @@ final class T12EodCollapseUITests: XCTestCase {
 
         // The mode switcher is the thing EOD was collapsed INTO. If it is absent the
         // removal took a capability with it, which is the outcome the task said to stop on.
-        XCTAssertTrue(app.descendants(matching: .any)
-                        .matching(identifier: "control_mode_Every N Days").firstMatch
-                        .waitForExistence(timeout: 4),
-                      "The TRT calculator has no `Every N Days` mode control. EOD was "
-                      + "removed on the understanding that this exists.")
+        //
+        // ── THE IDENTIFIER HERE WAS WRONG ON THE FIRST RUN, AND THE FAILURE IS WHY THIS
+        // ASSERTION EXISTS AT ALL. ────────────────────────────────────────────────────
+        // It asked for `control_mode_Every N Days`, on the pattern
+        // `control_<key>_<label>` used by `SegmentedRow`'s pills. `.modePicker` does not
+        // render that control — it renders `ModeTab`, whose segments are keyed by VALUE,
+        // not label: `mode_ndays`, `mode_perweek`, `mode_ml2mg`, inside a `mode_tab`.
+        // So the run reported "the TRT calculator has no Every N Days mode control" when
+        // the control was on screen the whole time.
+        //
+        // **A precondition that fails because the PROBE is wrong looks identical to one
+        // that fails because the FEATURE is missing**, and here the two readings pointed
+        // opposite ways: the second would have meant stopping the whole EOD removal. What
+        // separated them was that `field_nDays` above had ALREADY been found — the
+        // `ndays`-only field cannot render unless that mode is live. Left as a comment
+        // rather than a silent fix, because the next person to write a mode assertion
+        // will reach for the same wrong pattern.
+        // Queried across ANY element type, not `app.buttons`. A SwiftUI `Button` with a
+        // custom label and `.buttonStyle(.plain)` does not reliably surface in the
+        // `.button` collection, and a type-restricted query that misses reports the
+        // control as ABSENT — the second wrong probe in a row on this one assertion.
+        let ndays = app.descendants(matching: .any).matching(identifier: "mode_ndays").firstMatch
+        if !ndays.waitForExistence(timeout: 6) {
+            // Print the tree rather than guess a third time. A precondition that keeps
+            // failing needs to say what IS there, not just what is not.
+            print("T12-TREE-DUMP:\n\(app.debugDescription)")
+        }
+        XCTAssertTrue(ndays.exists,
+                      "The TRT calculator has no `Every N Days` mode segment. EOD was "
+                      + "removed on the understanding that this exists. See T12-TREE-DUMP.")
+        // Select it explicitly rather than trusting the spec default — the whole claim
+        // is that a user can REACH this mode, not that it happens to be preselected.
+        if ndays.isHittable { ndays.tap() }
 
         nDays.tap()
         if let existing = nDays.value as? String {

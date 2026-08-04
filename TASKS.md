@@ -714,8 +714,36 @@ them.
 
 **Done when:** `OwnedDoseLogPin` carries `updated_at` and a re-logged dose shows a moved timestamp.
 
-## T-09 — The Calendar tells the user nothing is due when it has simply not looked
-**Priority 7/10** · **Owner:** mac · **Agent:** `t09-window` · **Status:** doing
+## ~~T-09 — The Calendar tells the user nothing is due when it has simply not looked~~ — **DONE 2026-08-04**
+**Priority 7/10** · **Owner:** mac · **Agent:** — · **Status:** done
+
+**CLOSED by `df0fc5a`, built by agent `t09-window`. THE CLASS WAS REMOVED, NOT THE WINDOW WIDENED —
+and the distinction is stated because the diff alone cannot say which.**
+
+The Calendar no longer builds a windowed series at all. `CalendarViewModel` holds `ScheduledProtocol`
+values and `CalendarData.occurrences(on:)` asks a per-date predicate about whatever day the grid
+draws — the shape the web has always had (`isDoseDay(p, date)`, `lib/account-schedule.ts:428-437`:
+no accumulator, no loop, no budget, which is why the web cannot have this defect). **"No dots" now
+has exactly one meaning.** `DoseProjection.projectedDoses` is untouched — the dashboard's "next N
+days, in order" is a genuine series question.
+
+**Every coverage assertion is paired with an emptiness assertion at the same distance**, so a fix
+that painted dots on every cell fails by design. `testPredicateMatchesTheSeriesDayForDayOver400Days`
+pins the predicate against the old series across 8 cadences × 400 days, so the two cannot disagree
+about which days are dose days.
+
+**A corollary the agent caught that would have shipped a NEW lie in place of the old one:** pins were
+fetched `since` yesterday. With past days now drawing dots, every logged dose in the previous month
+would have rendered **untaken**. The fetch now goes back to the first renderable month.
+
+**Frames:** `docs/ui-audit/t09-calendar-window/` — `t09-02-calendar-plus-3-months.png` is the task's
+frame, a month far past the old 30-day window showing real dose days, plus current month, far-day
+agenda and previous month. 2/2 UI tests green.
+
+**Unfiled divergence found and deliberately not taken:** iOS FLOORS fractional cadences
+(E3.5 → 0,3,7,10,14) where the web ROUNDS (0,4,7,11,14). A real disagreement about which days a
+twice-weekly user injects — and the iOS comment claiming it "matches the web schedule" is wrong.
+Moving it here would have hidden a reschedule inside a coverage fix. **Filed as T-97.**
 
 **What:** the projection window is 30 days while the grid renders whole months
 (`CalendarScreen.swift` header). A day past the window draws **with no dots — pixel-identical to a
@@ -793,8 +821,8 @@ the file already knows and no task existed.
 
 **Done when:** the plotter is reachable from Tools and photographed there.
 
-## T-12 — TRT EOD is the missing mode switcher wearing a second screen
-**Priority 6/10** · **Owner:** mac · **Agent:** — · **Status:** doing — **BUILT AND GREEN, frame outstanding**
+## ~~T-12 — TRT EOD is the missing mode switcher wearing a second screen~~ — **DONE 2026-08-04**
+**Priority 6/10** · **Owner:** mac · **Agent:** — · **Status:** done
 
 **BUILT 2026-08-04 by mac, `bce1c7f` + `b4dc10e`, 163/163 green and shown red first. Not closed:
 the done-when requires `Every N Days` photographed producing an EOD interval, and the rig session is
@@ -856,8 +884,37 @@ two ways inside the TRT calculator, not one.
 saved shape, fails the moment anyone acts on the original instruction.
 
 **Done when:** ~~the EOD screen is gone~~ ✔, ~~the app still builds with no stale `.eod` routes~~ ✔,
-**`Every N Days` photographed producing an EOD interval** — outstanding, `T12EodCollapseUITests` is
-written and takes the frame.
+~~`Every N Days` photographed producing an EOD interval~~ ✔ — **ALL MET.**
+
+**PHOTOGRAPHED, and both frames prove which screen they are.** `docs/ui-audit/t12-eod-collapse/`:
+- `t12-01-tools-no-eod.png` — the Tools list reading **TRT Dose → TRT Microdose → HCG**, with no
+  `TRT & EOD` between them, Tools tab lit in the bar.
+- `t12-02-trt-every-2-days.png` — **TRT Dose**, `EVERY N DAYS = 2`, **`Injections / week = 3.50`**,
+  dose per injection 28.57 mg against a 100 mg weekly total. That 3.50 is the exact constant
+  `CalculatorEngine.eod` hardcoded, read off the running app.
+
+**AND THE FRAME RUN FOUND A DEFECT THE UNIT TESTS COULD NOT SEE — which is the whole argument for
+taking it.** The first two runs failed with *"the TRT calculator has no Every N Days mode control"*
+while the control was on screen and selected. The tree dump said why:
+
+```
+Button, identifier: 'mode_tab', label: 'Every N Days', Selected
+Button, identifier: 'mode_tab', label: 'Per Week'
+Button, identifier: 'mode_tab', label: 'mL → mg'
+```
+
+`ModeTab` set `.accessibilityIdentifier("\(idPrefix)tab")` on its container, and **a container
+identifier propagates to descendants and overwrites the ones the segments set for themselves.** So
+`mode_ndays` / `mode_perweek` / `mode_ml2mg` were written and were never observable by anything —
+defeating, silently, the exact purpose `idPrefix` is documented as serving. Nothing referenced them,
+so nothing ever failed. **That is T-47's pattern in the accessibility tree rather than in Swift**,
+and it is the sixth instance found this way. The container identifier is removed; nothing referenced
+`mode_tab` either.
+
+**A precondition that fails because the PROBE is wrong looks identical to one that fails because the
+FEATURE is missing**, and here the two readings pointed opposite ways — the second would have meant
+stopping the EOD removal entirely, as the task instructed. What separated them was that `field_nDays`
+had already been found: the `ndays`-only field cannot render unless that mode is live.
 
 **⚠ THE PREMISE BELOW IS WRONG AND IS LEFT STANDING PER RULE 7. Correction first — mac caught it,
 from win's own source.**
@@ -2136,8 +2193,42 @@ are per week, `TRT Dose` has none. Three conventions and a blank, stacked.
 **Done when:** every card in that list carries a line that distinguishes it from every other card, in
 one unit convention — photographed against an account holding two protocols of the same type.
 
-## T-47 — Correct code that nothing calls, three times in one day
-**Priority 6/10** · **Owner:** mac · **Agent:** `t47-deadcode` · **Status:** doing
+## ~~T-47 — Correct code that nothing calls, three times in one day~~ — **DONE 2026-08-04**
+**Priority 6/10** · **Owner:** mac · **Agent:** — · **Status:** done
+
+**CLOSED by `df0fc5a`, built by agent `t47-deadcode`. `scripts/unread-decls.py`, runnable, no
+toolchain — pure text analysis, so it is cheap enough to run often.**
+
+**1945 declarations · 52 unread raw · 23 excluded · 29 unread · ~86% genuine.** The false-positive
+rate is REPORTED rather than tuned away: two-case enums and Codable cases reachable from the database
+will always land here, and widening the exclusions to remove them would have cost
+`UnitSystem.imperial`, a real finding of identical syntactic shape.
+
+**The rule that made the live examples visible: `foo:` is an argument label, not a read.**
+`defaultTab` occurs 13× in its file — one declaration and twelve memberwise-init WRITES. "Appears
+more than once" calls it alive. It also strips comments first, because `canInject` appears 8× in
+prose explaining why it was unread, and a raw grep counts the explanation as evidence of the fix.
+
+**Two candidate exclusions were written and DELETED, which is the part worth keeping.** One formed a
+closed loop with another (`protocol-declaration` + `satisfies-protocol` silenced all six declarations
+of `BackendClient.deleteDosage`/`.profile`, which nothing calls) — *an exclusion justified by another
+exclusion is not a justification*. The second, Equatable/Hashable stored properties, would have
+silenced `defaultTab`, **the very finding the task was filed for.**
+
+**New user-visible findings:** `canOral` (the sibling of `canInject`, still unread — see T-94);
+`PlotterCompound.defaultDose` (28 per-compound defaults, read nowhere); `UnitSystem.imperial` — **a
+setting the user can change that changes nothing**; `barrelField(for:)`, dead AND cited by a comment
+claiming it carries the EOD barrel default, which is the doc-claim checker's exact intersection.
+A dead three-deep `defaultConc` chain was surfaced only by a pigeonhole check on shared names —
+every link individually "has a reader".
+
+**It caught a regression I had introduced minutes earlier**, which is the fastest possible validation:
+repointing the withdrawal tests at `withdrawnCases` left `unlistedCases` read by nothing. It is now
+used where it belongs.
+
+**Shown red before trusted:** the self-test was verified failing two ways — disable comment stripping
+and three dead members go missing; count argument labels as reads and the dead stored property goes
+missing, which is exactly how `defaultTab` hid.
 
 **What:** three separate defects found on 2026-08-04 turned out to be the same shape — an API that
 is present, correct, and referenced by nothing:
@@ -2737,8 +2828,42 @@ which is `149 ÷ 2` against `137 ÷ 2`. Photographed:
 its weekly dose is 0. They are distinguishable, which is what this task asked for, but "one
 convention" is still "one convention and two blanks".
 
-## T-81 — The projection's safety valve deletes long-running protocols from the dashboard and calendar
-**Priority 8/10** · **Owner:** mac · **Status:** open
+## ~~T-81 — The projection's safety valve deletes long-running protocols from the dashboard and calendar~~ — **INSTANCE FIXED 2026-08-04**
+**Priority 8/10** · **Owner:** mac · **Agent:** — · **Status:** done — **the INSTANCE, not the class**
+
+**CLOSED by `df0fc5a`. And the way it was found is the finding.**
+
+**BOTH SIDES SPENT THE DAY BELIEVING THIS WAS ALREADY FIXED. It was not.** A message reporting the
+discovery ended *"Merged and pushed, build green"* — describing a DIFFERENT task in the same message —
+and that was read back as established fact and repeated twice, once to the owner, while both sides
+held a checkout in which one grep would have refuted it. **`TASKS.md` said `open` the whole time.**
+That is what rule 9a now exists for: *a task's status is what the file says, not what a message said.*
+
+It was actually found by agent `t82-dayframe` building an unrelated DST fixture — a daily protocol
+started in January emitted ONE day of seven. **It moved the fixture rather than fixing another task's
+bug inside T-82, and flagged it.** Fixing it in place would have buried an 8 inside a 6's diff.
+
+**The defect:** `step` is fast-forwarded to *doses since the protocol began*; the guard compared it
+against `days * 4 + 8`, a budget derived from the *window length*. Two different quantities. A daily
+protocol running 200 days, projected over 30, starts at `step = 200` against a cap of 128 and emits
+**one** occurrence. Still active, still due, silently absent — no error, no empty state.
+
+**It is a THRESHOLD, not a constant**, which is why nothing ever caught it: a protocol projects
+perfectly right up until the day it does not. `Retatrutide · 4.5 mg/inj` was at step 60 against 64.
+
+**Shown RED first:** `"1" is not equal to "30"`. Fixed by counting iterations of the loop the budget
+actually describes.
+
+**THIS IS THE INSTANCE, NOT THE CLASS — stated because "cap raised" and "class removed" are
+different closures and a later reader cannot tell them apart from the diff.** The projection still
+builds the series statefully. The web cannot have this bug at all, because its primitive is a pure
+per-date predicate with no accumulator and no budget. **T-09 has since removed the class on the
+CALENDAR path** by moving it to exactly that shape; the dashboard's `projectedDoses` still carries it.
+
+**A correction inside the fix, recorded rather than smoothed over:** the degenerate-interval test
+first ran red at 129-vs-128, and **the off-by-one was in the ASSERTION, not the guard** — the
+threshold is tested after the increment, so 129 passes are permitted. Stated exactly, because a bound
+quietly widened to go green is indistinguishable from one that was always right.
 
 **What:** `DoseProjection.projectedDoses` ends its day loop with
 
@@ -2802,8 +2927,31 @@ that has run longest is the one most likely to be relied on.
 started — and a test projects a protocol started a year ago over a 7-day window and gets the doses in
 that window.
 
-## T-82 — Two day-string frames, and half of every day they disagree
-**Priority 6/10** · **Owner:** mac · **Agent:** `t82-dayframe` · **Status:** doing
+## ~~T-82 — Two day-string frames, and half of every day they disagree~~ — **DONE 2026-08-04**
+**Priority 6/10** · **Owner:** mac · **Agent:** — · **Status:** done
+
+**CLOSED by `df0fc5a`, built by agent `t82-dayframe`.**
+
+**Fixed with a NAMED PAIR rather than two patches, and that shape came from the web side's own
+post-mortem:** there, the root cause of the identical class was a MISSING EXPORT — `parseLocalDate`
+had always been exported to READ a Postgres date and nothing exported the inverse to WRITE one, so
+six components wrote their own private copy. iOS now has `dpLocalDay` (writer) beside
+`dpParseLocalDay` (reader), and the two files that had their own private day formatters
+(`ConfirmStartScreen`, `CalculatorViewModel`) call it.
+
+**Local for the emitted calendar day, UTC for the arithmetic.** Only the window origin converts;
+the interval walk stays on day tokens in a fixed UTC frame where a day is always 86400s, so no DST
+transition can gain or lose an hour across an N-day step. Pinned across the 2026-09-27 NZDT change.
+
+**Latent, not live — say so rather than implying damage.** Production was searched for the signature
+and **no instance was found**; the one candidate was the web's move-a-dose feature used twice.
+
+**A LIVE bug was removed alongside it, and it is the more serious half.** `InjectionMoment.forLog`
+recognised "today" in EITHER day frame. East of UTC, `dpFormatDay(now)` **is** yesterday's date for
+the first twelve hours, so an Auckland user deliberately back-dating a dose to yesterday matched the
+UTC arm and the row was stamped with **this morning's clock time and instant**. The user made an
+explicit choice and the app silently overrode it — worse than a wrong default, because nobody
+re-checks something they typed.
 
 **What:** `dose_log.dosed_on` is a calendar day, and this app produces that string in **two
 different timezones**:
@@ -3131,3 +3279,27 @@ work — a different lane from the form split, and the T-44 agent correctly stop
 **Done when:** selecting a compound (and an ester) re-seeds vial strength and tablet strength as the
 web does, Anadrol is shown seeding 50 mg/tab, and a test pins the re-seed for at least one compound
 of each kind.
+
+
+## T-97 — iOS floors fractional cadences where the web rounds, so E3.5 users inject on different days
+**Priority 6/10** · **Owner:** mac · **Agent:** — · **Status:** open
+
+**What:** for a fractional interval, iOS computes the day offset as `Int(Double(step) * interval)` —
+a FLOOR — giving `0, 3, 7, 10, 14` for E3.5D. The web rounds (`Math.round(k * f)`), giving
+`0, 4, 7, 11, 14`. **The two clients tell the same user to inject on different days**, and they drift
+apart and back together across the week.
+
+**Why it matters beyond tidiness:** `nDays: 3.5` is the web's own default and the commonest TRT
+interval, so this is not an edge case — it is the modal protocol. It also decides which day a dose is
+projected on, and therefore which `dosed_on` a tap on the calendar writes.
+
+**The iOS comment is actively wrong** and says the floor is *"matching the web schedule rather than
+0,4,7,11,14"* — it names the web's actual behaviour as the thing it is avoiding.
+
+**Found by:** agent `t09-window` while removing T-09's class. Deliberately not taken there, because
+changing which days a protocol falls on is a reschedule and would have been hidden inside a coverage
+fix.
+
+**Done when:** one rule produces both clients' dose days, chosen deliberately and recorded, and a test
+pins E3.5D's first five days against the web's. **Check the web's live behaviour before changing
+iOS** — the web is the one with users on it.

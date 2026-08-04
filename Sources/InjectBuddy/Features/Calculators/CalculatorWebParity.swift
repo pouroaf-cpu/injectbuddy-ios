@@ -85,7 +85,26 @@ struct ModeTab: View {
             RoundedRectangle(cornerRadius: Theme.Radius.control)
                 .fill(Theme.modeTrack)
         )
-        .accessibilityIdentifier("\(idPrefix)tab")
+        // ── NO IDENTIFIER ON THE CONTAINER (T-12). ────────────────────────────────
+        // This carried `.accessibilityIdentifier("\(idPrefix)tab")`, and on the device
+        // that stamped ALL THREE segments with `mode_tab`:
+        //
+        //   Button, identifier: 'mode_tab', label: 'Every N Days', Selected
+        //   Button, identifier: 'mode_tab', label: 'Per Week'
+        //   Button, identifier: 'mode_tab', label: 'mL → mg'
+        //
+        // A container identifier propagates to descendants and OVERWRITES the ones the
+        // segments set for themselves, so `mode_ndays` / `mode_perweek` / `mode_ml2mg`
+        // were written and were never observable by anything. That defeated the exact
+        // purpose `idPrefix` is documented as serving — telling two mode tabs apart —
+        // and it defeated it SILENTLY: nothing referenced the segment identifiers, so
+        // nothing ever failed. **A declaration nobody can read is silence, not an
+        // error** (T-47), and this is that pattern in the accessibility tree rather
+        // than in Swift.
+        //
+        // Found on the device by T-12's UI test, which reported "the TRT calculator has
+        // no Every N Days mode control" while the control was on screen and selected.
+        // Nothing referenced `mode_tab`, so removing it costs nothing.
     }
 
     private func segment(_ mode: Mode) -> some View {
