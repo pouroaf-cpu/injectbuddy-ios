@@ -598,6 +598,14 @@ above it.
 **Next measurement, cheap and device-only:** one pull with the counters read. No database access, no
 coordination with the other side.
 
+**WHAT CANDIDATE (C) PREDICTS, AND WHY THE EXISTING COUNTERS ALREADY SETTLE IT.** A cancellation is
+not just consistent with the evidence — it makes a specific prediction the other candidates do not:
+**`threw` increments while `returned` does not** (or `requested` fires and `returned` never
+follows). A logic bug that never reaches the network gives the opposite signature — `entered` moves
+and `requested` does not. The four counters separate those two in **one run**, with no database
+access and no coordination with the other side. That is the whole remaining question, and the
+instrument for it is already built and committed; it has simply never executed.
+
 ## ~~T-06 — The web drops every `microdose` protocol on the floor~~ — **DONE 2026-08-04**
 **Priority 5/10** · **Owner:** win · **Status:** done
 
@@ -1872,7 +1880,7 @@ are per week, `TRT Dose` has none. Three conventions and a blank, stacked.
 one unit convention — photographed against an account holding two protocols of the same type.
 
 ## T-47 — Correct code that nothing calls, three times in one day
-**Priority 4/10** · **Owner:** mac · **Status:** open
+**Priority 6/10** · **Owner:** mac · **Status:** open
 
 **What:** three separate defects found on 2026-08-04 turned out to be the same shape — an API that
 is present, correct, and referenced by nothing:
@@ -1900,8 +1908,26 @@ tree — and each hit is either wired up, deleted, or recorded here with the rea
 unreferenced. The sweep matters more than the list: **run it, keep it runnable, and pair it with
 win's doc-claim checker**, which is the same idea aimed at prose.
 
-**Not urgent, and priority 4 is deliberate:** the three known instances are already tracked
-individually. This exists so the fourth is found on purpose rather than by luck.
+**RAISED 4 → 6, 2026-08-04, on win's argument, which is better than the one I filed it with.** I
+priced it 4 because the three known instances are already tracked individually. That reasons about
+the KNOWN three; the point of the task is the UNKNOWN ones. Three found *incidentally in a single
+day, while doing other things*, means the population is larger and nobody has ever looked — and two
+of the three were shipping user-visible defects, one of which produces a wrong dose figure for a
+tablet. The tracked-already argument justifies not fixing them twice; it does not justify not
+looking.
+
+**This and the doc-claim checker are two halves of one idea, and whoever builds the second should
+read the first.** The claim checker catches a SENTENCE that no longer matches the code; this catches
+a DECLARATION the code never consults. Same family: *a thing that exists and is never read.*
+
+**PRACTICAL CAUTION, from win having already built the analogous tool — this is where the effort
+actually goes.** "Referenced exactly once" will be noisy: protocol conformances, `CaseIterable`
+members, anything reached by reflection or by a `switch` over `allCases` will look unreferenced and
+be perfectly fine. **Expect to spend most of the work on the exclusion list rather than the finder,
+and write the REASON beside each exclusion** — without it the next reader cannot tell a considered
+exemption from an oversight, which is the one thing win would have done differently in the claim
+checker. An exemption that exempts nothing, or that nobody can audit, is the §5.32 shape this
+project already knows.
 
 ## T-54 — Every shell screen's header says the brand where the web says the screen
 **Priority 5/10** · **Owner:** mac · **Status:** open
