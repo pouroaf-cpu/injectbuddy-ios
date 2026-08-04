@@ -715,7 +715,7 @@ them.
 **Done when:** `OwnedDoseLogPin` carries `updated_at` and a re-logged dose shows a moved timestamp.
 
 ## T-09 — The Calendar tells the user nothing is due when it has simply not looked
-**Priority 7/10** · **Owner:** mac · **Status:** open
+**Priority 7/10** · **Owner:** mac · **Agent:** `t09-window` · **Status:** doing
 
 **What:** the projection window is 30 days while the grid renders whole months
 (`CalendarScreen.swift` header). A day past the window draws **with no dots — pixel-identical to a
@@ -794,7 +794,70 @@ the file already knows and no task existed.
 **Done when:** the plotter is reachable from Tools and photographed there.
 
 ## T-12 — TRT EOD is the missing mode switcher wearing a second screen
-**Priority 6/10** · **Owner:** mac · **Status:** open — **DECIDED 2026-08-05: EOD COLLAPSES. Remove the whole calculator.**
+**Priority 6/10** · **Owner:** mac · **Agent:** — · **Status:** doing — **BUILT AND GREEN, frame outstanding**
+
+**BUILT 2026-08-04 by mac, `bce1c7f` + `b4dc10e`, 163/163 green and shown red first. Not closed:
+the done-when requires `Every N Days` photographed producing an EOD interval, and the rig session is
+batched with T-44's frame.**
+
+**THE SCOPE CHANGED, AND THE REASON IS THE WHOLE VALUE OF THIS TASK. The instruction was to remove
+`.eod` from `CalculatorSlug`. Doing that would have silently deleted live protocols.**
+
+`CalculatorSlug.rawValue` is the DECODER for `saved_dosages.calculator_type`, and **the web can
+still write that type today** — `app.js` ships a live `EODPage` in `PAGES` and `RAIL_PAGES` whose
+save POSTs `{calculator_type: 'eod'}`. The premise recorded above — *"there is no TRT EOD calculator
+on the web and there never was one"* — was drawn from `public/legacy/` holding no `eod` directory.
+**That is true of the legacy static pages and false of the live SPA**, and win has corrected it at
+source (`cab03c6`), naming the inference: *"it is not in the place I looked, therefore it does not
+exist"* — the same shape as reading an absent `pg_stat_statements` entry as an absent query.
+
+**What makes it fatal rather than untidy: the web's EOD save config is
+`{strength, mgWeek, syringeMl, esterType}` (`app.js:6051`) and carries NO CADENCE KEY** — no `mode`,
+no `nDays`, no `injPerWeek`. So the every-2-days interval hangs *entirely* on the slug. Delete the
+case and `DoseProjection.injectionIntervalDays` falls through to `.none → nil`, and the protocol is
+**never projected**: no error, no empty state, absent from the calendar while the user is still
+injecting. **That is T-57's shape and T-81's shape.** Recorded as the standing rule both sides now
+hold: *a decoder is not a feature, and removing a screen never removes the need to read what the
+other platform wrote.*
+
+**SO: EOD IS REMOVED AS A CALCULATOR AND RETAINED AS A PROTOCOL TYPE.**
+- Gone: category membership (out of `allMembers`, not merely unlisted), every browse surface, the
+  Add funnel, the drawer, the dashboard's open-calculator dialog.
+- Kept: the slug, its title/short title/icon/colour, its spec (which `values(fromConfig:)` needs),
+  its evaluate branch and `CalculatorEngine.eod` — because `DoseProjection:145` EVALUATES a protocol
+  to get its dose, so deleting that branch strips the dose off a web-created EOD row on the calendar.
+- `formSlug` sends a tapped EOD protocol to the TRT calculator. **That is not an iOS invention —
+  `nav-items.js:23` and `:59` point `eod` at `/trt-calculator/`, the same URL as `trt`.** The web's
+  own nav already treats EOD as a label that lands on the TRT calculator, which is the owner's
+  *"that option is inside the TRT calc anyway"* in the web's own configuration.
+
+**`isListed` IS NOW A COMPOSITION OF TWO DIFFERENT STATES, and that was forced by a test rather than
+chosen for neatness.** Folding EOD into the existing withdrawal would have broken three real
+invariants `CalculatorLinkWithdrawalTests` asserts of a *withdrawn* slug — that it belongs to exactly
+one category, keeps a renderable spec, and cannot save. EOD satisfies none of those now. Relaxing
+that test to accommodate it would have cost the meaning of the withdrawal in order to describe the
+collapse. So `isWithdrawn` (H6 — screen intact, owner returning to it) and `isCollapsed` (T-12 —
+nothing to restore) are separate literal switches and `isListed` is `!withdrawn && !collapsed`.
+
+**THE CAPABILITY PROOF IS NUMERIC, WHICH IS STRONGER THAN THE PHOTOGRAPH THAT WAS ASKED FOR — both
+are being done.** iOS's `TickDrum.everyNDays` is `[0] + stride(from: 1.0, through: 14.0, by: 0.5)`;
+the web's `EVERY_N_DAYS_VALUES` (`app.js:3891`) is `[0]` then `1 → 14` by `0.5`. **Identical, and
+2.0 is in both.** And `trt(mode: .ndays, nDays: 2)` gives `freq = 7/2 = 3.5` — the exact constant
+`CalculatorEngine.eod` hardcoded — with every other field of the result equal too, asserted as whole
+`TrtResult` equality. `testTheEquivalenceIsSpecificToTwoDays` proves the equivalence is not passing
+for some other reason: at the TRT spec's own default `nDays: 3.5` the two results DIFFER.
+
+**A second route was found while doing this and it strengthens the decision:** `trtFreqOptions`
+already ships an option literally labelled **"EOD"** (3.5×/week) in `Per Week` mode. EOD is reachable
+two ways inside the TRT calculator, not one.
+
+**The regression guard is the important test in `EodCollapseTests`:**
+`testAWebWrittenEodProtocolStillDecodesAndStillProjects`, built from a fixture in the WEB's exact
+saved shape, fails the moment anyone acts on the original instruction.
+
+**Done when:** ~~the EOD screen is gone~~ ✔, ~~the app still builds with no stale `.eod` routes~~ ✔,
+**`Every N Days` photographed producing an EOD interval** — outstanding, `T12EodCollapseUITests` is
+written and takes the frame.
 
 **⚠ THE PREMISE BELOW IS WRONG AND IS LEFT STANDING PER RULE 7. Correction first — mac caught it,
 from win's own source.**
@@ -1697,8 +1760,66 @@ gone, OR the owner rules that iOS keeps a calibrated estimate — in which case 
 that it is not a lab value. The half-life and unit table is reconciled against `spec/compounds.json`
 and the "verbatim from app.js" comment is corrected, since it cites a symbol that does not exist.
 
-## T-43 — Flipping the Free T Index unit does not convert the value either
-**Priority 8/10** · **Owner:** mac · **Status:** open
+## ~~T-43 — Flipping the Free T Index unit does not convert the value either~~ — **DONE 2026-08-04**
+**Priority 8/10** · **Owner:** mac · **Agent:** — · **Status:** done
+
+**CLOSED by `bce1c7f` + `b4dc10e`.** Built by agent `t43-fai`, reviewed and corrected by mac.
+
+**It needed a DECLARATION, not a mechanism.** T-41 built `UnitScaling` per field, and this is one
+line of spec on top of it — `CalculatorModels.swift` was not touched at all. That is the T-41 entry's
+prediction (*"T-43 gets this for free"*) turning out to be exactly right.
+
+**BASE IS nmol/L, so `factor` is 1/28.84 — the RECIPROCAL of the engine's constant, not the
+constant.** `UnitScaling.factor` is documented as *base units per alternate unit*, and one ng/dL is
+1/28.84 nmol/L. Getting this backwards is the plausible-wrong answer and it is what the red run
+below was aimed at. nmol/L is the base because the shipped default (20) is already in it and because
+`CalculatorEngine.freeTestIndex` defines FAI with BOTH terms in nmol/L.
+
+**THE RANGE WAS THE SECOND HALF, exactly as it was on T-41.** `0...2000` was held in BOTH units — a
+ng/dL lab-report ceiling which, read as nmol/L, admits an FAI of 4000. Now `0...100 nmol/L`,
+resolving to `0...2884 ng/dL`. The ends are images of each other, so nothing in range on one side is
+out of range on the other, and the new ceiling is *above* the old one so nothing previously
+acceptable now clamps. The field also gained a `unit:` suffix — **it previously declared none at
+all**, on the one screen whose entire defect is that the same number means two different blood
+values.
+
+**THE ROUND TRIP IS EXACT ONE WAY ONLY, and that is a property of 28.84 rather than of the code.**
+nmol/L → ng/dL → nmol/L returns the original for every two-decimal value; the other direction cannot,
+because 0.005 nmol/L is 0.144 ng/dL — wider than the ng/dL hundredth — so 600 returns 599.87.
+**The web has the identical asymmetry** and that is why this is parity rather than a compromise:
+`changeTtUnit` rounds with `Math.round(conv * 100) / 100` in both units. Values that sit on the nmol
+grid (288.4, 576.8, 2884) are asserted EXACT with no tolerance to hide in; everything else is
+asserted inside one nmol hundredth, a bound *derived* from the rounding rather than tuned until it
+went green.
+
+**A citation was corrected rather than quietly fixed.** The source comment first cited
+`app.js:7878-7887`; that range is the Reverse Dose Solver. `changeTtUnit` is at **`:8434`**, with a
+second identical copy at `:8595` for the FTV page iOS does not have. **The quoted code was verbatim
+correct and only the reference was wrong — which is the more dangerous of the two**, because a wrong
+reference pointing at real-looking code reads as corroboration to the next person.
+
+**A STALE TEST WAS FOUND BY THIS WORK AND IS THE MORE USEFUL FINDING.**
+`PeptideDoseUnitTests.testResolutionIsIdentityForCalculatorsWithoutAUnitSelector` opened by
+asserting *"the other thirteen calculators declare no unit scaling"*. This task declared one on Free
+T Index — **and the test stayed GREEN**, because that selector's default is the base value, so
+resolution is identity at defaults whatever the mechanism does. It never exercised the case it
+appeared to cover. The membership is now DERIVED from the specs and asserted out loud, so a third
+declaration has to be declared here rather than silently shrinking the test's coverage.
+
+**Measured: 163/163 green, and shown RED first.** Setting `factor: 28.84` failed 7 of the FAI tests,
+including `testConversionIsNotAClamp` — *"600 ng/dL landed on the nmol/L ceiling — this is a clamp,
+not a conversion"*. A one-way round-trip test passes on an implementation that clamps, which is why
+both directions and the not-a-clamp case are pinned separately.
+
+**No frame, and the reason is recorded rather than left as an omission:** Free T Index is withdrawn
+from Tools (T-55), so it cannot be reached on the device. The "shown on the device" half that T-41
+had has no equivalent here until T-55 moves.
+
+**One residual, named so it is a decision and not a surprise:** entering in ng/dL, the FAI's last
+displayed decimal can move by 0.1 across a flip (900 ng/dL, SHBG 20 → 156.0 becomes 156.1). **The
+BAND does not move**, which is the thing the task was about. `baseDecimals: 4` would remove it at the
+cost of putting `20.7999` in a field the user typed 20.8 into, and of disagreeing with the web on a
+displayed number.
 
 **What it does now:** the same defect as T-41 on a second screen. The total-testosterone unit picker
 changes the unit and leaves the number, so the shipped default turns **FAI 40.0 "Normal" into 1.4
@@ -1716,7 +1837,66 @@ cannot reach it today. That is the only reason this is an 8 and T-41 is a 9.
 band is shown not to move when only the unit changes.
 
 ## T-44 — The steroid calculator offers injectable inputs for oral-only compounds
-**Priority 7/10** · **Owner:** mac · **Status:** open
+**Priority 7/10** · **Owner:** mac · **Agent:** — · **Status:** doing — **BUILT AND GREEN, frame outstanding**
+
+**Built by agent `t44-steroid`, reviewed by mac. Committed `bce1c7f` + `b4dc10e`. 163/163 unit
+tests green, shown red first. NOT closed: the done-when names a rendered screen and the frame has
+not been taken — it is batched into the next rig session with T-12's.**
+
+**Both wrong numbers are gone.**
+
+- **The ester is now pickable, because the compound list expands esters as the web's does.** The web
+  builds one dropdown entry per ester (`app.js:8927-8932`, `brand + ' ' + ester.label`, value
+  `slug|esterKey`) and its own comment says *"there is no separate ester picker"*. iOS forced
+  `esters.first`. **Tren E at 300 mg/week now returns 213 mg active, not 261 — the 22.5% error is
+  closed** and pinned, along with Tren A still returning 261 so the fix cannot be a blanket change to
+  the factor. 12 compounds become 14 entries.
+- **An oral compound renders tablet inputs and no syringe.** `cls:'oral'` (`app.js:8748-8761`) picks
+  the form per compound exactly as the web picks it per page: Daily dose / Tablet strength / Doses
+  per day, and a Tablets / Per Dose / Daily result. **`drawMl` is nil**, which is the load-bearing
+  half — `DoseVolume` publishes `drawMl` into `dose_log`, so a tablet can no longer contribute a draw
+  volume. The shipped default Oxandrolone no longer returns 0.75 mL / 75 units for a tablet.
+
+**`canInject` existed and was correct; nothing consulted it.** That is T-47's pattern, and this is
+the second of its three known instances to be closed.
+
+**THE SAVED CONFIG KEY SET IS UNCHANGED and that was the constraint the work was held to.** Still
+the web's 13 keys. The new iOS fields are named `oralDose`/`tabMg`/`oralSplit`, added to
+`configOmittedKeys`, and re-emitted as the web's `dose`/`tab`/`split` as STRINGS, because on the web
+those are raw input state. An injectable save is byte-identical to what this build already wrote.
+One value changes on oral rows only — `mgWeek: 0` rather than iOS's hidden 300 — and it is safe
+precisely because an oral steroid could not be saved at all before, so there are no rows to
+re-fingerprint.
+
+**Shown RED before trusted green:** ignoring `canInject` failed
+`testAnOralOnlyCompoundIsOfferedNoInjectableInput` and
+`testTheFormOffersExactlyOneSetOfInputsPerCompound`, and no others — the two tests that name this
+defect, rather than a cascade that would have proven nothing.
+
+**FOUR THINGS FOUND AND DELIBERATELY NOT TAKEN.** Each is a decision, not an oversight:
+
+1. **Dropdown ORDER not changed.** The web walks `IB_STEROID_ORDER` (`:8762`) starting at
+   `trenbolone`; iOS walks `IB_STEROIDS` key order starting at `anavar`. Adopting the web's order
+   would move the shipped default and therefore what an untouched save writes — and would break the
+   before/after comparability of `28-calculator-steroid.png`.
+2. **Winstrol's Form toggle is not implemented.** It is the only `'oral|injectable'` compound; iOS
+   sits it on injectable, which is the form the web opens it on. Its oral tablet path is unreachable
+   on iOS. **Filed as T-94.**
+3. **The web's untouched `tab` on an INJECTABLE page is `String(defTab)`, not `""`.** iOS writes
+   `""`, so iOS and web injectable steroid rows already never dedup against each other. Fixing it
+   re-fingerprints every future injectable row against production, so it is a data decision.
+   **Filed as T-95.**
+4. **`SteroidCompound.defaultConc(for:)` and `defaultTab` are still read by nothing** — vial strength
+   stays 200 and tablet strength 10 whatever compound is picked, where the web re-seeds both per
+   compound/ester (`useEffect` `:8813`). **Anadrol ships 50 mg tablets, so its seeded 10 is wrong
+   until the user edits it.** Two more instances of T-47's pattern, found while fixing the first one.
+   **Filed as T-96.**
+
+**Done when** (unchanged, and only the last clause is outstanding): an oral compound renders no
+injectable inputs and no draw volume ✔, the ester is selectable ✔, the Tren E case returns 213 mg ✔,
+**and it is photographed.** The frame will differ from `28-calculator-steroid.png` by design — three
+tablet inputs and a Tablets/Per Dose/Daily result where there was a vial strength, a syringe barrel
+and 0.75 mL.
 
 **What it does now:** `28-calculator-steroid.png` opens on **Oxandrolone (Anavar)** — `cls:'oral'`
 in the web's `IB_STEROIDS`, `canInject: false` in iOS's own `SteroidCatalog` — showing a vial
@@ -1957,7 +2137,7 @@ are per week, `TRT Dose` has none. Three conventions and a blank, stacked.
 one unit convention — photographed against an account holding two protocols of the same type.
 
 ## T-47 — Correct code that nothing calls, three times in one day
-**Priority 6/10** · **Owner:** mac · **Status:** open
+**Priority 6/10** · **Owner:** mac · **Agent:** `t47-deadcode` · **Status:** doing
 
 **What:** three separate defects found on 2026-08-04 turned out to be the same shape — an API that
 is present, correct, and referenced by nothing:
@@ -2623,7 +2803,7 @@ started — and a test projects a protocol started a year ago over a 7-day windo
 that window.
 
 ## T-82 — Two day-string frames, and half of every day they disagree
-**Priority 6/10** · **Owner:** mac · **Status:** open
+**Priority 6/10** · **Owner:** mac · **Agent:** `t82-dayframe` · **Status:** doing
 
 **What:** `dose_log.dosed_on` is a calendar day, and this app produces that string in **two
 different timezones**:
@@ -2888,3 +3068,66 @@ iOS's bug is possible because it *generates* a series statefully; the web's is i
 *tests* each date statelessly. Raising iOS's cap fixes the instance. **Making the projection a pure
 per-date predicate would remove the class**, and it is the same maths — the web has run it in
 production for months.
+
+## T-94 — Winstrol's oral form is unreachable on iOS
+**Priority 3/10** · **Owner:** mac · **Agent:** — · **Status:** open
+
+**What:** Winstrol is the ONLY compound in `IB_STEROIDS` marked `'oral|injectable'`, and the web
+gives it a Form toggle for exactly that reason (`app.js:8944`, rendered only when
+`canInject && canOral`). T-44 made the form follow the compound's class, which is right for the
+other eleven; Winstrol gets `injectable`, the form the web itself opens it on. **Its oral tablet
+path cannot be reached on iOS at all.**
+
+**Why it is a 3 and not higher:** the web opens it on injectable too, so the default agrees and
+nobody sees a wrong number — the capability is absent, not incorrect. `steroid 5` is also the
+smallest cohort in production.
+
+**Found by:** agent `t44-steroid` while building T-44, reported rather than taken because a Form
+toggle is a new control and T-44's scope was the oral/injectable split.
+
+**Done when:** a compound that is both oral and injectable offers the choice, defaulting to the
+form the web defaults to, and the toggle is photographed on Winstrol.
+
+## T-95 — iOS and web injectable steroid rows can never dedup, because `tab` differs when untouched
+**Priority 4/10** · **Owner:** mac · **Agent:** — · **Status:** filed
+
+**What:** the saved steroid config carries the oral trio (`dose`, `tab`, `split`) even on an
+INJECTABLE save, because the web saves all 13 keys whatever form is showing. Untouched, the web's
+`tab` is `String(defTab)` — `"10"`, or `"50"` on Anadrol (`app.js:8798, 8811`). **iOS writes `""`.**
+
+**What it costs:** the database de-duplicates on the WHOLE config, so an iOS injectable steroid row
+and the equivalent web row are different protocols and always have been. Saving the same protocol on
+both clients yields two rows.
+
+**Why it is FILED and not open — this is a data decision, not a code tidy.** Changing `""` to
+`"10"` re-fingerprints **every future injectable steroid row** against production rows already
+written with `""`. That belongs to the owner and in daylight, not inside a commit about option
+lists. Same reasoning that left the 3-vs-6 config split alone under T-45.
+
+**Found by:** agent `t44-steroid`, reported and deliberately not taken.
+
+**Done when:** the owner rules on whether iOS adopts the web's untouched defaults, and either the
+change lands with the re-fingerprinting acknowledged, or it is recorded here that iOS keeps `""`.
+
+## T-96 — `defaultConc` and `defaultTab` are read by nothing, so Anadrol seeds a 10 mg tablet
+**Priority 5/10** · **Owner:** mac · **Agent:** — · **Status:** open
+
+**What:** `SteroidCompound.defaultConc(for:)` and `SteroidCompound.defaultTab` exist, are correct,
+and **nothing consults them.** Vial strength stays at 200 mg/mL and tablet strength at 10 mg/tab
+whatever compound is picked, where the web re-seeds both per compound and per ester on selection
+(`useEffect`, `app.js:8813`).
+
+**The live wrong number: Anadrol ships 50 mg tablets.** Pick Anadrol and the tablet strength stays
+10, so the tablets-per-dose figure is **5× too high** until the user notices and edits it. That is a
+dosing number on a dosing screen, which is why this is a 5 rather than a 2.
+
+**This is T-47's pattern, instances four and five**, and both were found the same way as the first
+three — incidentally, while doing something else. They are the argument for T-47 being a sweep
+rather than three individual fixes.
+
+**Why T-44 did not take it:** the value must follow the picker, which is `CalculatorViewModel`
+work — a different lane from the form split, and the T-44 agent correctly stopped at its boundary.
+
+**Done when:** selecting a compound (and an ester) re-seeds vial strength and tablet strength as the
+web does, Anadrol is shown seeding 50 mg/tab, and a test pins the re-seed for at least one compound
+of each kind.
