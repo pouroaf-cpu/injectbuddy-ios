@@ -1761,7 +1761,7 @@ gone from `CalculatorInput.Kind.number` and its fifteen call sites.
 **Found by:** T-41, 2026-08-04.
 
 ## T-42 — The plotter labels a fabricated number as a lab result
-**Priority 9/10** · **Owner:** mac · **Status:** open
+**Priority 9/10** · **Owner:** mac · **Agent:** `t42-units` · **Status:** doing
 
 **What it does now:** `CyclePlotterViewModel.rebuild` multiplies the curve by
 `CalculatorEngine.testoNgdlFactor = 13.5` whenever every selected compound is a testosterone, and
