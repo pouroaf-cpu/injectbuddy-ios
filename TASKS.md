@@ -1760,8 +1760,88 @@ gone from `CalculatorInput.Kind.number` and its fifteen call sites.
 
 **Found by:** T-41, 2026-08-04.
 
-## T-42 — The plotter labels a fabricated number as a lab result
-**Priority 9/10** · **Owner:** mac · **Agent:** `t42-units` · **Status:** doing
+## ~~T-42 — The plotter labels a fabricated number as a lab result~~ — **DONE 2026-08-04**
+**Priority 9/10** · **Owner:** mac · **Agent:** — · **Status:** done
+
+**CLOSED. Built by agent `t42-units`. 229/229 green, shown red first, photographed.
+The board's highest open item.**
+
+**THE ARGUMENT THAT CLOSED IT IS NOT `math-spec.md` — it is the product's own published
+explanation of why it REFUSES to do this.** `public/legacy/cycle-plotter/index.html:2296-2297`:
+
+> **"Why does the plotter use relative units instead of ng/dL?"**
+> *"Absolute serum concentrations (in ng/dL) require **compound-specific pharmacokinetic parameters
+> including volume of distribution and bioavailability** that are not reliably available for all
+> compounds. The relative units shown are directly proportional to your dose and allow you to compare
+> peak-to-trough ratios, evaluate injection frequency, and estimate steady-state timing accurately."*
+
+**The web did not omit ng/dL. It declined it, in writing, with reasons.** And `grep` for
+`ng/dL|ngdl|13.5` in `pk.js` returns **zero hits** — not an axis, not a label, not a computation.
+
+**Why that makes it an IMPOSSIBILITY rather than a parity gap.** The web names the two things a real
+conversion needs — volume of distribution and bioavailability, **both compound-specific**. iOS used
+`13.5`, **one global constant**. A single scalar cannot encode one per-compound parameter, let alone
+two.
+
+**Corrected from the first framing of this task, because the sharper number is the true one:** the
+factor gated on all-testosterone selections, so it was not "wrong across 27 compounds" — it stood in
+for the Vd and bioavailability of **four esters at once**, half-lives 4.5 / 6.0 / 0.8 / 21.0 days.
+No single value is right for all four. The weaker claim was mine; the agent checked it.
+
+**Axis wording taken from the live plotter, not invented** — `app.jsx:34` `METRIC_LABEL.serum =
+'Estimated serum level'` and `:557` `'relative units'`. `:555` records the web REJECTING the
+abbreviation: *"'rel.' read as a truncation artefact… so say so in words."* Stacked rather than
+inline, because side-by-side has nowhere to go at AX5 (UX-UI-RULES §2).
+
+**`testoNgdlFactor` is DELETED, and `scripts/unread-decls.py` — T-47's sweep, built this morning —
+reported it unread the moment the multiplication went.** `allTesto` went with it: the `@Published`
+flag existed only to choose between the fabricated units and the real ones, and there is now one
+answer for every selection.
+
+**THE FAQ IS PORTED, and it is the app's first ported FAQ entry.** It sits inside the chart card
+directly under the curve, because the existing bottom-of-screen note is a disclaimer about the whole
+tool while this explains the axis. **The page carries the answer TWICE and the copies differ** — the
+structured data at `:49-52` has one extra sentence the visible copy drops: *"The shape and timing of
+the curve is correct even if the absolute scale is not calibrated to ng/dL."* That is the sentence
+saying what the chart is still GOOD for, which is the difference between an explanation and a
+disclaimer, so it is included. It is the web's string, not ours.
+
+**Note for T-13:** the precedent named in that task does not exist — the calendar's "How it works" is
+not built on iOS (it is T-01d #7, still pending). This is the first one.
+
+**Shown RED, twice over.** Reintroducing `× 13.5` fails the pin with **1,259 assertion failures**
+across the series. And the suite carries its own falsification: `test_theComparisonWouldCatchAScalar`
+runs the identical comparison against a deliberately 13.5×-scaled curve and requires it to disagree
+at all 416 non-zero samples. **The pin compares against `CalculatorEngine.pkTotalLevel` recomputed
+in the test, not against a recorded curve — so a reintroduced scalar cannot be quietly re-baselined.**
+
+**The best test of the set does not depend on knowing the factor's value at all:**
+`test_addingANonTestosteroneLineDoesNotRescaleTheTestosteroneCurve`. Under the old code, adding a
+single non-testosterone line silently divided the Test E curve by 13.5. `masteron-e` is chosen
+because its 4.5-day half-life matches `test-e`, so the sample grid provably cannot move and any
+difference is unambiguously a rescale.
+
+**And the precondition that would otherwise have inverted the result:**
+`assertOnTheTestosteroneOnlyBranch()` runs before the axis is read. A run landing on any other
+selection finds no lab unit, passes cleanly, and clears the defect without going near it — the T-05
+shape, caught before it could happen.
+
+**FRAMES:** `docs/ui-audit/t42-plotter-units/`. `t42-01-plotter-relative-units.png` — **Cycle
+Plotter**, axis **"Estimated serum level / relative units"**, the curve peaking near **100** where it
+used to read ~1,500, and the FAQ answer on screen beneath it. `t42-02-plotter-units-faq.png`.
+
+**Done when** — ~~the axis is labelled in the units the model actually produces and the ng/dL factor
+is gone~~ ✔; ~~the table is reconciled and the "verbatim from app.js" comment corrected~~ ✔ (T-60).
+
+**THREE STANDING DIVERGENCES REPORTED AND DELIBERATELY NOT TOUCHED:**
+1. **`ka` derivation** — `pk.js:91-96` uses `ka = ln2 / max(0.01, halfLife × 0.25)`; iOS bisects for a
+   per-compound `tmax`. Genuinely coupled to T-60's territory, since `tmax` is now spec-pinned.
+2. **`SMOOTH_FRAC = 0.5`** — the web draws a centred moving average over half the injection interval;
+   iOS plots the raw sawtooth. `math-spec.md` §4.2 says *"a port must state which variant it
+   reproduces"* and **iOS states nothing**. Worth its own task.
+3. **A third found here, in neither task:** iOS rounds every plotted point to 4dp. That rounding
+   appears in **neither** `pk.js` nor `app.js` — display quantisation, not a unit change, recorded in
+   the code rather than described as the web's.
 
 **What it does now:** `CyclePlotterViewModel.rebuild` multiplies the curve by
 `CalculatorEngine.testoNgdlFactor = 13.5` whenever every selected compound is a testosterone, and

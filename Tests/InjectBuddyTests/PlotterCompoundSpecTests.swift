@@ -269,16 +269,27 @@ final class PlotterCompoundSpecTests: XCTestCase {
         }
     }
 
-    /// The plotter's `allTesto` flag — and with it the ng/dL factor T-42 is about
-    /// — keys off `category == "Testosterone"`. The categories changed wholesale
-    /// in this reconciliation, so the four rows that flag must be pinned, or T-42
-    /// would be silently altered by a table edit.
+    /// The four testosterone esters, still exactly four. The categories changed
+    /// wholesale in T-60's reconciliation, which is why the membership is pinned
+    /// against a table edit.
+    ///
+    /// **The reason this test was written no longer exists, and that is recorded
+    /// rather than quietly dropped.** It was written because
+    /// `CyclePlotterViewModel` gated `CalculatorEngine.testoNgdlFactor` on
+    /// `category == "Testosterone"`, so this set decided which charts claimed a
+    /// lab number. T-42 removed the factor and deleted the constant — no chart
+    /// claims a lab number now, for any category — so this membership no longer
+    /// gates anything on the plotter. The ASSERTION is unchanged, because it is
+    /// still a real pin on a generated table; only the claim about what it
+    /// protects has been corrected. A test whose docstring describes a mechanism
+    /// that has been deleted reads as corroboration to the next person, which is
+    /// the failure mode T-43 recorded for a wrong source citation.
     func test_theTestosteroneCategoryStillSelectsExactlyTheEsters() {
         let testo = PlotterCompound.all.filter { $0.category == "Testosterone" }.map(\.id)
         XCTAssertEqual(Set(testo), ["test-e", "test-c", "test-p", "test-u"],
-                       "CyclePlotterViewModel gates CalculatorEngine.testoNgdlFactor on this "
-                       + "category. Changing the set changes which charts claim a lab number — "
-                       + "which is T-42, not a table edit.")
+                       "The testosterone-ester membership moved. This is generated from "
+                       + "spec/compounds.json — a change here is a table edit, and T-60 says "
+                       + "those are not made by hand.")
     }
 
     /// `PlotterCompound.all[0]` is `CyclePlotterViewModel`'s fallback for an

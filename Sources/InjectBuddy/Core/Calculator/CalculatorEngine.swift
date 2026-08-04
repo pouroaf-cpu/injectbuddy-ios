@@ -55,8 +55,20 @@ enum CalculatorEngine {
         return "Normal"
     }
 
-    // ── ng/dL calibration for testosterone esters (plotter) ──
-    static let testoNgdlFactor: Double = 13.5
+    // T-42 — REMOVED: `testoNgdlFactor = 13.5`, described here as an "ng/dL
+    // calibration for testosterone esters (plotter)". It was a calibration of
+    // nothing: the live plotter's own FAQ names volume of distribution and
+    // bioavailability, BOTH COMPOUND-SPECIFIC, as what an ng/dL conversion needs
+    // (`public/legacy/cycle-plotter/index.html:2297`), and one global scalar
+    // cannot encode a per-compound parameter, let alone two. It was gated on
+    // all-testosterone selections, so it stood in for the Vd AND bioavailability
+    // of FOUR different esters at once — enanthate, cypionate, propionate and
+    // undecanoate, whose half-lives alone run 0.8 to 21 days. No single value
+    // makes it correct for all four. `spec/math-spec.md`
+    // §4.1: "A port must not add a unit conversion here." The plotter now plots
+    // `pkTotalLevel` unscaled and labels it `relative units`, as the web does.
+    // Its single reader was `CyclePlotterViewModel.rebuild`; `scripts/unread-decls.py`
+    // then reported it unread, which is why it is deleted rather than left orphaned.
 
     // MARK: - trt / eod / microdose
 

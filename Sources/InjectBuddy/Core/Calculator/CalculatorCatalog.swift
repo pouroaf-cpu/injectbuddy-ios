@@ -151,8 +151,17 @@ struct PlotterCompound: Identifiable, Equatable {
     let short: String
     /// The spec's `type`: `trt` | `peptide` | `glp1`. Same reason as `short`.
     let type: String
-    /// The spec's `cat`. `CyclePlotterViewModel` gates the ng/dL factor on this
-    /// being `"Testosterone"` (T-42), so it is load-bearing, not decoration.
+    /// The spec's `cat`.
+    ///
+    /// **THIS COMMENT USED TO SAY the category was load-bearing because
+    /// `CyclePlotterViewModel` gated the ng/dL factor on it being `"Testosterone"`.
+    /// T-42 deleted that factor, so the gate it described no longer exists** — the
+    /// sentence outlived the code by about an hour. Left visible rather than silently
+    /// swapped, because a comment asserting a coupling that has been removed is exactly
+    /// what makes the next reader preserve something for a reason that is gone.
+    ///
+    /// It is still read — `test_theTestosteroneCategoryStillSelectsExactlyTheEsters`
+    /// pins it, and the picker groups by it — but it is no longer a dosing gate.
     /// The four rows the live table has no entry for keep the dead table's
     /// off-vocabulary `"Peptide"`, which is how they are identifiable as
     /// non-spec rows.
