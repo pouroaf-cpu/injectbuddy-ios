@@ -182,12 +182,17 @@ struct DoseLogPin: Codable, Identifiable, Equatable {
     var dosedOn: String      // YYYY-MM-DD
     var drawMl: Double?
     var site: String?
+    /// The dose this injection delivered, as text with its unit ("74.5 mg"). Read back
+    /// so the write can be checked against the representation rather than the request —
+    /// same contract as `site`.
+    var doseLabel: String?
 
     enum CodingKeys: String, CodingKey {
         case id, site
         case protocolId = "protocol_id"
         case dosedOn = "dosed_on"
         case drawMl = "draw_ml"
+        case doseLabel = "dose_label"
     }
 }
 
@@ -211,30 +216,66 @@ struct NewDoseLogPin: Encodable {
     var drawMl: Double?
     var site: String?
 
+    /// **T-52.** What was actually put in, as text with its unit — "74.5 mg". The web
+    /// writes this on every row (`app/api/dose-log/route.ts` POST) and renders it as the
+    /// history's "Dose" column, falling back to the PROTOCOL's planned dose when the
+    /// column is null (`DoseHistory.tsx:89`). That fallback is precisely why iOS leaving
+    /// it null was invisible and wrong: a half dose read back as a full one, because the
+    /// only thing left to read was the plan.
+    var doseLabel: String?
+
     enum CodingKeys: String, CodingKey {
         case site
         case protocolId = "protocol_id"
         case dosedOn = "dosed_on"
         case drawMl = "draw_ml"
+        case doseLabel = "dose_label"
     }
 
     /// From the protocol itself — the log-a-dose sheet, which picks a protocol and a day
     /// and has no projection in hand.
-    init(for dosage: SavedDosage, dosedOn: String, site: String? = nil) {
+    ///
+    /// `amount` is what the user is logging, which is **not always what was planned**.
+    /// Nil means "the plan", and the derived dose is recorded as-is. When it differs, the
+    /// volume is scaled with it: a dosing tracker that recorded half the mg while still
+    /// subtracting a whole draw from the vial would be wrong in both directions at once —
+    /// the history under-reports and the supply over-reports.
+    ///
+    /// The scaling is exact rather than an approximation. Every family's volume is
+    /// linear in its dose (`mgPerInj / strength`, `dose / concentration`), so half the
+    /// dose is half the millilitres for all of them.
+    init(for dosage: SavedDosage, dosedOn: String, site: String? = nil,
+         amount: DoseAmount? = nil) {
+        let planned = DoseVolume.perInjection(for: dosage)
         self.protocolId = dosage.id
         self.dosedOn = dosedOn
-        self.drawMl = DoseVolume.perInjectionMl(for: dosage)
         self.site = site
+
+        // A unit mismatch cannot arise from the sheet — the field edits the number and
+        // never the unit — so it can only mean a caller built an amount for a different
+        // protocol. Scaling across units would write a dose off by a thousand, so the
+        // amount is refused and the plan stands.
+        guard let logged = amount, let plan = planned.dose,
+              logged.unit == plan.unit, plan.value > 0 else {
+            self.drawMl = planned.ml
+            self.doseLabel = planned.dose?.labelled
+            return
+        }
+        self.doseLabel = logged.labelled
+        self.drawMl = logged == plan ? planned.ml
+                                     : planned.ml.map { $0 * logged.value / plan.value }
     }
 
     /// From a projected occurrence — the dashboard card and the calendar agenda, which
-    /// hold occurrences and not the protocols behind them. The volume travels ON the
-    /// occurrence (`DoseProjection` computes it once per protocol), so these two paths
-    /// need no second lookup and cannot fall out of step with the projection.
+    /// hold occurrences and not the protocols behind them. The volume and the dose both
+    /// travel ON the occurrence (`DoseProjection` computes them once per protocol), so
+    /// these two paths need no second lookup and cannot fall out of step with the
+    /// projection. Neither surface offers an amount to adjust: they log the plan.
     init(for occurrence: DoseOccurrence, site: String? = nil) {
         self.protocolId = occurrence.protocolId
         self.dosedOn = occurrence.dayKey
         self.drawMl = occurrence.drawMl
         self.site = site
+        self.doseLabel = occurrence.dose?.labelled
     }
 }

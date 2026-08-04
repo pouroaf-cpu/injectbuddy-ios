@@ -671,6 +671,12 @@ closed on this file (hcg, tirzepatide, retatrutide).
 **Done when:** a TRT protocol is saved from the device in each of the three modes and the rows are
 SELECTed back, showing eight keys with `mode` as the chosen string. Paste the rows.
 
+**This prediction came true on the READ side (T-24, 2026-08-04)** before anyone checked the write
+side. `DoseVolume.modeIsEvaluatedAsSaved` still said "trt means `perweek`" — the rule from before
+`mode` was a field — and was silently refusing 21 of 39 TRT rows. No build failed, no test failed,
+and the symptom was a NULL that looked like "this protocol has no volume". The write side is still
+unobserved and this task still stands.
+
 ## T-16 — The numeric menu pickers still draw outside their own chrome
 **Priority 5/10** · **Owner:** mac · **Status:** open
 
@@ -761,6 +767,151 @@ plate.
 **Done when:** measured, not adjusted by eye — the straddle re-checked at default and AX5 against
 `PinnedBarReachabilityUITests`, and either shown to leave every control reachable, or the form's
 bottom inset increased by the drum's own measured height.
+
+## T-21 — Two of five cards state no dose, because the engine refuses two whole shapes of config
+**Priority 5/10** · **Owner:** mac · **Status:** open
+
+**What:** T-53 gave every protocol card a per-injection dose derived from its config. Two of the QA
+account's five state none, for two different reasons, and both are real config shapes in production:
+
+1. **A steroid row saved in `perweek` or `ml2mg`.** `CalculatorEvaluate` hardcodes `mode: .ndays`
+   for `.steroid` (`injPerWeek: 0, mlDrawn: 0`), so `DoseVolume.modeIsEvaluatedAsSaved` refuses the
+   row rather than evaluate it in a mode it was not saved in. The QA `Masteron` row is
+   `mode: perweek`, and production holds **9 steroid rows across 5 users**. This is the same defect
+   T-01a #1 fixed for TRT — `mode` became a real field there and never did here.
+2. **A weekly dose of 0.** `Testosterone Cypionate · 0mg/wk` evaluates to `mlPerInj = 0`, which the
+   engine calls invalid, so no dose and no volume. The web renders it as `0 mg`.
+
+**Why it matters:** it is not only the card. The same gate feeds `draw_ml` (so these protocols log a
+NULL volume and consume nothing from the vial — see the `NewDoseLogPin` header) and it now feeds
+T-52's amount field, so **a Masteron user cannot record a partial dose at all**: no derived amount
+means no field to correct.
+
+**Done when:** a steroid protocol saved `perweek` states a dose per injection on its card and logs a
+non-NULL `draw_ml`, verified by a `select` on a row logged from the sheet.
+
+## T-22 — The web's `DOSE AMOUNT` field is discarded, so iOS and web now disagree
+**Priority 5/10** · **Owner:** win · **Status:** open
+
+**What:** found while reading the web's own source for T-52, on `feature/dosage-status-model`.
+`DashLogFlow.tsx:23` holds `amount` in state and seeds it from `p.doseLabel` (line 38), the input
+writes it back (line 188) — **and nothing ever reads it.** `logIt` → `finishLog` calls
+`d.markDone(p, chosenDay, siteIdx, day, injectionTime)`; `markDone` → `persistPin` sends
+`dose_label: ev.doseLabel` — the PROTOCOL's planned dose. Type the amount you actually injected on
+the web and the plan is stored instead.
+
+**Why it matters:** this is T-52's defect on the other side of the app, and worse in one respect —
+iOS had no field, so nothing lied; the web has a field that accepts a correction and drops it. As of
+this commit iOS writes what was typed, so **the same edit produces different rows depending on which
+client made it.**
+
+**Done when:** the web sends the edited amount, or the field is removed. Either way the two clients
+agree about what `dose_label` means.
+
+## T-23 — `protocol_label`, `compound_label` and `category` are NULL on every iOS-written dose
+**Priority 3/10** · **Owner:** mac · **Status:** open
+
+**What:** the web writes four display-snapshot columns on every pin (`/api/dose-log` POST).
+T-52 filled `dose_label`, which is the one of the four that can differ from the plan. The other
+three are still absent from `NewDoseLogPin`.
+
+**Why nothing is visibly broken today:** `DoseHistory.tsx:85-90` falls back to the live protocol for
+all three. **Why it is still a hole:** they exist to be a snapshot — the history is meant to keep
+describing what was taken after the protocol is edited or deleted. Web-written rows survive that,
+iOS-written rows do not.
+
+**Done when:** the three columns are on the iOS write and a logged row carries them, or it is
+recorded here that iOS deliberately relies on the fallback.
+
+## T-25 — The new DOSE AMOUNT field straddles the pinned CTA bar at rest
+**Priority 5/10** · **Owner:** mac · **Status:** open
+
+**What:** in the T-53 evidence frame (`docs/ui-audit/2026-08-04-logdose/01-logdose-sheet-t5352.png`)
+the `DOSE AMOUNT` header is fully visible and the field under it is cut across the middle by the top
+edge of the `Log dose` bar — `74.5` and its `mg` are both legible, the bottom of the field is not.
+Default text size, unscrolled, five protocols in the list.
+
+**Why it matters:** UX-UI-RULES §3 is explicit — "A CTA you can reach that commits a field you
+cannot is a failure, not a partial pass." This is the field T-52 added, and it is the number the
+user is being asked to confirm.
+
+**Say what it is NOT.** Not clipping: the bar is a `safeAreaInset`, it reserves its height, and the
+form scrolls clear of it. This is the at-rest position of a form whose protocol list already fills
+the viewport — the same shape as T-20 on the calculator, and it gets worse with every protocol the
+account holds. **And the site picker and the day row were already below the fold before this
+change**, so the sheet as a whole has been failing §3 since T-03; the amount is the newest and the
+most consequential of the three, not a new class of problem.
+
+**The far worse half of this WAS fixed, in the same pass.** The second frame from that run
+(`02-logdose-keypad-before.png`) shows the sheet with the keypad up and **the amount field entirely
+off-screen** — the user typing a dose they cannot see, behind the keyboard and the pinned bar
+together. That is not a straddle, it is a blind entry on the write path, and the round-trip test had
+gone GREEN through it because `typeText` does not care whether a field is visible. The CTA is now
+withdrawn while the keyboard is up (the treatment `MainShell` already gives the raised hero), the
+keypad carries a `Done` (a `.decimalPad` has no return key, so without one the sheet would be a
+one-way door), and the UI test asserts `isHittable` on the field WHILE it is focused.
+
+**Not fixed by eye.** Re-ordering the sections so the amount leads would put "how much" above "of
+what", and that trade needs measuring at default and AX5 rather than guessing.
+
+**Done when:** measured against the amount field the way `PinnedBarReachabilityUITests` measures the
+calculator's, and either shown reachable at default and AX5, or the sheet re-ordered with a frame
+showing the field clear of the bar at both sizes.
+
+## ~~T-24 — A stale mode gate was refusing 21 of 39 TRT protocols~~ — **DONE 2026-08-04**
+**Priority 7/10** · **Owner:** mac · **Status:** done
+
+**What:** `DoseVolume.modeIsEvaluatedAsSaved` decides whether a saved config may be re-evaluated. It
+read `case .trt: return mode == "perweek"`. That was true when `CalculatorEvaluate` hard-coded
+`.perweek` for TRT — **T-01a #1 made `mode` a real field and `evaluate` has honoured all three
+branches ever since, and the gate was never updated.**
+
+**Why it matters, in production rows:**
+
+```sql
+select calculator_type, coalesce(config->>'mode','(none)') mode, count(*) rows,
+       count(distinct user_id) users
+from saved_dosages where calculator_type = 'trt' group by 1,2 order by rows desc;
+```
+```
+trt | ndays   | 21 | 13
+trt | perweek | 15 | 10
+trt | (none)  |  2 |  2
+trt | ml2mg   |  1 |  1
+```
+
+`ndays` is the **web's own default**, so the majority of the largest family (TRT is 22 of 39 users
+with protocols) was being refused: every dose logged against one of those protocols wrote a NULL
+`draw_ml` — the supply ledger's "never run dry" promise failing in the direction of running dry —
+and, once T-53 landed, the card showed no dose and T-52 showed no amount field to correct.
+
+**Refusing on a rule that is no longer true is not caution.** It is the same wrong answer given
+confidently, and it was invisible because a NULL looks like "this protocol has no volume".
+
+**Fixed:** `.trt` now accepts `ndays` and `perweek`. `ml2mg` stays refused **because of the web, not
+iOS** — `evaluate` runs it correctly (`mlDrawn × strength`) but `lib/account-schedule.ts` has no
+`ml2mg` branch for `trt` and computes the dose from `mgWeek` like `perweek`, so the two clients
+disagree about what the row means. One row in production. `.microdose` and `.steroid` are unchanged:
+`evaluate` really does still hard-code `.ndays` for both (that half is T-21).
+
+**Done — red first, and the red was not written for it.** The gate was found because two T-53 tests
+went red against the build that still had it. `ndays` TRT rows came out with **no dose at all**:
+
+```
+ProtocolSummaryTests.swift:68: XCTAssertEqual failed:
+  ("every 3.5 days · 230 mg/mL") is not equal to ("50 mg · every 3.5 days · 230 mg/mL")
+ProtocolSummaryTests.swift:87: XCTAssertEqual failed:
+  ("50 mg · every 3.5 days · 200 mg/mL · Testosterone Enanthate")
+  is not equal to ("every 3.5 days · 200 mg/mL · Testosterone Enanthate")
+Executed 62 tests, with 4 failures (0 unexpected)
+```
+
+The second one is the defect stated plainly: the same protocol saved `perweek` states `50 mg` and
+saved `ndays` states nothing. `testATrtProtocolSavedInNdaysIsEvaluated` pins it directly (50 mg /
+0.25 mL from `100 mg/wk, every 3.5 days, 200 mg/mL`), and
+`testATrtProtocolSavedInMl2mgIsStillRefused` pins the one mode that stays refused.
+
+Green after: `Executed 64 tests, with 0 failures (0 unexpected)`.
 
 ## ~~T-50 — Two files named TASKS.md, one of them a decoy~~ — **DONE 2026-08-04**
 **Priority 6/10** · **Owner:** win · **Status:** done
@@ -1031,8 +1182,8 @@ curve rather than leaving a hole, which is why it is a 5 and T-03 was a 6.
 **Done when:** a dose logged from iOS carries a time and a zone, read back from the database, and the
 web chart plots it at that time rather than at noon.
 
-## T-52 — The log-dose sheet cannot record a dose that was not the planned one
-**Priority 6/10** · **Owner:** mac · **Status:** open
+## ~~T-52 — The log-dose sheet cannot record a dose that was not the planned one~~ — **DONE 2026-08-04**
+**Priority 6/10** · **Owner:** mac · **Status:** done
 
 **What:** the web's sheet has an editable `DOSE AMOUNT` field. iOS has none: `draw_ml` is derived
 from the selected protocol's config by `DoseVolume.perInjectionMl` and the user is asked nothing.
@@ -1049,8 +1200,63 @@ is wrong.
 **Done when:** the sheet accepts an amount, defaulted to the derived one, and a dose logged with a
 changed amount reads back with that amount.
 
-## T-53 — The log-dose sheet offers two protocols the user cannot tell apart
-**Priority 6/10** · **Owner:** mac · **Status:** open
+**Root cause: the amount was never a value, only a derivation.** `NewDoseLogPin.init(for:dosedOn:)`
+computed `draw_ml` from the protocol and there was no parameter a caller could use to say otherwise
+— the same shape as T-03's site, one layer down.
+
+**The column, read from the web's source and not from a doc about it.** `feature/dosage-status-model`
+→ `app/api/dose-log/route.ts` POST writes **`dose_label`** (text, e.g. `37.5 mg`), and
+`DoseHistory.tsx:509,594` renders and edits it as the history's "Dose" column. `draw_ml` is the
+separate numeric volume. **`DoseHistory.tsx:89` falls back to the protocol's planned dose when
+`dose_label` is null** — which is exactly why iOS leaving it null was invisible: a half dose read
+back as a full one because the plan was the only thing left to read.
+
+**Built:** `CalculatorResult.dosePerInjection` (structured, beside `drawMl`, for the same reason —
+a dosing number must not be parsed back out of a formatted row); `DoseVolume.perInjection`, one
+gated re-evaluation returning volume and dose together; a `DOSE AMOUNT` field in `LogDoseSheet`
+seeded with the derived dose, unit shown beside the value and not editable; `dose_label` on
+`NewDoseLogPin`, `OwnedDoseLogPin`, `DoseLogPin` and both `select`s. **`draw_ml` scales with the
+amount** — half the mg is half the mL, exact for every family because each one's volume is linear
+in its dose. All three log paths fill `dose_label`; the dashboard and calendar log the plan.
+
+**Done — measured.** `LogDoseAmountRoundTripUITests` typed `12.75` over the seeded `74.5` (a value
+no protocol on the account derives, so a decorative field could not pass) and logged. Before the
+run, every iOS-written row on this account had `dose_label` NULL:
+
+```sql
+select id, protocol_id, dosed_on, draw_ml, site, dose_label from dose_log
+where user_id = 'c8926abc-52b0-41f3-8968-bc44f56e1dd1' order by dosed_on desc;
+```
+```
+d5a4f448 | fd1d8717 | 2026-08-03 | null  | null   | null
+92c3af8f | d94cc62b | 2026-08-03 | 0.373 | R Delt | null
+```
+
+After — the run typed `12.75` over a seeded `74.5`, and BOTH columns moved:
+
+```sql
+select d.id, s.label, s.config->>'mgWeek' mg_week, d.dosed_on, d.draw_ml, d.site, d.dose_label
+from dose_log d join saved_dosages s on s.id = d.protocol_id
+where d.user_id = 'c8926abc-52b0-41f3-8968-bc44f56e1dd1' order by d.created_at desc limit 2;
+```
+```
+3c4f9f5b | TRT Dose | 149 | 2026-08-04 | 0.064 | L Glute | 12.75 mg
+92c3af8f | TRT Dose | 149 | 2026-08-03 | 0.373 | R Delt  | null
+```
+
+**Read the two rows together — that is the whole task.** Same protocol, one day apart. The
+2026-08-03 row is what this app used to write: `0.373` mL, the plan, with nothing saying what dose
+it was. The 2026-08-04 row carries `12.75 mg` because that is what was typed, and `0.064` mL —
+`12.75 ÷ 200 mg/mL` — because the volume followed the dose instead of staying at the plan's
+`0.373`. Before this change the same tap would have written `0.373` and a NULL, and the web would
+have rendered it as a full `74.5 mg` dose off the fallback.
+
+Unit suite on the shipped build: `Executed 64 tests, with 0 failures` (see T-24 for the four that
+were red first). Frames: `03-logdose-keypad-after.png` (the field visible and focused with the
+keypad up, `74.5` beside `mg`) and `04-logdose-amount-edited.png`.
+
+## ~~T-53 — The log-dose sheet offers two protocols the user cannot tell apart~~ — **DONE 2026-08-04**
+**Priority 6/10** · **Owner:** mac · **Status:** done
 
 **What:** `docs/ui-audit/2026-08-03-current/08-logdose-sheet-IB2245782.png` lists **`TRT Dose`
 twice**, both with no supporting line, above cards that do carry one. They are legitimately distinct
@@ -1382,3 +1588,51 @@ a parity defect — raised here so it is a decision rather than an oversight.
 
 **Done when:** the radius scale matches the web's, or the divergence is recorded here as deliberate
 with a reason.
+**Root cause: the card drew `label`, and iOS writes a CONSTANT into `label`.**
+`CalculatorViewModel` saves `label: spec.saveTitle` — the calculator's own screen title. Every TRT
+protocol saved on iOS is therefore literally named "TRT Dose", and `ProtocolLabel.split` finds no
+` · ` to take a dose half from, so the supporting line was empty. The two rows on the QA account are
+real and differ only in `mgWeek` — 137 and 149:
+
+```sql
+select id, label, config->>'mgWeek' mg_week, config->>'strength' strength, config->>'mode' mode
+from saved_dosages where user_id = 'c8926abc-52b0-41f3-8968-bc44f56e1dd1'
+  and calculator_type = 'trt' and label = 'TRT Dose';
+```
+```
+249135d4 | TRT Dose | 137 | 200 | perweek
+d94cc62b | TRT Dose | 149 | 200 | perweek
+```
+
+**Built:** `Core/Calculator/ProtocolSummary.swift`. The line is derived from the CONFIG, never from
+the label — dose per injection, interval, what is in the vial, and the compound where the heading
+does not already name it. **One unit convention, per injection**, which is the web's own `doseLabel`
+convention (`lib/account-schedule.ts` — every branch states the dose for one injection) and closes
+S-04 #5's three-conventions-in-one-list at the same time.
+
+**Distinguishability is guaranteed rather than hoped for.** `ProtocolSummary.lines(for:)` renders
+the whole list at once and, where two cards would still read alike, appends the config keys that
+actually differ. Two rows cannot be identical in `calculator_type` + `config` — the unique index
+forbids it — so a differing key always exists to name. Unit-tested on the pair the derived language
+genuinely cannot separate (same weekly dose, same interval, same vial, same ester, one saved
+`perweek` and one `ndays`): the lines come out `… · mode perweek` and `… · mode ndays`.
+
+**Done — measured.** `LogDoseAmountRoundTripUITests` reads every card's rendered text off the device
+and fails if any two are equal. Against the account in the frame:
+
+```
+T-53 CARD: TRT Dose                          | 74.5 mg · every 3.5 days · 200 mg/mL · Testosterone Enanthate
+T-53 CARD: TRT Dose                          | 68.5 mg · every 3.5 days · 200 mg/mL · Testosterone Enanthate
+T-53 CARD: TB-500 (Thymosin Beta-4)          | 350 mcg · every 1.75 days · 25 mg in 3 mL
+T-53 CARD: Masteron (Drostanolone) Enanthate | every 3.5 days · 200 mg/mL
+T-53 CARD: Testosterone Cypionate            | every 1.08 days · 250 mg/mL
+```
+
+The first two are the pair from the frame — same heading, and now `74.5 mg` against `68.5 mg`,
+which is `149 ÷ 2` against `137 ÷ 2`. Photographed:
+`docs/ui-audit/2026-08-04-logdose/01-logdose-sheet-t5352.png`.
+
+**Not fully closed by this, and filed as T-21:** two of those five cards state no dose at all —
+`Masteron` because it was saved in a mode `evaluate` does not run, `Testosterone Cypionate` because
+its weekly dose is 0. They are distinguishable, which is what this task asked for, but "one
+convention" is still "one convention and two blanks".

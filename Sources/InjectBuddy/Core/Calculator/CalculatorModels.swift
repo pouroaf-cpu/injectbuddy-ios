@@ -324,5 +324,17 @@ struct CalculatorResult: Equatable {
     /// on string formatting.
     var drawMl: Double?
 
+    /// The DOSE one injection delivers, in the unit this calculator states doses in —
+    /// mg for the TRT/steroid/GLP-1 families, mcg or mg for a peptide, IU for hCG.
+    ///
+    /// Structured for the same reason as `drawMl`, and added for the same class of
+    /// consumer: the log-dose sheet has to seed an editable amount with it and write it
+    /// to `dose_log.dose_label` (T-52), and parsing "74.50 mg" back out of a formatted
+    /// result row would make a dosing number depend on display formatting.
+    ///
+    /// Nil where a single dose cannot be stated: reconstitution and the withdrawn
+    /// BMI/Free-T screens produce no dose at all, and a BPC/TB blend delivers two.
+    var dosePerInjection: DoseAmount?
+
     static let empty = CalculatorResult(rows: [], isValid: false, scheduleLine: nil, drawMl: nil)
 }

@@ -367,6 +367,10 @@ struct NewDoseLogPin: Encodable {
 (`DashboardContext.tsx:352`, `DoseHistory.tsx:287`). `grep -rn "injected_at" Sources/` returns
 nothing.
 
+**Five, as of 2026-08-04 (T-52):** `dose_label` is now on the write. The three remaining display
+snapshot columns — `protocol_label`, `compound_label`, `category` — are filed as T-23; the web falls
+back to the live protocol for all three, so they cost history rather than a screen.
+
 ### The differences
 
 1. **No injection time, so the serum chart plots iOS doses at an assumed noon.** The web's sheet has
@@ -382,21 +386,23 @@ nothing.
    `observedIntervalFor` then derives cadence from those timestamps, quantised to whole days.
    **Same shape as T-03** — a column iOS declines to fill that a web feature reads — but a degraded
    curve rather than a hole, so it ranks below it.
-2. **No dose amount field.** The web's sheet has an editable `DOSE AMOUNT` (`0.5 mg`). iOS writes the
-   protocol's implied volume and offers no override, so **a partial or adjusted dose cannot be
-   recorded** — it goes in as if it were the full one. On a dosing tracker that is the user's data
-   being silently rounded to the plan.
+2. ~~**No dose amount field.**~~ **BUILT 2026-08-04 (T-52).** The sheet has a `DOSE AMOUNT` field
+   seeded with the derived per-injection dose; it writes `dose_log.dose_label` and scales `draw_ml`
+   with it. **Read the web's source before repeating its shape here:** the web's own field is
+   decorative — `DashLogFlow.tsx` seeds `amount` from `p.doseLabel` and never reads it back, so an
+   edited amount on the web is discarded and the plan is stored. Filed as T-22. iOS does not copy
+   that.
 3. **The sheet never says what you are about to log.** Web header: `Log injection` over
    `0.5mg · Semaglutide · 0.5 mg · SubQ` — including the **route**. iOS: `Log a dose`, and the
    identity is only whatever the selected card happens to show.
-4. **Two protocol cards are indistinguishable.** The frame lists `TRT Dose` twice, both with no
-   supporting line. They are legitimately different rows — the dedup index is
-   `(user_id, calculator_type, config)`, so two TRT protocols with different configs are allowed —
-   but the sheet renders nothing that differs, so **the user picks which dose to log by guessing.**
-   On the write path of a dosing app that is the most serious item on this screen.
-5. **Card meta mixes units within one list.** `TB-500 · 350mcg/inj` (per injection) against
-   `Masteron · 300 mg/wk` and `Testosterone Cypionate · 0mg/wk` (per week), and `TRT Dose` with
-   none. Three conventions and a blank, stacked.
+4. ~~**Two protocol cards are indistinguishable.**~~ **BUILT 2026-08-04 (T-53).** Every card's line
+   is derived from its own config by `ProtocolSummary`, and the list is resolved as a whole so no
+   two cards can read the same — where the derived language cannot separate two rows, the config
+   keys that differ are named outright.
+5. ~~**Card meta mixes units within one list.**~~ **MOSTLY (T-53).** One convention now, per
+   injection, which is the web's own `doseLabel` convention. Two of the five cards still state no
+   dose — a steroid saved in a mode `evaluate` does not run, and a protocol whose weekly dose is 0.
+   Filed as T-21; it is a gap in the engine's coverage, not in this screen.
 6. **The primary action is navy and unexplained.** Web: a full-width **teal** `Log it` under a line
    saying what it will do — "Records the injection against the date + site you chose, for your own
    tracking." iOS: a navy `Log dose` with no such line. Teal is the web's primary-action colour here

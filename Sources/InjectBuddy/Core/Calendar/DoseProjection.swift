@@ -60,6 +60,12 @@ struct DoseOccurrence: Equatable, Identifiable {
     /// here is a dose that consumes nothing and a stock reading that never goes down.
     let drawMl: Double?
 
+    /// The dose THIS injection delivers, in the protocol's own unit. Carried for the
+    /// same reason as `drawMl` and beside it: the dashboard and the calendar log doses
+    /// holding only occurrences, and `dose_log.dose_label` is the column the web's
+    /// history renders as "Dose". Nil wherever a single dose cannot be stated.
+    var dose: DoseAmount?
+
     /// Stable identity for diffing/SwiftUI lists: protocol + day.
     var id: String { "\(protocolId)@\(dpFormatDay(date))" }
 
@@ -86,6 +92,20 @@ struct DoseOccurrence: Equatable, Identifiable {
 /// visibly, a wrong number mis-decrements it silently.
 enum DoseVolume {
 
+    /// What one injection of this protocol is — the volume in the barrel and the dose it
+    /// carries. Either half may be nil; both come from the SAME re-evaluation, so a card
+    /// that shows "74.5 mg" and a row that stores "0.373 mL" can never be describing two
+    /// different injections.
+    struct PerInjection: Equatable {
+        /// Millilitres drawn. Nil where the calculator produces no volume.
+        var ml: Double?
+        /// The dose itself, in the calculator's own unit. Nil where a single dose cannot
+        /// be stated — see `CalculatorResult.dosePerInjection`.
+        var dose: DoseAmount?
+
+        static let none = PerInjection(ml: nil, dose: nil)
+    }
+
     /// Millilitres for one injection, or nil when this protocol has no volume that can
     /// be stated honestly.
     ///
@@ -94,35 +114,64 @@ enum DoseVolume {
     /// an invalid config; and a config saved in a dosing MODE this app's `evaluate`
     /// does not run — see `modeIsEvaluatedAsSaved`.
     static func perInjectionMl(for dosage: SavedDosage) -> Double? {
+        perInjection(for: dosage).ml
+    }
+
+    /// The one gated re-evaluation of a saved protocol. `perInjectionMl` and
+    /// `ProtocolSummary.amount` are both this function; neither derives anything itself.
+    ///
+    /// The gate is why they must share: a row saved in a mode `evaluate` does not run
+    /// yields a different volume AND a different dose from the same numbers, so a build
+    /// that refused the volume but published the dose would put a number on a card that
+    /// it had already decided was not safe to store.
+    static func perInjection(for dosage: SavedDosage) -> PerInjection {
         guard let slug = CalculatorSlug(rawValue: dosage.calculatorType),
-              modeIsEvaluatedAsSaved(dosage.config, slug: slug) else { return nil }
+              modeIsEvaluatedAsSaved(dosage.config, slug: slug) else { return .none }
         let values = CalculatorCatalog.values(fromConfig: dosage.config, slug: slug)
         // `.u100` is not a guess and not a default that matters: the syringe scale
         // changes the UNITS row only (`unitsPerInj = mlPerInj × unitsPerML`). Every
         // family's volume — `mgPerInj / strength`, `dose / concentration` — is
         // scale-invariant, so this argument cannot move the number being written.
         let result = CalculatorEngine.evaluate(slug: slug, values: values, scale: .u100)
-        guard result.isValid, let ml = result.drawMl, ml.isFinite, ml > 0 else { return nil }
-        return ml
+        guard result.isValid else { return .none }
+        let ml = result.drawMl.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        let dose = result.dosePerInjection.flatMap { $0.value.isFinite && $0.value > 0 ? $0 : nil }
+        return PerInjection(ml: ml, dose: dose)
     }
 
     /// Whether `evaluate` would run this config under the mode it was SAVED in.
     ///
-    /// `evaluate` hard-codes a mode for three families — trt is `.perweek`, microdose
-    /// and steroid are `.ndays` — because that is the one mode the iOS form offers. The
-    /// web's pages offer more (`ndays`, `perweek`, `ml2mg`) and write the mode into the
-    /// config, and the same row evaluated in the wrong mode yields a DIFFERENT volume
-    /// from the same numbers.
+    /// `evaluate` hard-codes a mode for two families — microdose and steroid are both
+    /// `.ndays` — because that is the one mode their iOS form offers. The web's pages
+    /// offer more (`ndays`, `perweek`, `ml2mg`) and write the mode into the config, and
+    /// the same row evaluated in the wrong mode yields a DIFFERENT volume from the same
+    /// numbers.
     ///
     /// So a row saved in a mode this build does not run is refused rather than
     /// approximated. Refusing writes NULL, which under-reports consumption and is
     /// visible; approximating writes a wrong volume, which mis-decrements a vial and is
     /// not. This is not a second derivation — it is the one derivation declining to
     /// answer outside its domain.
+    ///
+    /// **T-24: `.trt` used to be on that list and had stopped being true.** It read
+    /// `mode == "perweek"`, which was correct when `evaluate` hard-coded `.perweek` for
+    /// TRT — but T-01a #1 made `mode` a real field and `evaluate` has honoured all three
+    /// branches ever since. The stale gate was refusing **21 of 39 TRT rows across 13 of
+    /// 22 TRT users** — every protocol saved in `ndays`, which is the web's own default —
+    /// so those doses logged a NULL volume and, after T-53, showed no dose on their card
+    /// and no amount field to correct. Refusing on a rule that is no longer true is not
+    /// caution, it is the same wrong answer given confidently.
+    ///
+    /// **`ml2mg` stays refused, and not for iOS's sake.** `evaluate` runs it correctly
+    /// (`mgPerInj = mlDrawn × strength`), but the WEB's `deriveDose` has no `ml2mg`
+    /// branch for `trt` — it spaces by `injPerWeek` and computes the dose from `mgWeek`
+    /// like `perweek`. The two clients therefore disagree about what such a row means,
+    /// and a volume iOS is sure of and the web contradicts is worse than a NULL. One row
+    /// in production. Filed against T-24.
     private static func modeIsEvaluatedAsSaved(_ config: JSONValue, slug: CalculatorSlug) -> Bool {
         guard let mode = config["mode"]?.string, !mode.isEmpty else { return true }
         switch slug {
-        case .trt:                  return mode == "perweek"
+        case .trt:                  return mode == "ndays" || mode == "perweek"
         case .microdose, .steroid:  return mode == "ndays"
         // The rest either ignore `mode` in `evaluate` (glp1 reads conc/dose only) or
         // never carry one (hcg, bpc157, bpc157blend, eod).
@@ -219,10 +268,10 @@ enum DoseProjection {
 
             let slug = CalculatorSlug(rawValue: proto.calculatorType)
             let label = proto.label ?? slug?.shortTitle ?? proto.calculatorType
-            // Once per protocol, not once per day: the volume is a property of the
-            // protocol, and re-evaluating it inside the day loop would run the engine
-            // thirty times for one answer.
-            let drawMl = DoseVolume.perInjectionMl(for: proto)
+            // Once per protocol, not once per day: what one injection is is a property
+            // of the protocol, and re-evaluating it inside the day loop would run the
+            // engine thirty times for one answer.
+            let perInjection = DoseVolume.perInjection(for: proto)
 
             // Walk dose days from the protocol start. Interval may be fractional
             // (e.g. 3.5 for twice-weekly): accumulate in days and round to the day.
@@ -249,7 +298,8 @@ enum DoseProjection {
                                                  protocolId: proto.id,
                                                  slug: slug,
                                                  label: label,
-                                                 drawMl: drawMl))
+                                                 drawMl: perInjection.ml,
+                                                 dose: perInjection.dose))
                 }
                 step += 1
                 // Safety: never loop forever on a degenerate interval.
