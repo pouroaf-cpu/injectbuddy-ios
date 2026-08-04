@@ -804,7 +804,28 @@ final class CaptureCurrentState: XCTestCase {
         // be deleted, so the day `Cycle Plotter` is put in a category this stops lying.
         let sweep: [(name: String, file: String, fromTools: Bool)] = [
             ("TRT Dose",       "06-calculator-trt",            true),
-            ("TRT & EOD",      "15-calculator-eod",            true),
+            // `TRT & EOD` (`15-calculator-eod`) was REMOVED 2026-08-04, and the sweep is
+            // how it was found: the run died on "TRT & EOD never became hittable after 12
+            // scrolls" having captured the eight frames before it.
+            //
+            // NOT A BROKEN PROBE — checked before the list was touched, which is the rule
+            // this file exists to enforce. `CalculatorSlug.isCollapsed` returns true for
+            // `.eod` (T-12) and `isListed` is `!isWithdrawn && !isCollapsed`, so `members`
+            // drops it AT THE SOURCE and no browse surface enumerates it. The scroll could
+            // not have found the row because THE ROW IS NOT THERE.
+            //
+            // AND IT IS NOT THE SAME STATE AS BMI / FREE T INDEX BELOW. Those are
+            // WITHDRAWN — screen, spec, category and engine all intact, and the owner
+            // intends to return to them. `.eod` is COLLAPSED: `NavItems.swift:140` —
+            // "the calculator is GONE. No category, no route, and nothing to restore."
+            // So this cannot be repaired by flipping `fromTools` to `false` the way
+            // `Cycle Plotter` was: there is no second route to reach, because there is no
+            // screen at the end of it. `formSlug` sends a saved `eod` protocol to the TRT
+            // calculator, which is what the web already does.
+            //
+            // The existing frame in `2026-08-04-post-t01a` is NOT deleted — it is evidence
+            // of a build that shipped. This note is here because a frame that stops being
+            // taken with no note is indistinguishable from a frame that failed to take.
             ("HCG",            "16-calculator-hcg",            true),
             ("Peptide",        "17-calculator-peptide",        true),
             ("Reconstitution", "18-calculator-reconstitution", true),

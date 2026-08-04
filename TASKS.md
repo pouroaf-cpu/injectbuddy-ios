@@ -3549,3 +3549,41 @@ specification.
 **The old source comment is deleted rather than corrected** — it claimed the floor was "matching the
 web schedule rather than 0,4,7,11,14", naming the web's actual behaviour as the thing it avoided.
 The test says it better than the prose could.
+
+---
+
+### T-48 — the current frame set is re-shot, and two things fell out of shooting it
+**Priority 4/10** · **Owner:** mac · **Status:** done
+
+**What:** `docs/ui-audit/` had no frame set for the current build. The newest was
+`2026-08-04-post-t01a`, taken before T-01c/T-01d/T-54, and no set anywhere held the onboarding
+flow alongside the app.
+
+**Done:** `docs/ui-audit/2026-08-04-current/` — 19 app frames
+(`CaptureCurrentState.testCaptureFullDefaultSweep`, gate-asserted `size=large`) and 70 onboarding
+frames (`OnboardingCaptureTests.testWalkSixPaths`, six paths, settled frames only), all on
+iPhone 16 Pro `1481D20C` / iOS 18.3. The README records the working-tree fingerprint
+`893bfea6483e` on top of `d0da759`, because the tree was dirty and "2026-08-04" names a day that
+held several builds.
+
+**Two things found while doing it, both recorded rather than carried in a message:**
+
+1. **The sweep still expected `TRT & EOD`, which T-12 collapsed.** The first run died on
+   *"TRT & EOD never became hittable after 12 scrolls"* eight frames in. Checked before the list
+   was touched: `CalculatorSlug.isCollapsed` is true for `.eod` and `isListed` excludes it, so
+   `members` drops it at the source — the row is not there. Entry removed from
+   `CaptureCurrentState.swift` with the collapse-vs-withdrawal distinction recorded, since the two
+   states are not the same and only one of them has a screen at the end of a second route.
+   **Twelve listed calculators, twelve frames.**
+
+2. **`Tests/InjectBuddyTests/T01cDashboardUpcomingTests.swift` did not compile**, so
+   `build-for-testing` was red for the whole scheme and nothing could be captured until it was
+   fixed. Two test methods call the main-actor-isolated `DashboardViewModel.derive` from a
+   non-isolated context. `@MainActor` added to both — the fix the compiler names. **The file is
+   T-01c's in-progress work and is still untracked**, so the fix sits in the working tree with the
+   rest of it rather than being committed out from under its owner.
+
+**Still not captured, and both are standing decisions rather than gaps:** the drawer and Settings
+(they render the account's real email and avatar), and the signed-out/welcome path (recovering it
+costs the Keychain session — `simctl erase` is the only way back and this simulator has never been
+erased). The drawer and Settings need a masking decision made before they need a capture.
