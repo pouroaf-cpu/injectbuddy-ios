@@ -190,7 +190,14 @@ struct CalendarScreen: View {
             .accessibilityIdentifier("t05_probe")
             .accessibilityLabel("reloads=\(t05Reloads) "
                                 + "experiment=\(Self.t05Enabled) "
-                                + "inline=\(RouteContent.calendarInlineTitleOverride)")
+                                + "inline=\(RouteContent.calendarInlineTitleOverride) "
+                                // The four that separate "never sent" from "sent and
+                                // died" — see CalendarViewModel's note at its `catch`.
+                                + "entered=\(vm.t05Entered) "
+                                + "requested=\(vm.t05Requested) "
+                                + "returned=\(vm.t05Returned) "
+                                + "threw=\(vm.t05Threw) "
+                                + "err=\(vm.t05LastError)")
         #endif
     }
 

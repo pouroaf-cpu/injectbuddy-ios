@@ -54,13 +54,22 @@ final class CalendarViewModel: ObservableObject {
     /// asked anything leaves a cancelled load with no previous state to return to. See
     /// the note there; the two are meant to read the same.
     func load(backend: BackendClient, now: Date = Date()) async {
+        #if DEBUG
+        t05Entered += 1
+        #endif
         if loaded == nil { state = .loading }
         selectedDay = startOfDay(now)
         do {
+            #if DEBUG
+            t05Requested += 1
+            #endif
             async let dosagesT = backend.savedDosages()
             let since = dpFormatDay(addDays(-1, to: now))
             async let pinsT = backend.doseLog(since: since)
             let (dosages, pins) = try await (dosagesT, pinsT)
+            #if DEBUG
+            t05Returned += 1
+            #endif
 
             let active = dosages.filter { $0.isActive }
             let occurrences = DoseProjection.projectedDoses(for: active, from: now, days: windowDays)
@@ -80,10 +89,46 @@ final class CalendarViewModel: ObservableObject {
             loaded = data
             state = .loaded(data)
         } catch {
+            #if DEBUG
+            // T-05, THE LAST UNANSWERED HALF. Windows measured ZERO queries executed in
+            // Postgres across the pull window on a database whose ambient rate was
+            // proven to be zero — but `pg_stat_statements` records statements that RAN,
+            // so it cannot separate "no request was ever made" from "a request was made
+            // and died before PostgREST ran one". This counter is the difference.
+            //
+            // AND THIS `catch` IS THE PRIME SUSPECT, by its own comment: *"a cancelled
+            // load surfaces NOTHING and touches NO state"*. A cancelled `Task` makes the
+            // `async let` pair throw `CancellationError`, `LoadFailure.message` returns
+            // nil for it by design, and the whole failure is swallowed — no state
+            // change, no banner, nothing on screen. That is EXACTLY the shape of every
+            // observation: the closure runs, the counter increments, no statement
+            // executes, and the user sees a spinner return with stale data.
+            //
+            // If `threw` moves while `returned` does not, the pull IS reaching the
+            // network layer and being cancelled — candidate (C), `reload()` mutating
+            // `visibleMonth` (@State) before its await, which the Dashboard does not do.
+            t05Threw += 1
+            t05LastError = String(describing: type(of: error)) + ":" + "\(error)".prefix(60)
+            #endif
             // A cancelled load surfaces NOTHING and touches NO state — see LoadFailure.
             if let message = LoadFailure.message(error) { state = .failed(message) }
         }
     }
+
+    // MARK: - T-05 instrumentation (DEBUG only, not compiled into Release)
+    //
+    // Four counters, because four different things can happen and the previous two
+    // measurements could each only see one of them. `reloads` (in `CalendarScreen`)
+    // proved the closure runs; Windows' database read proved no statement executed.
+    // These sit between: did `load` start, did it reach the backend call, did that
+    // call RETURN, or did it throw — and what.
+    #if DEBUG
+    @Published var t05Entered = 0
+    @Published var t05Requested = 0
+    @Published var t05Returned = 0
+    @Published var t05Threw = 0
+    @Published var t05LastError = ""
+    #endif
 
     /// Toggle a projected dose between taken and not-taken. Writes FIRST, then moves the
     /// tick to match what the database did.
