@@ -79,6 +79,14 @@ data, then navigate with an idle-wait between every tap.
 - **`xcodebuild` strips the `TEST_RUNNER_` prefix.** The host sets `TEST_RUNNER_QA_EMAIL`; the test
   reads `QA_EMAIL`. Without it the UI suite **skips and exits 0** — a skip and a pass share an exit
   code.
+- **That is only the FIRST hop. `TEST_RUNNER_` reaches the test RUNNER, and the runner is not the
+  app.** Anything read by `ProcessInfo.environment` *inside a view* is the APP's environment, and
+  nothing forwards the runner's into it — you must set `app.launchEnvironment` by hand, as
+  `CaptureCurrentState` does for `BAR_SHARE_CAP`. **The failure is silent and it inverts a result:**
+  a flag that never arrives leaves the feature under test unarmed, so the control "reproduces the
+  defect" perfectly, the candidate shows no improvement, and the experiment confidently clears the
+  real cause. T-05 came within one assertion of exactly that on 2026-08-04. **A measurement must
+  assert its own preconditions arrived, not only its result.**
 - **`simctl ui content_size` is device state, not run state.** Set and reset it in the same command,
   or the next run measures a reflowed layout and reads as "the app broke".
 - **Assert arrival before every screenshot.** Three frames in the old archive were photographs of

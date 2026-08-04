@@ -29,6 +29,19 @@ job carried in a message does not survive a context clear.
     each meant two different things at once — a merge conflict is recoverable, two tasks silently
     sharing an ID is not.
 
+11. **A task whose cause is UNKNOWN gets re-measured before it is reasoned about.** T-05 sat open for
+    three days on the theory that a large title owns the pull-down stretch. Measured 2026-08-04 with
+    a control: **the defect no longer reproduces at all** — it had been fixed days earlier as a side
+    effect of an unrelated change, while the task went on describing a defect that did not exist.
+    Everything reasoned on top of it, including "any future screen with a large title will silently
+    not refresh", was reasoning about a ghost.
+12. **A measurement must assert its own preconditions, not only its result.** Three instruments in
+    one day reported success while measuring nothing: a skip sharing an exit code with a pass, a
+    capture run reporting success with zero frames, and an environment flag that never reached the
+    app. The third would have produced a **false confirmation** — the control reproducing the defect
+    perfectly because the feature under test was never armed — and sent the next person chasing
+    causes that had already been cleared.
+
 **Priority** is out of 10 — 10 is a user is being harmed today, 1 is tidy-up.
 **Status:** `open` · `doing` · `blocked` · `done` · `filed` (real, deliberately not being worked)
 **Owner:** `mac` · `win` · `pouroa`
