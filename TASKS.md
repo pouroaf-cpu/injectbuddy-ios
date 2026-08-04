@@ -1256,7 +1256,7 @@ with the UI test keeping only the wiring assertion. Whichever, it must be shown 
 test that passes against a drum that ignores drags is the failure mode this project keeps finding.
 
 ## T-19 — Eight calculators the web has and iOS does not
-**Priority 5/10** · **Owner:** pouroa · **Status:** filed · **Agent:** —
+**Priority 5/10** · **Owner:** pouroa · **Agent:** — · **Status:** HELD
 
 **OWNER'S DECISION 2026-08-05: do not add these. "I don't want them in yet."** Not a deferral for
 capacity — an explicit hold. **Do not build them, and do not spec them either**: a spec written now
@@ -1273,6 +1273,12 @@ was added to the app and nothing is half-built.
 remember if this unparks: `femalehrt` has 2 active rows and `oilblend` 1, across 2 real users. Those
 were the protocols invisible on their own dashboards until T-57. So the web can already create rows
 of types iOS cannot open — **the absence of the screen is not the absence of the data.**
+
+**Same shape as T-12's EOD decoder, and worth naming as a pattern rather than a coincidence:** a
+missing SCREEN is a display problem; a missing DECODER is a data problem. iOS keeps `CalculatorSlug`
+cases for types it cannot render precisely so a web-created protocol still decodes, schedules and
+shows. `femalehrt` and `oilblend` are the same situation one step earlier — the rows exist and iOS
+has neither screen nor slug.
 
 **Done when:** the owner asks for them.
 
@@ -1781,26 +1787,20 @@ gone from `CalculatorInput.Kind.number` and its fifteen call sites.
 
 **Found by:** T-41, 2026-08-04.
 
-## ~~T-42 — The plotter labels a fabricated number as a lab result~~ — **DONE 2026-08-04 · STATUS UNDER OWNER REVIEW**
-**Priority 9/10** · **Owner:** mac · **Agent:** — · **Status:** done — **awaiting owner ruling, see note**
+## ~~T-42 — The plotter labels a fabricated number as a lab result~~ — **DONE 2026-08-04**
+**Priority 9/10** · **Owner:** mac · **Agent:** — · **Status:** done — **KEPT by owner ruling**
 
-**⚠ THE OWNER SAID "LEAVE THE MATHS ON THE CYCLE PLOTTER AND THE HALF-LIVES ALONE" — and that
-instruction arrived AFTER this was merged (`c16a20c`), not while it was in progress.** It is not
-half-finished; it is green, photographed and pushed. Flagged rather than either quietly kept or
-unilaterally reverted.
+**THE OWNER RULED ON THIS EXPLICITLY: KEEP IT.** The instruction *"leave the maths on the cycle
+plotter and the half-lives alone"* arrived AFTER `c16a20c` had merged, so it was written expecting
+work in progress and there was none. The ruling turned on two facts: **the pharmacokinetics is
+bit-for-bit unchanged** — what moved was a display scalar applied after the model, plus a label —
+and **reverting would not have been neutral**, because it restores a screen that multiplies by one
+global constant and calls the result `ng/dL`, a figure the user can go and compare against real
+bloodwork.
 
-**What the change actually did, so the ruling is made on facts:** the pharmacokinetics is bit-for-bit
-unchanged — `pkTotalLevel`, the `ka` derivation, `pkSolveKa`, every half-life, every `tmax` and the
-compound table were untouched. What changed is a **display scalar applied after the model**, the axis
-label, and explanatory copy. On the narrowest reading the maths was left alone; on the broadest, the
-number on screen moved. **Both readings are legitimate.**
+**The rest of the plotter is FROZEN and this closure does not reopen any of it:** T-32 not started,
+`tmax` not approached, `pkSolveKa` untouched, the four `defaultDose` rows left exactly as they are.
 
-**Reverting is not neutral:** it restores a screen that multiplies by one global constant and labels
-the result `ng/dL`, the units of a blood test the user can go and have taken — the thing the web
-declined in writing because it needs per-compound Vd and bioavailability. That may still be the right
-call; it should be a decision, not a side effect.
-
-**`git revert c16a20c` takes it out whole** — one self-contained commit, nothing else attached.
 
 **CLOSED. Built by agent `t42-units`. 229/229 green, shown red first, photographed.
 The board's highest open item.**
