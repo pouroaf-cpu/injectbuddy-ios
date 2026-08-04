@@ -1134,3 +1134,63 @@ vocabularies are reconciled so a mismatch is detectable; and `spec/compounds.jso
 single source of truth is either made true or removed. Verified by a script that fails when the two
 disagree — **the check has to outlive the fix**, because nothing detected this for however long it
 has been true.
+
+## T-61 — The web's dashboard greeting paints its own text at 1.50:1
+**Priority 6/10** · **Owner:** win · **Status:** open
+
+**What:** `components/account/dashboard/DashStyles.tsx:691-693`:
+
+```css
+.ib-dash-shimmer{background:linear-gradient(100deg,#0a9d90 0%,#0a9d90 40%,#5fe8da 50%,#0a9d90 60%,#0a9d90 100%);
+  background-size:230% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  color:transparent;animation:ibDashShimmer 4.5s linear infinite;}
+```
+
+**`background-clip:text` with `text-fill-color:transparent` means the gradient IS the text**, not a
+panel behind it. So at the sweep's midpoint the greeting — the largest type on the dashboard — is
+painted in `#5FE8DA`, which measures **1.50:1 on white**. The 3:1 floor for large text is missed by
+half; 4.5:1 is not in sight. And it animates, so the failure is intermittent, which is worse than a
+static one: it will pass any spot check taken at the wrong moment.
+
+**This was checked before being filed, because it would have been wrong as a background.** It is not
+a background.
+
+**Why it is the web's task and not a parity item:** iOS already refuses this colour and says why —
+`Theme.swift:45-51` cuts `#5FE8DA` from the greeting gradient and builds the sweep from legal stops
+only (`#075E56 → #0A9D90 → #075E56`, 7.65:1 and 3.37:1). **The port is right and the original is
+wrong**, so there is nothing for mac to do here and iOS must not be "corrected" toward the web.
+
+**Credit where the web is already right:** `DashStyles.tsx:987` disables the animation under
+`prefers-reduced-motion`. iOS honours `accessibilityReduceMotion` too, but only in `WelcomeView` —
+worth a look at whether anything else animates unguarded.
+
+**Done when:** the midpoint stop is a colour that clears 3:1 on white, measured, with the sweep still
+reading as a sweep. iOS's three-stop ramp is the working reference.
+
+## T-62 — iOS corner radii are roughly double the web's, everywhere
+**Priority 4/10** · **Owner:** mac · **Status:** open
+
+**What:** the web's radius scale is one token with two derivations — `app/globals.css:34` sets
+`--radius: 0.5rem` (**8px**), and `tailwind.config.ts` derives `lg: var(--radius)` (8px),
+`md: calc(--radius - 2px)` (6px), `sm: calc(--radius - 4px)` (4px). iOS uses
+`Theme.Radius.card = 16` and `.control = 10`.
+
+**So every card is twice as round as the web's and every control is not far off it.** It is the kind
+of difference that reads as "a different app" without any single element looking wrong, which is why
+it survived a token-level parity pass that got the colours right.
+
+**Priority 4 deliberately:** nothing is unreadable and no number is wrong. It is a systematic visual
+divergence, so it belongs with T-54's header treatment rather than ahead of any dosing item — but it
+is one line to change and it touches every screen.
+
+**Recorded alongside, not filed as tasks — two web mechanics iOS has no concept of:** a **grid-beam
+wayfinder** background (`public/app.js:4347+`) — a static teal SVG grid with six animated beams that
+travel along the grid lines toward the next unanswered calculator field — and a **chrome-shimmer
+border sweep** (`public/ib-calc.css:1642-1830`) marking that field. Both are recent, both are
+wayfinding rather than decoration, and **both postdate `DESIGN.md`, which still says the grid
+backdrop was removed.** They are the visual half of the same idea as T-01a's mode switcher: the web
+tells you where you are in the form. Whether iOS should have an equivalent is a product question, not
+a parity defect — raised here so it is a decision rather than an oversight.
+
+**Done when:** the radius scale matches the web's, or the divergence is recorded here as deliberate
+with a reason.
