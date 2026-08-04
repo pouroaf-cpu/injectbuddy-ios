@@ -53,31 +53,90 @@ a sub-task. Do not fix anything until the screen's differences are listed.
 
 **Reference caveat:** the 72 captures were taken 2026-07-31 from the web's
 `feature/dosage-status-model` branch, which was unmerged at the time. Where a capture and the live
-site disagree, the live site wins — Windows has the source.
+site disagree, the live site wins.
+
+**And where the captures are SILENT, the source still rules** (widened 2026-08-04). The frames
+disagree with the live app by omission as well as by contradiction, and the omissions are the
+dangerous half because nothing on the page announces them. The EOD business is the worked example:
+the reference set has no TRT EOD screen and iOS ships a TRT EOD calculator, which reads as "the web
+dropped it" until you look at the source and find that EOD was never a page — it is a *frequency
+inside the TRT calculator*, and iOS grew a second screen because it had no mode switcher. No frame
+could have told you that.
+
+**Ordering of truth, best to worst:** the web working tree → `https://www.injectbuddy.com`
+(deployed `8a51aa5a`) → the source on branch `feature/dosage-status-model` → the 2026-07-31
+captures. **Both sides now have the web repo cloned** — mac at `~/injectbuddy`, and the branch to
+read is `feature/dosage-status-model`, NOT `master`. `public/app.js` differs between them by 1038
+insertions and 514 deletions, so reading `master` is reading a different app.
 
 **Done when:** every screen has been compared, every difference is either built or recorded with a
 reason it cannot be.
 
 ---
 
-### T-01a — TRT calculator (compared 2026-08-04) — **12 differences**
+### T-01a — TRT calculator (compared 2026-08-04) — **12 differences · 9 BUILT, 3 parked**
+
+**Status: doing.** Nine built and photographed at `29a8ede`; three parked with the owner. The nine
+are struck through individually below. **Frame: `docs/ui-audit/2026-08-04-t01a/20-calculator-trt-default.png`**,
+captured by `CaptureCurrentState.testCaptureCalculatorAtRest` at default type size, gate probe
+reporting `ax=false size=large area=690.67 bar=200.00 share=0.2896`.
+
+**Two corrections to this list, found by reading the web source rather than the captures. The
+difference each corrects is struck through with the correction beside it, per rule 7 — a wrong
+description that gets quietly fixed is a description nobody can tell was ever wrong.**
+
+**A capture the frame does NOT prove, stated so a green run is not over-read:** #2, #3 and #4 render
+below the fold on this screen and are not visible in it. They are built and the build is green; they
+are not photographed. Closing them needs a scrolled frame, which is the next capture and is
+**T-14**.
+
+**One thing that changed behaviour and is not merely visual — read this before assuming it is safe.**
+#1 makes `mode` a real field. It was a hardcoded `configExtras` value of `"perweek"`, and the web's
+default is `ndays` (`app.js:8779`, verified on `feature/dosage-status-model`, not `master`). So the
+default an untouched TRT save writes has moved. The config KEY SET is unchanged — `mode`, `nDays`
+and `mlDrawn` moved from extras to fields under the same names and types — so the unique index still
+sees eight keys. What moved is one VALUE, and it moved toward the web: an untouched iOS save and an
+untouched web save now agree where they previously disagreed.
 **Priority 9/10** · **Owner:** mac · **Status:** open
 Frames: iOS `docs/ui-audit/2026-08-03-current/06-calculator-trt-IB2245780.png` · web
 `screens/30-calc-trt-result.png`.
 
 **Functional — the app cannot do things the web can:**
 
-1. **No mode switcher.** The web leads with a three-way segmented control — `Every N Days` ·
+1. ~~**No mode switcher.** The web leads with a three-way segmented control — `Every N Days` ·
    `Per Week` · `mL → mg`. iOS has no visible mode control at all, though the engine stores a
-   `mode` in the saved config. A user cannot switch how they think about the dose.
-2. **No compound search.** The web has a searchable, typeahead compound field with a magnifier icon
-   over the full compound list. iOS has an `Ester` picker — a plain menu, fewer entries, no search.
-3. **No link to the levels chart.** The web has a tinted card — `📊 See your levels over time →` —
+   `mode` in the saved config. A user cannot switch how they think about the dose.~~
+   **BUILT `29a8ede`, photographed.** `ModeTab` in `CalculatorWebParity.swift`; the frame shows all
+   three segments with `Every N Days` active. The engine needed no new cases —
+   `CalculatorEngine.TrtMode` already had all three and `evaluate` hardcoded `.perweek`, so two of
+   its three branches were unreachable from the phone. `shouldShow` now drives which fields the
+   mode asks for, mirroring the engine branch for branch: the frame shows `EVERY N DAYS` rendered,
+   which is the `ndays`-only field. **Not yet closed:** a saved config read back out of the database
+   showing the chosen `mode` — that is **T-15**.
+2. ~~**No compound search.** The web has a searchable, typeahead compound field with a magnifier icon
+   over the full compound list. iOS has an `Ester` picker — a plain menu, fewer entries, no search.~~
+   **BUILT `29a8ede`** — `CompoundCombobox`, a `.searchable` list in a sheet, replacing
+   `.pickerStyle(.menu)` on every `stringPicker` in the app. **CORRECTION — "over the full compound
+   list … fewer entries" IS FALSE.** `app.js:81` defines `ESTER_TYPE_OPTIONS` as seven strings and
+   `CalcConst.esterTypes` is the same seven in the same order. Verified on
+   `feature/dosage-status-model`, not just `master`. The real gap was search, the magnifier and a
+   keyboard-operable listbox — never the contents. The replacement also removes the measured
+   menu-picker overlap defect from these call sites; the numeric `.picker` sites still have it
+   (**T-16**).
+3. ~~**No link to the levels chart.** The web has a tinted card — `📊 See your levels over time →` —
    taking you from the calculator straight into the plotter with this protocol loaded. iOS has
-   nothing connecting the two.
-4. **No formula card.** The web shows `units = (per-shot dose ÷ vial strength) × 100` and then
+   nothing connecting the two.~~
+   **BUILT `29a8ede`** — `PlotLevelsCTA`. The calculator SET and the wording split are copied from
+   `PLOT_CTA_CALC_IDS` verbatim, so BMI and free-T index do not get it. **Partial, and the shortfall
+   is "with this protocol loaded":** the web's href carries `?from=<calcId>`; `AppRoute.calculator`
+   takes a slug and nothing else, so this pushes the plotter EMPTY. Tracked as **T-17**, not
+   silently absorbed.
+4. ~~**No formula card.** The web shows `units = (per-shot dose ÷ vial strength) × 100` and then
    defines each term underneath — `per-shot dose`, `vial strength`, `× 100` — colour-coded. It is
-   the thing that makes the number trustworthy rather than magic. Absent on iOS.
+   the thing that makes the number trustworthy rather than magic. Absent on iOS.~~
+   **BUILT `29a8ede`** — `FormulaCard`, content transcribed from `IB_CALC_FORMULA` for seven slugs.
+   The remaining slugs render no card rather than an invented one: the card exists to be checkable,
+   so a wrong formula is worse than none.
 5. **No FAQ.** The web carries an accordion of real questions — how to calculate the volume, which
    vial concentration to pick, the difference between the two modes. Absent on iOS.
 6. **No related calculators.** The web ends with a horizontal card carousel — TRT EOD, TRT Microdose
@@ -85,19 +144,50 @@ Frames: iOS `docs/ui-audit/2026-08-03-current/06-calculator-trt-IB2245780.png` �
 
 **Visual — the same information rendered differently:**
 
-7. **Number fields have no scale.** Every web numeric field carries a **tick ruler** beside the
+7. ~~**Number fields have no scale.** Every web numeric field carries a **tick ruler** beside the
    value showing the plausible range (`20 30 40 50 60 70` for vial strength, `10 15 20 25 30 35` for
    the dose). iOS has `−`/`+` steppers instead. The ruler tells you where your number sits; the
-   stepper does not.
-8. **Label placement.** Web puts the label in a grey pill to the **left** of the value, on the same
-   row. iOS stacks the label above the field. The web row is denser and reads as one control.
-9. **Value emphasis.** The web wraps the value in a heavy navy-outlined box — the number is the
-   focus of the row. iOS renders it as ordinary text inside a bordered container.
-10. **Section labels.** The web uses small caps section headers — `SYRINGE SIZE` — above grouped
-    controls. iOS uses sentence-case field labels throughout, so nothing groups.
-11. **The result affordance.** Web: a full-bleed **bright cyan** sticky bar, `👁 Show result`,
+   stepper does not.~~
+   **BUILT `29a8ede`, photographed** — `TickDrum`, visible on both `VIAL STRENGTH` and `WEEKLY DOSE`
+   in the frame. **CORRECTION — "a tick ruler beside the value" understates the control.**
+   `DrumPicker.tsx` calls it "the signature tactile control: a horizontal barrel of tick marks you
+   drag, fling or click" and says every numeric input on the web is one. It is the PRIMARY INPUT,
+   not an ornament next to one — so it is built as a draggable, snapping drum and the `−`/`+`
+   steppers are REMOVED rather than left beside it. `step_up_<key>` / `step_down_<key>` are retired;
+   `CalculatorWiringUITests.testStep_movesByTen` is re-pointed to `testRuler_tracksItsOwnField` in
+   the same commit rather than left addressing dead identifiers. Values are the web's own arrays,
+   not derived from the iOS field's range — those are what the field ACCEPTS, which is wider (iOS
+   strength accepts 1…500 by 1; the web's ruler shows 10…400 by 10). Left-anchored selection matches
+   the web's own maths, checked rather than assumed: `app.js:3404`, `return -idx * itemWidth`.
+   **Not covered: the drag.** XCUITest cannot invoke an accessibility adjustable action, so
+   drag-to-select is unproven — **T-18**.
+8. ~~**Label placement.** Web puts the label in a grey pill to the **left** of the value, on the same
+   row. iOS stacks the label above the field. The web row is denser and reads as one control.~~
+   **BUILT `29a8ede`, photographed.** **CORRECTION — there is no grey pill.** Sampled per-pixel from
+   `30-calc-trt-result.png`: the label area and the row both measure `#F1F1F4` at y=545 across
+   x=70…500, so the "pill" is the ROW's own fill and not a separate one. The placement half of the
+   difference (label left, same row) is right and is what was built; the pill half is not, and
+   building it would have added a fill the web does not draw.
+9. ~~**Value emphasis.** The web wraps the value in a heavy navy-outlined box — the number is the
+   focus of the row. iOS renders it as ordinary text inside a bordered container.~~
+   **BUILT `29a8ede`, photographed.** A RECESSED well, which the sampling settled and the wording
+   did not: `#E6E6E9` inside a `#F1F1F4` row — the well is darker than the row, not a raised white
+   box — with a `#243C73` border at 2pt. This is the one place in the app that does not use
+   `fieldChrome`, and the reason is written at the call site: white-on-grey reads as raised and the
+   web's is recessed.
+10. ~~**Section labels.** The web uses small caps section headers — `SYRINGE SIZE` — above grouped
+    controls. iOS uses sentence-case field labels throughout, so nothing groups.~~
+    **BUILT `29a8ede`, photographed** — `CalcSectionHeader`, and the row labels went small-caps with
+    it. `VIAL STRENGTH`, `WEEKLY DOSE`, `EVERY N DAYS` in the frame. `.textCase(.uppercase)` rather
+    than pre-uppercased strings, so VoiceOver says the words instead of spelling them.
+11. ~~**The result affordance.** Web: a full-bleed **bright cyan** sticky bar, `👁 Show result`,
     unmistakably the primary action. iOS: a pale teal `See your result` button sharing a row with a
-    navy `Add`, so the two compete.
+    navy `Add`, so the two compete.~~
+    **BUILT `29a8ede`, photographed.** `#00FFEE`, sampled at (300,2505). Navy label, because #00FFEE
+    is 1.35:1 on white and cannot carry text; navy on it is 12.7:1. **The layout change is the point
+    and it is bigger than the colour:** `Add` is no longer beside it. It stacks underneath, so the
+    two stop competing — `Add` does not move into the sheet, because D5 requires the committing
+    action wholly visible and the spec refuses a second commit path.
 12. **Header.** Web: a breadcrumb — `InjectBuddy / Testosterone (TRT) Dose`. iOS: a back button plus
     a centred emoji-and-title. Different shape, and iOS's gives no sense of where you are in the
     product.
@@ -355,9 +445,34 @@ distinct from empty ones — photographed, at a date past the window.
 in its `Sources/` was **2026-08-02 07:01** against mac's `3fe7302` — a two-day-old copy.
 
 **What it cost, before it was found:** the stale copy still listed `.bmi` and `.freeTestIndex` in
-Tools after mac had removed and photographed them, and it showed **T-03 as open after it had been
-closed with evidence** — on the strength of which win sent mac to spawn a subagent on finished work.
-That is the concrete damage from an untracked copy, recorded so the fix is not undone later.
+Tools after mac had removed and photographed them. That is the concrete damage from an untracked
+copy, recorded so the fix is not undone later.
+
+**CORRECTED BY MAC, 2026-08-04 — the T-03 half of this entry was wrong and is withdrawn.** It read:
+*"it showed T-03 as open after it had been closed with evidence — on the strength of which win sent
+mac to spawn a subagent on finished work."* T-03 was **genuinely open** when that instruction was
+given, and the subagent was correctly dispatched. Proof, from this repo rather than from either
+side's recollection:
+
+```
+$ git show 0727e83:TASKS.md | grep -A 2 '^## T-03'
+## T-03 — iOS never records the injection site
+**Priority 6/10** · **Owner:** mac · **Status:** open
+
+$ git log -S'~~T-03' --format='%h %ad %s' --date=format:'%Y-%m-%d %H:%M' -- TASKS.md
+29a8ede 2026-08-03 22:51 T-01a: nine of the twelve TRT calculator differences, built
+```
+
+`0727e83` is the tip this session started from; the strike-through first appears in `29a8ede`, which
+is **mac's own commit from today** and carries the subagent's work. What happened is the reverse of
+what was recorded: win cloned at `29a8ede`, which already contained the closure, and read a
+same-session strike-through as a pre-existing one. The subagent produced `InjectionSite.swift`, the
+picker, 14 unit tests, a device round-trip proving `R Delt` on row `92c3af8f`, and T-06/T-07/T-08.
+None of it was wasted.
+
+**Left standing deliberately:** everything else in this entry, and the rule it produced. The stale
+tree was real and the clone was the right fix. This correction narrows what it cost; it does not
+excuse it — and per rule 7 the wrong version stays visible above rather than being deleted.
 
 **Resolved:** cloned to `C:\Users\PFrew\Projects\injectbuddy-ios-repo`, branch
 `feature/tabview-shell` at `29a8ede`. Windows can now cite a SHA, so rule 7 is satisfiable from both
@@ -427,6 +542,129 @@ BMI · Cycle Plotter. Take the target from the source.
 places and nowhere.
 
 **Done when:** each of the four is marked build or won't-build, with the reason, here.
+
+## T-14 — T-01a's three below-the-fold differences are built but unphotographed
+**Priority 5/10** · **Owner:** mac · **Status:** open
+
+**What:** the T-01a capture is an at-rest frame, so it proves #1, #7, #8, #9, #10 and #11 and says
+nothing about #2 (compound search), #3 (levels link) and #4 (formula card), all of which render
+below the fold. They are built and the build is green.
+
+**Why it is its own task and not a footnote:** "built, green, and photographed six of nine" is a
+partial, and a partial that is not written down reads as done to the next person. This project has
+already filed a frame that was a photograph of the previous screen.
+
+**Done when:** a scrolled frame shows the combobox, the tinted plotter link and the formula card,
+and the combobox is shown OPEN with its search field — a closed combobox is indistinguishable from
+the menu picker it replaced.
+
+## T-15 — No saved config has been read back since `mode` became a real field
+**Priority 6/10** · **Owner:** mac · **Status:** open
+
+**What:** T-01a #1 moved `mode`, `nDays` and `mlDrawn` out of `configExtras` and into real fields,
+and moved the default from `perweek` to the web's `ndays`. `configJSON()` and
+`values(fromConfig:)` were both updated. **None of that has been observed against the database.**
+
+**Why it matters more than it looks:** the unique index covers the WHOLE config, so the key set and
+the types are what decide whether an iOS save is the same protocol as the equivalent web row or a
+different one. A `mode` that serialised as a number, or a `nDays` that went missing because it is
+now mode-gated in the form, would not fail a build and would not fail the unit suite — it would
+quietly write a protocol the web reads as new. Exactly the shape of the config defects already
+closed on this file (hcg, tirzepatide, retatrutide).
+
+**Done when:** a TRT protocol is saved from the device in each of the three modes and the rows are
+SELECTed back, showing eight keys with `mode` as the chosen string. Paste the rows.
+
+## T-16 — The numeric menu pickers still draw outside their own chrome
+**Priority 5/10** · **Owner:** mac · **Status:** open
+
+**What:** the measured overlap defect — a picker's selected value drawing over the label above it at
+large text, `Oxandrolone (Anavar)` overlapping `Compound` by 148.6 x 49.3pt on `IB2245752` — was
+recorded against "12 picker fields across 8 calculators". T-01a #2 removed it from the
+`stringPicker` sites by replacing them with `CompoundCombobox`. **The `.picker` (numeric) sites are
+untouched and still have it** — TRT's own `Frequency` is one.
+
+**Why it is now easier, not harder:** the note said the fix was "replacing the style with a `Menu`
+whose label we lay out ourselves… a change to a control on 12 call sites". `CompoundCombobox` is
+that control, built and shipping. What remains is pointing the numeric sites at an equivalent that
+carries a `Double` instead of a `String`.
+
+**Done when:** a frame at AX5 of a numeric picker showing the value inside its own chrome, and
+`LeafOverlapUITests` green on the call sites it names.
+
+## T-17 — The levels link opens the plotter empty
+**Priority 4/10** · **Owner:** mac · **Status:** open
+
+**What:** T-01a #3's difference says the web link takes you "into the plotter with this protocol
+loaded". The web href is `/cycle-plotter/?from=<calcId>`. iOS pushes `.calculator(.cyclePlotter)`
+and nothing else, so the user arrives at an empty plotter and re-enters the compound, dose and
+interval they just typed.
+
+**Why it was shipped anyway rather than held:** the link with no context is still the only route
+from a calculator to the plotter, and — see T-11 — currently the only route to the plotter at all.
+Empty beats absent. It is recorded so "with this protocol loaded" is not quietly treated as done.
+
+**Done when:** `AppRoute` can carry the calculator's values to the plotter, and a frame shows the
+plotter opening on the compound and dose the calculator held.
+
+## T-18 — Nothing tests that the tick drum can be dragged
+**Priority 4/10** · **Owner:** mac · **Status:** open
+
+**What:** `TickDrum` replaced the `−`/`+` steppers as the primary numeric input on every calculator.
+`testRuler_tracksItsOwnField` proves the ruler reports its own field's value and that two drums are
+not crossed. **It does not touch the drag.** `TickDrum` publishes one `.adjustable` element and
+XCUITest has no direct way to invoke an accessibility adjustable action.
+
+**Why it matters:** the control the user actually operates is the one with no coverage. The retired
+steppers had a real behavioural test (`step_up_mgWeek` moves `mgWeek` by 10 and does not move
+`strength`); trading that for a value-tracking assertion is a net loss in coverage on a dosing
+input, and saying so is cheaper than discovering it.
+
+**Done when:** either a swipe on `drum_mgWeek` is shown to change the field by a known number of
+gradations, or — better — the drag maths is extracted into a testable pure function and unit-tested,
+with the UI test keeping only the wiring assertion. Whichever, it must be shown RED first: a drag
+test that passes against a drum that ignores drags is the failure mode this project keeps finding.
+
+## T-19 — Eight calculators the web has and iOS does not
+**Priority 5/10** · **Owner:** pouroa · **Status:** open
+
+**What:** the reference set and the live site carry eight calculators with no iOS counterpart —
+**ftv** (42), **reverse** (43), **blend** (44), **glp1titration** (45), **femalehrt** (46),
+**nootropic** (47), **bioavailability** (49), **e2estimator** (50). `public/legacy/` confirms them
+as real pages: 21 calculator directories against the 15 slugs `CalculatorSlug` defines.
+
+**Why it is filed separately from T-01b rather than inside it:** T-01b is "compare each screen and
+list its differences". These have no iOS screen to compare — they are absent features, the same
+category as progress, cycle planner, blood tests, chat, suggestions and the peptide tracker. Putting
+them in a difference list would make eight missing products look like eight layout notes.
+
+**The standing decision points one way and the effort points the other**, which is why this is the
+owner's: *iOS matches the web in every way it can, nothing dropped for being hard.* Eight new
+calculators is not a parity pass, it is a roadmap.
+
+**Done when:** the owner rules on each — built, or recorded here with the reason it will not be.
+
+## T-20 — The last field row sits half under the pinned bar at rest
+**Priority 4/10** · **Owner:** mac · **Status:** open
+
+**What:** in `docs/ui-audit/2026-08-04-t01a/20-calculator-trt-default.png`, the `EVERY N DAYS` row
+is cut across the middle by the top edge of the pinned result bar: the label and the value well are
+readable, the row's own ruler is not. At rest, unscrolled, at default type size.
+
+**What it is NOT:** a missing space reservation. The bar is a `safeAreaInset`, it does reserve its
+height in the scroll, and the form scrolls clear of it — this is the at-rest position of a form
+whose earlier fields already fill the viewport, which is the same behaviour recorded against
+`control_syringeMl` before this change and is documented at length in `CalculatorScreen`.
+
+**What IS new, and why it is filed rather than waved through:** T-01a made every numeric row TALLER
+— label, value and a ruler where there was previously a label above a field. So more of the form is
+below the fold than before, and the row that lands on the boundary now has a control in its lower
+half rather than whitespace. A half-visible ruler reads as a full ruler whose range stops at the
+plate.
+
+**Done when:** measured, not adjusted by eye — the straddle re-checked at default and AX5 against
+`PinnedBarReachabilityUITests`, and either shown to leave every control reachable, or the form's
+bottom inset increased by the drum's own measured height.
 
 ## T-50 — Two files named TASKS.md, one of them a decoy
 **Priority 6/10** · **Owner:** pouroa · **Status:** open
