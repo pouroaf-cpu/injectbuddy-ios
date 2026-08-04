@@ -63,6 +63,24 @@ job carried in a message does not survive a context clear.
 **Priority** is out of 10 — 10 is a user is being harmed today, 1 is tidy-up.
 **Status:** `open` · `doing` · `blocked` · `done` · `filed` (real, deliberately not being worked)
 **Owner:** `mac` · `win` · `pouroa`
+**Agent:** the named subagent currently doing the work, or `—` when nobody is on it.
+
+**WHY `Agent` IS SEPARATE FROM `Owner`, AND IT IS NOT BOOKKEEPING.** `Owner` is the SIDE
+accountable for the task — it never changes while the task is open. `Agent` is the process
+actually holding the files RIGHT NOW, and it is the field that answers the question this project
+keeps getting wrong: *who is editing this, and can I safely edit it too?* Two agents on one file
+produced three "both sides needed, neither subsumes the other" merges in a single day (rule 13),
+and a session was spent waiting on a rig lease held by a holder that had provably died. A task
+carrying a live agent name is a task whose files are claimed.
+
+Three rules, so the field cannot rot into decoration:
+- **Set it when the agent is recruited, not when it reports.** An agent that dies mid-task must
+  still be visible, or its half-finished edits look like nobody's.
+- **Clear it to `—` the moment the work lands or the agent dies.** A stale name is worse than an
+  empty one: it makes a free file look claimed and a dead agent look alive, which is exactly the
+  failure the rig lease had.
+- **A task with `Status: doing` and `Agent: —` is a claim that a HUMAN side is on it.** If neither
+  is true, the status is wrong.
 
 ---
 

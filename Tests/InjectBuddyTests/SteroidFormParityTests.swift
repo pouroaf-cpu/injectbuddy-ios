@@ -175,7 +175,7 @@ final class SteroidFormParityTests: XCTestCase {
             return XCTFail("no `compound` picker on the steroid spec")
         }
         XCTAssertEqual(options.map(\.label), SteroidCatalog.picks.map(\.label))
-        XCTAssertEqual(options.map(\.value), (0..<SteroidCatalog.picks.count).map { Double(-e) })
+        XCTAssertEqual(options.map(\.value), (0..<SteroidCatalog.picks.count).map { Double($0) })
         XCTAssertEqual(def, 0, "the shipped default entry")
     }
 
