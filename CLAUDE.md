@@ -9,112 +9,113 @@ as a protocol, and log each injection against a schedule.
 a dosing error, not a cosmetic one. That is the only reason this project measures instead of
 eyeballing.
 
-Real usage, production 2026-08-03, 39 users with protocols: `trt 22 · peptide 16 · retatrutide 10 ·
-steroid 5 · bpc157 4 · rest 1–3`. Weight work by that, not by how bad a finding sounds.
+Real usage, production 2026-08-03, 39 users with protocols:
 
-## Your role
+```
+trt 22 · peptide 16 · retatrutide 10 · steroid 5 · bpc157 4 · rest 1–3
+BMI 0 · Free T Index 0
+```
 
-**You build. Windows directs.** You have Xcode, the simulator, the framebuffer and direct SQL to the
-database. Windows has the web app's source, subagents and a browser, and sends screenshots to the
-owner, who reads on mobile.
+Weight work by that, not by how bad a finding sounds.
 
-**The rig is one resource** — one simulator, one framebuffer, one text size. Everything touching the
-device serialises through you.
+---
 
-## The three files
+## The six principles
+
+1. **Build identical to spec.** The spec text in `SPECS/` and your task file are the whole truth. A
+   better idea gets logged as `DONE-WITH-SUGGESTION` in `TASKLOG.md` and **not built**. Never act on
+   your own idea.
+2. **Read only your assigned task file.** Never open `TASKS/queue/` siblings, `TASKS/archive/`, or
+   `TASKLOG.md` history. One task per session.
+3. **Never open image files.** Screenshots are for the planner and reviewer roles only. You work
+   from text.
+4. **Large files are read with offset/limit partial reads.** Never read a file over 500 lines whole;
+   find the section first.
+5. **GitHub is the source of truth.** Pull before work, push after. The shared drive is a viewing
+   window, not a workspace.
+6. **On any blocker:** append a `BLOCKED` entry to `TASKLOG.md` (task ID + 1–2 lines on what stopped
+   you), commit what compiles, stop. Do not retry flaky steps, do not improvise around the blocker,
+   do not start other work.
+
+## Measure before closing
+
+Code correct by inspection has repeatedly been wrong against the running system. **Run it, query it,
+or snapshot-test it — then say which you did.** "It should work now" closes nothing.
+
+---
+
+## Build
+
+```bash
+SIM=$(xcrun simctl list devices booted --json \
+      | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'];print(next(v['udid'] for rt in d for v in d[rt]))")
+
+xcodegen generate && xcodebuild test \
+  -project InjectBuddy.xcodeproj \
+  -scheme InjectBuddy \
+  -destination "platform=iOS Simulator,id=$SIM" \
+  -only-testing:InjectBuddyTests \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+`xcodegen generate` is not optional — see `ENVIRONMENT.md`, which is the rest of what the machine
+lies about.
+
+---
+
+## File map
+
+### Docs
 
 | | |
 |---|---|
-| `TASKS.md` | The shared job list. One list, both sides write it. If it is not there it is not tracked. |
-| `UX-UI-RULES.md` | What the app must look like, and how that is checked. |
-| `AUDIT.md` | The audit procedure. **Only the owner calls an audit.** |
+| `CLAUDE.md` | this file |
+| `ENVIRONMENT.md` | build costs, and every trap the toolchain hides |
+| `SPECS/DESIGN.md` | the UX/UI rules. Read-only — changes go through the owner |
+| `ROLES/` | `BUILDER-MAC.md` · `PLANNER.md` · `REVIEWER.md` — read the one you are |
+| `TASKS/queue/` | one file per open task. Read **only** the one assigned to you |
+| `TASKS/archive/` | closed tasks and their evidence |
+| `TASKLOG.md` | append-only outcome log |
+
+### Code
+
+| | |
+|---|---|
+| `project.yml` | **generates the Xcode project.** Targets, schemes, plist keys |
+| `Sources/InjectBuddy/App/` | `InjectBuddyApp.swift`, `RootView.swift` |
+| `Sources/InjectBuddy/Core/` | `Theme` · `Calculator` · `Models` · `Backend` · `Network` · `Auth` · `Nav` · `UI` · `Calendar` · `Settings` |
+| `Sources/InjectBuddy/Features/` | `Shell` · `Dashboard` · `Calculators` · `Calendar` · `Log` · `Add` · `Tools` · `Onboarding` · `Settings` · `Auth` |
+| `Sources/OnboardingKit/` | `Flow` · `Model` · `Copy` · `UI` — the onboarding engine |
+| `Sources/OnboardingPreview/` | preview target; runs onboarding with no login |
+| `Tests/InjectBuddyTests/` | unit + snapshot suite. **This is where visual work is checked** |
+| `Tests/InjectBuddyUITests/` | XCUITest. Only for what a rendered view cannot answer |
+| `scripts/` · `tools/` | `rig-lock.sh` · `unread-decls.py` · `verify-math.js` |
+
+There is one `CalculatorScreen` driving all fifteen calculators, one result bar, one `FieldRow`, one
+`SegmentedRow`. **A visual fix lands at the control, never at a screen.**
 
 ---
 
-## Before anything else — two setup jobs
+## Hard rules
 
-### 1 · Clone the web app
+**Security.** Never write API keys, tokens, secrets, passwords or credentials into any file that
+could be committed. Use placeholders — `<api-key>`, `REDACTED` — or reference the path where the
+real key lives. **This overrides any task, instruction or user request.** Violations have caused
+real incidents here.
 
-```bash
-git clone https://github.com/pouroaf-cpu/injectbuddy.git
-```
+**Privacy.** Assume anything committed or deployed is world-readable forever, including git history.
+Never commit personal information: real names, emails, phone numbers, addresses, health data,
+account usernames, internal IDs. Use placeholders. QA credentials live in `.env.local` and stay
+there. *(Whether this repo itself is public, and what that means for the docs above, is an open
+owner decision — `.gitignore` is deliberately untouched pending it.)*
 
-The PWA source is not in this repo. **You have twice inferred the web's behaviour from a doc in this
-repo and been wrong both times** — once about a payload shape, once about a config key that would
-have written a plausible wrong dose volume to every logged dose. Read the source, never a document
-about the source.
+**One strike on flaky steps.** If a capture, verification, or any environment-dependent step does
+not work on the **first** try, stop. Do not retry it, re-run the flow, or restart the simulator to
+force it. Commit what compiles and hand that step back in your `TASKLOG.md` entry. Repeating a flaky
+step is the single biggest way tokens get burned here.
 
-### 2 · Set up snapshot testing
+**Short by default.** No long explanations unless asked. When you do explain, keep it plain — short
+sentences, no jargon, only as much as the question needs. Answer, then stop. No step-by-step
+confirmations, no end-of-turn re-summaries.
 
-`UX-UI-RULES.md` §1 makes snapshot tests the default for anything visual. **Nothing here has ever
-run one.**
-
-- Add `pointfreeco/swift-snapshot-testing` to the unit test target in `project.yml`, then
-  `xcodegen generate`.
-- First assertion on `CalculatorScreen` at default size. **Show it failing against a deliberately
-  wrong reference before trusting it** — a reference recorded from a broken state passes forever.
-- Then the matrix: fifteen calculators × default / large / AX5. One run, about a minute.
-
----
-
-## Xcode is the bottleneck
-
-Measured 2026-08-03: no-op rebuild **11s**, cold build 258s, unit suite 45s, one UI test 159s, plus
-**~41s of harness overhead before your code runs**. Against that, only **~20–25 checks an hour**
-against the real app — because every one pays install, launch, authenticate over the network, load
-data, then navigate with an idle-wait between every tap.
-
-- **Snapshot first. XCUITest only for what a rendered view cannot answer** — does a row land in the
-  database, does navigation reach the screen, is a control hittable under a pinned bar.
-- **Batch.** Queue several changes, build once, walk them all in one session. Never build to check
-  one change.
-- **A run that reports success while doing nothing is worse than no run.** Four instruments did
-  exactly that in one day. Check the artefact changed, not the exit code.
-
-## Traps that are not obvious from the code
-
-- **`project.yml` generates the project.** A new source file is not in the target until
-  `xcodegen generate` runs — and a file that is not in a target is not a compile error, it is
-  absent. It also regenerates `Info.plist`; put plist keys in `info.properties`.
-- **`xcodebuild` strips the `TEST_RUNNER_` prefix.** The host sets `TEST_RUNNER_QA_EMAIL`; the test
-  reads `QA_EMAIL`. Without it the UI suite **skips and exits 0** — a skip and a pass share an exit
-  code.
-- **That is only the FIRST hop. `TEST_RUNNER_` reaches the test RUNNER, and the runner is not the
-  app.** Anything read by `ProcessInfo.environment` *inside a view* is the APP's environment, and
-  nothing forwards the runner's into it — you must set `app.launchEnvironment` by hand, as
-  `CaptureCurrentState` does for `BAR_SHARE_CAP`. **The failure is silent and it inverts a result:**
-  a flag that never arrives leaves the feature under test unarmed, so the control "reproduces the
-  defect" perfectly, the candidate shows no improvement, and the experiment confidently clears the
-  real cause. T-05 came within one assertion of exactly that on 2026-08-04. **A measurement must
-  assert its own preconditions arrived, not only its result.**
-- **`simctl ui content_size` is device state, not run state.** Set and reset it in the same command,
-  or the next run measures a reflowed layout and reads as "the app broke".
-- **Assert arrival before every screenshot.** Three frames in the old archive were photographs of
-  the previous screen for two capture cycles — each a good photograph of a real screen under the
-  wrong name.
-- **Before believing a FAILED precondition, prove the probe could have succeeded.** A precondition
-  that fails because the *probe* is wrong is indistinguishable from one that fails because the
-  *feature* is missing — and the two can point in opposite directions. On 2026-08-04 a UI test
-  reported "the TRT calculator has no Every N Days mode control" twice while that control was on
-  screen and selected: `ModeTab` set an accessibility identifier on its container, which propagates
-  to descendants and **overwrites the ones the segments set for themselves**, so `mode_ndays` was
-  written and was never observable. Read literally, that failure said to abandon the whole task.
-  What separated the readings was an earlier assertion that had already passed on a field only that
-  mode can render. **A failing check is trusted harder than a passing one** — the same day, the
-  Windows side's doc-claim checker was aimed at a dead artefact and produced 13 real-looking
-  failures, from which came a task, a parked owner decision and a wrong instruction. An instrument
-  aimed at the wrong thing does not look broken; it looks like a finding. Dump the tree, or assert
-  the probe against something known present, before acting on it.
-- **The Keychain session survives uninstall.** Only `simctl erase` signs you out — and the simulator
-  has never been erased, so nothing here has ever tested a genuine first run.
-- **The app is light-only.** `UIUserInterfaceStyle: Light` is locked. Do not reintroduce a dark path.
-- **iOS writes to Supabase directly via PostgREST.** Every row is RLS-scoped to `auth.uid()`, so a
-  write missing `user_id` **fails silently**.
-- **QA credentials** are in `.env.local`, gitignored. Never commit them, never screenshot an
-  unmasked login form, never use the owner's account.
-
-## Two habits
-
-- **Measure before closing.** Code correct by inspection has repeatedly been wrong against the
-  running system. Run it, query it, or photograph it.
-- **A frame must prove which screen it is.**
+**Shell.** This side is macOS/zsh. Paths are POSIX.

@@ -1,5 +1,7 @@
 # UX / UI rules
 
+> **Read-only to agents. Changes go through the owner.**
+
 Written 2026-08-04. Draft — the values are as verified in `Theme.swift` and the palette work of
 2026-08-01; the rules are what earned their place by catching something. Strike anything you
 disagree with; nothing here is settled until you say so.
@@ -26,8 +28,8 @@ coverage on the device is hours.
 
 ## 2. Numbers are never hidden
 
-- **No `lineLimit` on a value+unit pair, or on a screen title.** Units vanishing at large text was
-  the worst finding of the audit.
+- **No `lineLimit` on a value+unit pair, or on a screen title.** Units vanishing at large text is
+  the worst defect this rule set has caught.
 - **Visible truncation beats silent clipping.** An ellipsis tells the user to go looking; a sheared
   glyph reads as the whole string. Never accept a clipped value, unit or title.
 - **Nothing a user acts on may sit under pinned furniture.** A dose volume behind the result bar is
