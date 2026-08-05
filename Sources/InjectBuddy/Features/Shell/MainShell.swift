@@ -1,12 +1,61 @@
 import SwiftUI
 
 // ─── MainShell ───────────────────────────────────────────────────────────────
-// The authed container. iPhone: a custom off-canvas drawer over a NavigationStack
-// (the native twin of the web .ib-calc-rail). iPad: a persistent NavigationSplitView
-// sidebar. Both read NavItems as the single source of destinations.
+// The authed container.
+//
+// iPhone: a five-slot bottom bar — Dashboard · Calendar · LOG DOSE (raised hero) ·
+// Tools · Add — matching the web's ib-bottomnav.js. Built on a real TabView rather
+// than a hand-rolled bar (operator's call): each tab keeps its own NavigationStack,
+// and safe-area insets, VoiceOver, Dynamic Type and the swipe-back gesture all come
+// from the system instead of being re-implemented.
+//
+// The off-canvas drawer SURVIVES behind the hamburger, exactly as on web where the
+// burger still opens the rail alongside the bottom bar. It is how you reach all 14
+// calculators and Settings without those having to become tabs.
+//
+// iPad: unchanged — a persistent NavigationSplitView sidebar. A bottom tab bar on a
+// 13" canvas would be wrong, and the sidebar already shows every destination at once.
 
 struct MainShell: View {
     @StateObject private var navigator = ShellNavigator()
+    @StateObject private var keyboard = KeyboardObserver()
+
+    /// AUDIT FINDING F14: the stock unselected tab item measured **2.77:1** over
+    /// the bar (#929299 on #F2F2F7) and **2.63:1** over card content — under the
+    /// 3:1 that WCAG 1.4.11 requires for a glyph, and well under the 4.5:1 its
+    /// ~10pt label needs. It read as disabled rather than merely inactive.
+    ///
+    /// UITabBarAppearance is the only way to reach these — SwiftUI exposes no
+    /// modifier for the unselected item colour.
+    ///   unselected #5C5C66 → 5.92:1
+    ///   selected   #075E56 → 6.86:1  (never #0FBCAD, which is 2.13:1 here)
+    /// Selection is also carried by weight, not colour alone: semibold → bold.
+    init() {
+        let unselected = UIColor(red: 0x5C / 255, green: 0x5C / 255, blue: 0x66 / 255, alpha: 1)
+        let selected = UIColor(red: 0x07 / 255, green: 0x5E / 255, blue: 0x56 / 255, alpha: 1)
+
+        let appearance = UITabBarAppearance()
+        appearance.configureWithDefaultBackground()
+
+        for item in [appearance.stackedLayoutAppearance,
+                     appearance.inlineLayoutAppearance,
+                     appearance.compactInlineLayoutAppearance] {
+            item.normal.iconColor = unselected
+            item.normal.titleTextAttributes = [
+                .foregroundColor: unselected,
+                .font: UIFont.systemFont(ofSize: 10, weight: .semibold),
+            ]
+            item.selected.iconColor = selected
+            item.selected.titleTextAttributes = [
+                .foregroundColor: selected,
+                .font: UIFont.systemFont(ofSize: 10, weight: .bold),
+            ]
+        }
+
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+    @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
@@ -18,20 +67,222 @@ struct MainShell: View {
             }
         }
         .environmentObject(navigator)
+        .sheet(isPresented: $navigator.isLogSheetPresented) {
+            LogDoseSheet()
+                .environmentObject(navigator)
+        }
     }
 
-    // MARK: iPhone — off-canvas drawer
+    // MARK: iPhone — bottom tabs + drawer
 
     private var iPhoneLayout: some View {
+        ZStack(alignment: .leading) {
+            TabView(selection: tabSelection) {
+                ForEach(MainTab.allCases, id: \.self) { tab in
+                    tabStack(for: tab)
+                        .tabItem { tabLabel(for: tab) }
+                        .tag(tab)
+                }
+            }
+            // The hero is drawn OVER the bar rather than being a tab item, because a
+            // tab item cannot break the bar's top plane. The real tap target stays the
+            // tab item underneath — see tabSelection — so the raised circle is pure
+            // decoration and VoiceOver reads one genuine control, not a duplicate.
+            // Hidden while the keypad is up. The overlay reanchors to the new
+            // bottom edge — which is the focused screen's own pinned CTA — and
+            // rendered the primary action as an unlabelled teal rectangle
+            // (audit finding F2). It has no job while the tab bar is covered.
+            .overlay(alignment: .bottom) {
+                if !keyboard.isVisible { heroButton }
+            }
+
+            drawerLayer
+
+            offlineBannerLayer
+        }
+    }
+
+    // MARK: Offline banner (all layouts)
+
+    /// Global connectivity pill. Lives in its own GeometryReader (same pattern as
+    /// drawerLayer's width calc below) so the bottom padding clears the REAL tab
+    /// bar height — system row + whatever home-indicator safe area this device has
+    /// — instead of a device-specific guess. Sits above the bar, never on top of
+    /// it, and `allowsHitTesting(false)` because it is status-only: it must never
+    /// steal a tap meant for the tab bar underneath.
+    private var offlineBannerLayer: some View {
+        GeometryReader { geo in
+            VStack {
+                Spacer()
+                if !network.isOnline {
+                    OfflineBanner()
+                        .padding(.horizontal, Theme.Spacing.md)
+                        .padding(.bottom, geo.safeAreaInsets.bottom + Self.tabBarRowHeight)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .animation(Theme.drawerAnimation, value: network.isOnline)
+        .allowsHitTesting(false)
+    }
+
+    /// Standard iOS compact tab bar row height. The home-indicator safe area on
+    /// top of this comes from GeometryReader above, not hardcoded.
+    private static let tabBarRowHeight: CGFloat = 49
+
+    /// How far the raised hero rises ABOVE the tab bar's top edge.
+    ///
+    /// The system gives every scroll view an inset for the tab bar, but knows
+    /// nothing about a circle we drew on top of it, so content scrolled to its
+    /// bottom ran underneath the hero — on the calculator it landed on the "Add"
+    /// CTA (F2), and on the dashboard it clipped the fourth protocol card. A button
+    /// drawn over another button is the worst version of that, because both look
+    /// tappable and only one is.
+    ///
+    /// z-order does not fix this. Stacking the hero above content only decides who
+    /// wins the collision; reserving space is what stops there being one. So this is
+    /// added as a bottom safe-area inset on every tab's content, which every
+    /// ScrollView, List and safeAreaInset inside then composes with automatically.
+    ///
+    /// Measured rather than derived: the tab bar's top hairline sits at pt 771.3
+    /// and the hero assembly (circle + 4pt ring + shadow) starts at pt ~753, so it
+    /// overhangs by ~18pt. 22 leaves a little margin.
+    ///
+    /// SCOPE, established by experiment — this reaches SCROLLED content only.
+    /// The calculator's Add button is pinned by the screen's own
+    /// `.safeAreaInset(edge: .bottom) { resultBar }`, and raising this constant from
+    /// 22 to 38 moved it by exactly zero: the button's bottom edge stayed at
+    /// pt 774.7 and the hero's ring stayed at pt 762.0, an unchanged 12.7pt overlap.
+    /// An outer safeAreaInset does not lift a sibling inset pinned further in.
+    ///
+    /// So a bigger number here cannot fix that overlap — it would only cost every
+    /// scrolled screen vertical room for nothing. If the pinned CTA needs to clear
+    /// the hero, `resultBar` has to account for it where it is placed.
+    static let heroOverhang: CGFloat = 22
+
+    /// The centre slot gets its TITLE ONLY — no icon.
+    ///
+    /// Giving every tab `Label(title, systemImage:)` meant the log slot rendered its
+    /// own syringe glyph, and `heroButton` was then drawn over it. The circle did not
+    /// fully cover the glyph: a sliver of the plunger protruded below the circle's
+    /// bottom edge, directly above the "Log dose" label, so the slot read as two
+    /// buttons — one of them a fragment. That is exactly what it looked like.
+    ///
+    /// Dropping the icon removes the second glyph rather than hiding it. Enlarging
+    /// the circle to cover it would have been tuning a collision instead of deleting
+    /// one, and would re-break at any Dynamic Type size that moves either piece.
+    ///
+    /// Everything else is unchanged and deliberate: the tab item is still the real
+    /// tap target (`tabSelection` bounces `.log` into the sheet), the text label
+    /// stays so the slot matches its four neighbours, and VoiceOver still sees one
+    /// control — the circle remains `accessibilityHidden`.
+    @ViewBuilder
+    private func tabLabel(for tab: MainTab) -> some View {
+        if tab == .log {
+            Text(tab.title)
+        } else {
+            Label(tab.title, systemImage: tab.icon)
+        }
+    }
+
+    /// Each tab owns a NavigationStack, so pushing a calculator from Add does not
+    /// disturb Dashboard's stack and switching tabs preserves where you were.
+    @ViewBuilder
+    private func tabStack(for tab: MainTab) -> some View {
+        if let route = tab.route {
+            NavigationStack(path: navigator.pathBinding(for: tab)) {
+                RouteContent(route: route)
+                    .navigationDestination(for: AppRoute.self) { pushed in
+                        RouteContent(route: pushed, showsHamburger: false)
+                    }
+            }
+            // Reserves the hero's overhang for EVERY screen in this tab, pushed
+            // screens included, instead of each one remembering to pad for it.
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: Self.heroOverhang)
+            }
+        } else {
+            // `log` has no screen. It is never actually selected — the binding below
+            // bounces it — so this exists only to give the slot a tab item.
+            Color.clear
+        }
+    }
+
+    /// Selecting the middle slot opens the log sheet and leaves the current tab where
+    /// it was: the slot is an action, not a destination.
+    private var tabSelection: Binding<MainTab> {
+        Binding(
+            get: { navigator.tab },
+            set: { picked in
+                if picked == .log {
+                    navigator.presentLogSheet()
+                } else {
+                    navigator.selectTab(picked)
+                }
+            }
+        )
+    }
+
+    private var heroButton: some View {
+        Circle()
+            // NAVY fill, white glyph — 15.79:1, up from the 6.43:1 measured on the
+            // previous navy-on-teal. The PWA moved its FAB to navy, so navy is the
+            // brand rule here rather than a departure from it. Teal keeps the
+            // wordmark, greeting, "Next dose", "+ Add", the selected tab, the
+            // protocol spines, the tints and the welcome curves — it stops owning
+            // this one control, it does not disappear.
+            .fill(Theme.navy)
+            .frame(width: 54, height: 54)
+            .overlay(
+                Image(systemName: MainTab.log.icon)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.white)
+                    // THIS DOES NOT WORK, AND THAT IS THE FINDING. Kept because it is
+                    // correct by intent, and annotated because a modifier that reads as
+                    // a guarantee and delivers nothing is worse than no modifier.
+                    //
+                    // MEASURED, TWICE. `Image 'syringe'` sits in the accessibility tree
+                    // as a leaf at (172, 762, 58, 58) — the circle's own frame, centred
+                    // at x = 201 on a 402pt window, ancestors all generic full-window
+                    // containers rather than the TabBar — on every calculator screen.
+                    // It is there with `.accessibilityHidden(true)` on the composed hero
+                    // at the end of this chain, and it is STILL there with the modifier
+                    // applied directly to this Image. Byte-identical frame both times.
+                    //
+                    // So BOARD §5.6 recording the hero as "already carries
+                    // accessibilityHidden(true)" was WRONG rather than incomplete: the
+                    // flag is applied and the element is announced anyway. A decorative
+                    // glyph is a VoiceOver stop on every screen in the app.
+                    //
+                    // CONSEQUENCE BEYOND THIS CONTROL: `accessibilityHidden` cannot be
+                    // relied on here as the mechanism for keeping a decorative duplicate
+                    // out of the tree. Anything specced on that assumption — the
+                    // barrel-fit strip in RESULT-PANEL-SPEC §5 is specced on exactly it —
+                    // needs the absence PROVEN on the element itself, red first with the
+                    // modifier removed, before it ships.
+                    //
+                    // Found by the leaf-overlap check while it was looking for something
+                    // else entirely.
+                    .accessibilityHidden(true)
+            )
+            .overlay(Circle().stroke(Theme.background, lineWidth: 4))
+            .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+            // Lifts the circle so its top half clears the bar, mirroring the web's
+            // --ib-bn-lift. allowsHitTesting(false) lets the tap fall through to the
+            // real tab item, so there is one control here rather than two.
+            .offset(y: -22)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    // MARK: Drawer (iPhone only)
+
+    private var drawerLayer: some View {
         GeometryReader { geo in
             let drawerWidth = min(320, geo.size.width * 0.84)
 
             ZStack(alignment: .leading) {
-                contentStack
-                    // Nudge content right a touch while the drawer is open (web feel).
-                    .disabled(navigator.isDrawerOpen)
-
-                // Scrim
                 if navigator.isDrawerOpen {
                     Color.black.opacity(0.35)
                         .ignoresSafeArea()
@@ -44,11 +295,21 @@ struct MainShell: View {
                     .frame(width: drawerWidth)
                     .frame(maxHeight: .infinity)
                     .background(Theme.background)
-                    .offset(x: navigator.isDrawerOpen ? 0 : -drawerWidth)
+                    // +24 so the shadow clears the screen edge when closed.
+                    .offset(x: navigator.isDrawerOpen ? 0 : -(drawerWidth + 24))
                     .shadow(color: .black.opacity(navigator.isDrawerOpen ? 0.25 : 0), radius: 16, x: 4)
             }
             .gesture(edgeAndDragGesture(drawerWidth: drawerWidth))
         }
+        // Closed, this layer covers the whole screen and would otherwise swallow every
+        // tap meant for the tab bar underneath it.
+        .allowsHitTesting(navigator.isDrawerOpen)
+        // ...and it must leave the ACCESSIBILITY TREE too, which is a separate thing.
+        // Caught by the new UI tests: with the drawer shut, "TRT Dose" still resolved
+        // at x = -290, i.e. off-canvas. allowsHitTesting stops touches; it does not
+        // stop VoiceOver reaching an element, so a VoiceOver user could swipe into
+        // fourteen off-screen calculator rows that are not visibly there.
+        .accessibilityHidden(!navigator.isDrawerOpen)
     }
 
     /// Swipe-from-left-edge to open; swipe-left on the open drawer to close.
@@ -65,31 +326,35 @@ struct MainShell: View {
             }
     }
 
-    private var contentStack: some View {
-        NavigationStack(path: $navigator.path) {
-            RouteContent(route: navigator.route)
-                .navigationDestination(for: AppRoute.self) { pushed in
-                    RouteContent(route: pushed, showsHamburger: false)
-                }
-        }
-    }
-
     // MARK: iPad — split view
 
     private var iPadLayout: some View {
-        NavigationSplitView {
-            DrawerList(selection: Binding(
-                get: { navigator.route },
-                set: { navigator.select($0) }
-            ))
-            .navigationTitle("InjectBuddy")
-        } detail: {
-            NavigationStack(path: $navigator.path) {
-                RouteContent(route: navigator.route, showsHamburger: false)
-                    .navigationDestination(for: AppRoute.self) { pushed in
-                        RouteContent(route: pushed, showsHamburger: false)
-                    }
+        // No bottom tab bar on iPad, so the same banner rides at the top instead —
+        // still non-blocking (allowsHitTesting(false)) and out of the sidebar/detail
+        // content's way.
+        ZStack(alignment: .top) {
+            NavigationSplitView {
+                DrawerList(selection: Binding(
+                    get: { navigator.route },
+                    set: { navigator.select($0) }
+                ))
+                .navigationTitle("InjectBuddy")
+            } detail: {
+                NavigationStack(path: navigator.pathBinding(for: navigator.tab)) {
+                    RouteContent(route: navigator.route, showsHamburger: false)
+                        .navigationDestination(for: AppRoute.self) { pushed in
+                            RouteContent(route: pushed, showsHamburger: false)
+                        }
+                }
+            }
+
+            if !network.isOnline {
+                OfflineBanner()
+                    .padding(.top, Theme.Spacing.sm)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .allowsHitTesting(false)
             }
         }
+        .animation(Theme.drawerAnimation, value: network.isOnline)
     }
 }

@@ -23,20 +23,30 @@ struct MockBackendClient: BackendClient {
     private func wait() async { if delay > 0 { try? await Task.sleep(nanoseconds: delay) } }
 
     func savedDosages() async throws -> [SavedDosage] { await wait(); return dosages }
+    func savedDosage(id: String) async throws -> SavedDosage? { await wait(); return dosages.first { $0.id == id } }
     func saveDosage(_ dosage: NewSavedDosage) async throws -> String { await wait(); return UUID().uuidString }
+    func updateStartDate(id: String, startDate: String?) async throws { await wait() }
     func deleteDosage(id: String) async throws { await wait() }
     func cyclesWithItems() async throws -> [CycleWithItems] { await wait(); return cycles }
     func doseLog(since: String?) async throws -> [DoseLogPin] { await wait(); return pins }
     func logDose(_ pin: NewDoseLogPin) async throws -> DoseLogPin {
         await wait()
         return DoseLogPin(id: UUID().uuidString, protocolId: pin.protocolId,
-                          dosedOn: pin.dosedOn, drawMl: pin.drawMl, site: pin.site)
+                          dosedOn: pin.dosedOn, drawMl: pin.drawMl, site: pin.site,
+                          doseLabel: pin.doseLabel)
     }
     func unlogDose(protocolId: String, dosedOn: String) async throws { await wait() }
     func profile(userId: String) async throws -> Profile? {
         await wait(); return Profile(id: userId, displayName: "Pouroa", createdAt: nil)
     }
     func updateDisplayName(_ name: String, userId: String) async throws { await wait() }
+
+    /// **Deletes nothing, and cannot.** Previews and tests run against this client;
+    /// a mock that "succeeded" at deleting an account would let the deletion flow be
+    /// exercised end to end without ever touching the Edge Function — which is the
+    /// one path in this app that must never be signed off on a simulated green.
+    /// SPEC §4: the evidence is a throwaway account and 26 queried surfaces.
+    func deleteAccount() async throws -> [String] { await wait(); return [] }
 
     // MARK: sample data
 

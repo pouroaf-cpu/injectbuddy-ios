@@ -44,33 +44,22 @@ struct DrawerView: View {
         .onTapGesture { navigator.select(.settings) }
     }
 
+    // No theme affordance: the app is light-only (UIUserInterfaceStyle=Light in
+    // project.yml), so there is nothing to toggle. Sign out is now the only
+    // footer action and gets the full row as its target — as a bare Label it was
+    // a ~20pt tap area for a destructive action (audit finding F10).
     private var footer: some View {
-        HStack(spacing: Theme.Spacing.md) {
-            Button {
-                settings.cycleTheme()
-            } label: {
-                Label(settings.theme.label, systemImage: themeIcon)
-                    .font(.subheadline)
-            }
-            Spacer()
-            Button(role: .destructive) {
-                Task { await auth.signOut() }
-            } label: {
-                Label("Sign out", systemImage: "power")
-                    .font(.subheadline)
-            }
-            .tint(Theme.danger)
+        Button(role: .destructive) {
+            Task { await auth.signOut() }
+        } label: {
+            Label("Sign out", systemImage: "power")
+                .font(.subheadline)
+                .frame(maxWidth: .infinity, minHeight: Theme.minTarget, alignment: .leading)
+                .contentShape(Rectangle())
         }
-        .padding(Theme.Spacing.md)
+        .tint(Theme.danger)
+        .padding(.horizontal, Theme.Spacing.md)
         .padding(.bottom, Theme.Spacing.sm)
-    }
-
-    private var themeIcon: String {
-        switch settings.theme {
-        case .system: return "circle.lefthalf.filled"
-        case .light: return "sun.max"
-        case .dark: return "moon"
-        }
     }
 }
 

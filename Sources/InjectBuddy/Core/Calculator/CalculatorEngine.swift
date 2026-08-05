@@ -55,8 +55,20 @@ enum CalculatorEngine {
         return "Normal"
     }
 
-    // ── ng/dL calibration for testosterone esters (plotter) ──
-    static let testoNgdlFactor: Double = 13.5
+    // T-42 — REMOVED: `testoNgdlFactor = 13.5`, described here as an "ng/dL
+    // calibration for testosterone esters (plotter)". It was a calibration of
+    // nothing: the live plotter's own FAQ names volume of distribution and
+    // bioavailability, BOTH COMPOUND-SPECIFIC, as what an ng/dL conversion needs
+    // (`public/legacy/cycle-plotter/index.html:2297`), and one global scalar
+    // cannot encode a per-compound parameter, let alone two. It was gated on
+    // all-testosterone selections, so it stood in for the Vd AND bioavailability
+    // of FOUR different esters at once — enanthate, cypionate, propionate and
+    // undecanoate, whose half-lives alone run 0.8 to 21 days. No single value
+    // makes it correct for all four. `spec/math-spec.md`
+    // §4.1: "A port must not add a unit conversion here." The plotter now plots
+    // `pkTotalLevel` unscaled and labels it `relative units`, as the web does.
+    // Its single reader was `CyclePlotterViewModel.rebuild`; `scripts/unread-decls.py`
+    // then reported it unread, which is why it is deleted rather than left orphaned.
 
     // MARK: - trt / eod / microdose
 
@@ -97,6 +109,54 @@ enum CalculatorEngine {
         let isValid = strength > 0 && mlPerInj > 0 && mlPerInj.isFinite
         return TrtResult(freqPerWeek: freq, mgPerInj: mgPerInj, mlPerInj: mlPerInj,
                          unitsPerInj: unitsPerInj, weeklyTotal: weeklyTotal, isValid: isValid)
+    }
+
+    // MARK: - steroid (injectable + oral)
+
+    struct SteroidInjectableResult: Equatable {
+        var freqPerWeek: Double
+        var mgPerInj: Double
+        var mlPerInj: Double
+        var unitsPerInj: Double
+        var weeklyTotal: Double
+        /// Weekly ACTIVE hormone — weeklyTotal × esterFactor. The ester is dead weight
+        /// by mass, so 200mg of Deca carries 128mg of nandrolone.
+        var activeWeek: Double
+        var isValid: Bool
+    }
+
+    struct SteroidOralResult: Equatable {
+        var perDoseMg: Double
+        var tabsPerDose: Double
+        var isValid: Bool
+    }
+
+    /// Injectable steroid dosing. The web says it outright — "Injectable calc —
+    /// identical to TRTPage" — so this delegates to `trt` rather than restating the
+    /// arithmetic, and adds only the one steroid-specific quantity on top.
+    static func steroidInjectable(strength: Double, mgWeek: Double, mode: TrtMode,
+                                  nDays: Double, injPerWeek: Double, mlDrawn: Double,
+                                  esterFactor: Double, unitsPerML: Double = 100) -> SteroidInjectableResult {
+        let t = trt(strength: strength, mgWeek: mgWeek, mode: mode, nDays: nDays,
+                    injPerWeek: injPerWeek, mlDrawn: mlDrawn, unitsPerML: unitsPerML)
+        return SteroidInjectableResult(freqPerWeek: t.freqPerWeek,
+                                       mgPerInj: t.mgPerInj,
+                                       mlPerInj: t.mlPerInj,
+                                       unitsPerInj: t.unitsPerInj,
+                                       weeklyTotal: t.weeklyTotal,
+                                       activeWeek: t.weeklyTotal * esterFactor,
+                                       isValid: t.isValid)
+    }
+
+    /// Oral steroid dosing. Orals have no syringe: a daily milligram total is split
+    /// into `split` doses, then converted to whole-ish tablets at `tabMg` each.
+    /// Ported verbatim — validity is `tabsPerDose` being finite, exactly as the web
+    /// gates it, so a zero tablet strength is invalid rather than infinite.
+    static func steroidOral(doseMgPerDay: Double, tabMg: Double, split: Double) -> SteroidOralResult {
+        let perDoseMg = (doseMgPerDay.isFinite && split.isFinite && split > 0) ? doseMgPerDay / split : Double.nan
+        let tabsPerDose = (perDoseMg.isFinite && tabMg.isFinite && tabMg > 0) ? perDoseMg / tabMg : Double.nan
+        return SteroidOralResult(perDoseMg: perDoseMg, tabsPerDose: tabsPerDose,
+                                 isValid: tabsPerDose.isFinite)
     }
 
     /// trt-eod — hardcoded 3.5 injections/week.

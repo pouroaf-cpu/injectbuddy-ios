@@ -8,6 +8,7 @@ import SwiftUI
 struct DashboardScreen: View {
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var navigator: ShellNavigator
+    @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.backend) private var backend
 
     @StateObject private var vm = DashboardViewModel()
@@ -17,11 +18,15 @@ struct DashboardScreen: View {
 
     var body: some View {
         content
-            .background(Theme.groupedBackground.ignoresSafeArea())
+            .background(Theme.canvas.ignoresSafeArea())
             .task { await reload() }
             .refreshable { await reload() }
             .confirmationDialog("Add a protocol", isPresented: $showCalculatorPicker, titleVisibility: .visible) {
-                ForEach(CalculatorSlug.allCases) { slug in
+                // `listedCases`, not `allCases` — H6 withdraws BMI and Free T Index from
+                // every route in, and this dialog is one. It still offers Cycle Plotter,
+                // which cannot save either: that is deliberate, it is the plotter's only
+                // route into the app today and it stays reachable.
+                ForEach(CalculatorSlug.listedCases) { slug in
                     Button(slug.title) { navigator.push(.calculator(slug)) }
                 }
                 Button("Cancel", role: .cancel) {}
@@ -34,7 +39,14 @@ struct DashboardScreen: View {
         case .loading:
             LoadingView()
         case .failed(let message):
-            ErrorBanner(message: message) { Task { await reload() } }
+            // A failed load with nothing cached, while offline, is the "nothing
+            // to show" case the design's offline screen covers — a generic
+            // server-error banner would be misleading here.
+            if network.isOnline {
+                ErrorBanner(message: message) { Task { await reload() } }
+            } else {
+                OfflineView { Task { await reload() } }
+            }
         case .empty:
             EmptyStateView(
                 systemImage: "syringe",
@@ -50,11 +62,19 @@ struct DashboardScreen: View {
 
     private func loaded(_ data: DashboardData) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
                 greeting
 
+                // A dose that did not get logged says so HERE, on the screen the user
+                // pressed the button on. `vm.state` is the load channel and stays the
+                // load channel: routing a write failure through it would blank the
+                // dashboard, and the old code routed it nowhere at all.
+                if let actionError = vm.actionError {
+                    InlineErrorNote(message: actionError) { vm.actionError = nil }
+                }
+
                 if let next = data.nextDose {
-                    NextDoseCard(model: next, now: Date()) {
+                    NextDoseCard(model: next, now: Date(), isMarking: vm.isMarkingTaken) {
                         Task { await vm.markTaken(next.occurrence, backend: backend) }
                     }
                 }
@@ -68,13 +88,27 @@ struct DashboardScreen: View {
                 section("Protocols", trailing: {
                     Button { showCalculatorPicker = true } label: {
                         Label("Add", systemImage: "plus")
-                            .font(.subheadline.weight(.medium))
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: Theme.minTarget)
+                            .contentShape(Rectangle())
                     }
-                    .tint(Theme.accent)
+                    .tint(Theme.tealTextStrong)
+                    // Addressed by IDENTIFIER, not by the label. `Add` is also the tab
+                    // bar's middle slot, and a check that resolved this control by its
+                    // text spent a week measuring the tab bar instead — always enabled,
+                    // always hittable, on exactly the screens where the real control was
+                    // not (§5.38). Names the control, adds no element to the tree (§5.39).
+                    .accessibilityIdentifier("cta_add_protocol")
                 }) {
                     ProtocolGrid(protocols: data.protocols) { proto in
                         if let slug = proto.slug {
-                            navigator.push(.calculator(slug))
+                            // `formSlug`, not `slug` (T-12). This is the ONE push site
+                            // fed by a stored `calculator_type` rather than by a browse
+                            // list, so it is the only one that can still be handed
+                            // `.eod` — a protocol the WEB created. It opens the TRT
+                            // calculator, which is where that mode now lives and where
+                            // the web's own nav sends `eod`.
+                            navigator.push(.calculator(slug.formSlug))
                         }
                     }
                 }
@@ -86,13 +120,26 @@ struct DashboardScreen: View {
                 }
             }
             .padding(Theme.Spacing.md)
+            // No hero/tab-bar padding here any more: MainShell reserves it as a
+            // bottom safe-area inset for every tab, so doing it again would
+            // double-count.
         }
     }
 
     private var greeting: some View {
-        Text("\(Self.greetingPrefix(for: Date())), \(auth.identity?.displayName ?? "there")")
-            .font(.title2.weight(.bold))
-            .foregroundStyle(Theme.label)
+        GreetingHeadline(
+            prefix: Self.greetingPrefix(for: Date()),
+            name: Self.firstName(auth.identity?.displayName)
+        )
+    }
+
+    /// The PWA greets by first name only — `DashHeader.tsx` does `.split(/\s+/)[0]`.
+    /// "Pouroa frew" becomes "Pou." there because the PWA also truncates; we keep
+    /// the whole first name rather than copying a truncation.
+    static func firstName(_ displayName: String?) -> String {
+        guard let raw = displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return "there" }
+        return raw.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? raw
     }
 
     // MARK: section header helper
@@ -102,10 +149,10 @@ struct DashboardScreen: View {
         _ title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             Text(title.uppercased())
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.secondaryLabel)
+                .font(Theme.Typeface.eyebrow)
+                .foregroundStyle(Theme.navy)
             content()
         }
     }
@@ -119,8 +166,8 @@ struct DashboardScreen: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
             HStack {
                 Text(title.uppercased())
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.secondaryLabel)
+                    .font(Theme.Typeface.eyebrow)
+                    .foregroundStyle(Theme.navy)
                 Spacer()
                 trailing()
             }
@@ -150,6 +197,7 @@ struct DashboardScreen: View {
         .environmentObject(AuthStore())
         .environmentObject(SettingsStore())
         .environmentObject(ShellNavigator())
+        .environmentObject(NetworkMonitor())
 }
 
 #Preview("Empty") {
@@ -158,5 +206,6 @@ struct DashboardScreen: View {
         .environmentObject(AuthStore())
         .environmentObject(SettingsStore())
         .environmentObject(ShellNavigator())
+        .environmentObject(NetworkMonitor())
 }
 #endif

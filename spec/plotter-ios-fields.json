@@ -1,0 +1,70 @@
+{
+  "$comment": "The fields `spec/compounds.json` does NOT carry, plus the row set iOS actually ships. Hand-maintained; `spec/compounds.json` is NOT — it is a byte-identical copy of the web's and must never be edited here. Together these two files are the only inputs to spec/generate-plotter-compounds.mjs.",
+
+  "$tmaxProvenance": "Every `tmax` below is transcribed from PLOTTER_COMPOUNDS in the web's public/app.js:10736 — a table T-60 established is DEAD (the in-app plotter was removed; App() redirects 'plotter' to /cycle-plotter/, and nothing reads it). It is kept anyway because the LIVE source has no tmax at all: pk.js derives ka analytically as ln2/max(0.01, halfLife*0.25) and never names a tmax. Deleting these would leave CalculatorEngine.pkBuildEntries with no absorption input; inventing replacements would put a fabricated number on a dosing curve. Both are out of scope for T-60 and belong to T-42, which already records iOS's ka-by-bisection as a divergence from the web's formula. DO NOT treat these as spec-backed.",
+
+  "$defaultDoseProvenance": "Also from the dead PLOTTER_COMPOUNDS. Read by NOTHING in the iOS app today (grep defaultDose: only this table). `defaultDoseUnit` records the unit the number was written in, so the generator can refuse a row whose default dose silently changed meaning when the unit was reconciled to the live table.",
+
+  "order": [
+    "test-e", "test-c", "test-p", "test-u",
+    "npp", "nandrolone-d", "tren-a", "tren-e", "boldenone", "masteron-p", "masteron-e",
+    "bpc157", "tb500", "cjc-nodac", "cjc-dac", "ipamorelin",
+    "ghrp2", "ghrp6", "sermorelin", "hgh", "pt141", "igf1lr3", "ta1", "mt2",
+    "semaglutide", "tirzepatide", "retatrutide"
+  ],
+  "$orderComment": "The order the picker shows, preserved EXACTLY as the pre-T-60 table had it so the reconciliation is a data change and not also a reordering. It also keeps PlotterCompound.all[0] == test-e, which CyclePlotterViewModel uses as its unknown-id fallback.",
+
+  "iosOnly": {
+    "test-e":       { "tmax": 2.0,    "defaultDose": 100,  "defaultDoseUnit": "mg"  },
+    "test-c":       { "tmax": 2.5,    "defaultDose": 100,  "defaultDoseUnit": "mg"  },
+    "test-p":       { "tmax": 0.5,    "defaultDose": 50,   "defaultDoseUnit": "mg"  },
+    "test-u":       { "tmax": 6.0,    "defaultDose": 1000, "defaultDoseUnit": "mg"  },
+    "npp":          { "tmax": 1.0,    "defaultDose": 100,  "defaultDoseUnit": "mg"  },
+    "nandrolone-d": { "tmax": 3.0,    "defaultDose": 200,  "defaultDoseUnit": "mg"  },
+    "tren-a":       { "tmax": 0.5,    "defaultDose": 100,  "defaultDoseUnit": "mg"  },
+    "tren-e":       { "tmax": 2.0,    "defaultDose": 200,  "defaultDoseUnit": "mg"  },
+    "boldenone":    { "tmax": 5.0,    "defaultDose": 300,  "defaultDoseUnit": "mg"  },
+    "masteron-p":   { "tmax": 0.8,    "defaultDose": 100,  "defaultDoseUnit": "mg"  },
+    "masteron-e":   { "tmax": 2.0,    "defaultDose": 200,  "defaultDoseUnit": "mg"  },
+    "bpc157":       { "tmax": 0.04,   "defaultDose": 250,  "defaultDoseUnit": "mcg" },
+    "tb500":        { "tmax": 0.25,   "defaultDose": 2000, "defaultDoseUnit": "mcg" },
+    "cjc-nodac":    { "tmax": 0.010,  "defaultDose": 100,  "defaultDoseUnit": "mcg" },
+    "cjc-dac":      { "tmax": 2.0,    "defaultDose": 2000, "defaultDoseUnit": "mcg" },
+    "ipamorelin":   { "tmax": 0.042,  "defaultDose": 200,  "defaultDoseUnit": "mcg" },
+    "hgh":          { "tmax": 0.125,  "defaultDose": 1000, "defaultDoseUnit": "mcg" },
+    "pt141":        { "tmax": 0.042,  "defaultDose": 1000, "defaultDoseUnit": "mcg" },
+    "igf1lr3":      { "tmax": 0.25,   "defaultDose": 100,  "defaultDoseUnit": "mcg" },
+    "mt2":          { "tmax": 0.042,  "defaultDose": 500,  "defaultDoseUnit": "mcg" },
+    "semaglutide":  { "tmax": 1.0,    "defaultDose": 0.5,  "defaultDoseUnit": "mg"  },
+    "tirzepatide":  { "tmax": 1.0,    "defaultDose": 2.5,  "defaultDoseUnit": "mg"  },
+    "retatrutide":  { "tmax": 1.0,    "defaultDose": 1.0,  "defaultDoseUnit": "mg"  }
+  },
+
+  "staleDefaultDoseUnit": {
+    "tb500": "dead table said mcg, live table says mg — 2000 mcg = 2 mg",
+    "hgh":   "dead table said mcg, live table says IU — no exact conversion (needs a mg-per-IU potency), so the number is left alone rather than converted",
+    "pt141": "dead table said mcg, live table says mg — 1000 mcg = 1 mg",
+    "mt2":   "dead table said mcg, live table says mg — 500 mcg = 0.5 mg"
+  },
+  "$staleComment": "These four `defaultDose` numbers are expressed in the OLD (dead-table) unit and the row's `unit` is now the live one. They were NOT rescaled, for the same reason tmax was not touched: T-60 reconciles half-lives and units, it does not rewrite dosing numbers. Nothing reads defaultDose today so nothing is wrong on screen — but ANY code that starts reading it must convert these four first. The generator refuses to emit a mismatched row that is not listed here, so a new one cannot slip in unannounced.",
+
+  "extras": {
+    "$comment": "Rows iOS carries that the LIVE plotter has no entry for at all, so there is nothing to reconcile them to. Transcribed from the dead PLOTTER_COMPOUNDS verbatim, `cat` included — which is why their category reads 'Peptide' rather than a live-vocabulary one ('Growth'/'Other'). That is deliberate: the off-vocabulary category is the marker that says 'not spec-backed', and PlotterCompoundSpecTests asserts it. Removing them is a product decision, not a reconciliation; it belongs to T-32.",
+    "ghrp2":      { "name": "GHRP-2",           "short": "GHRP-2",           "type": "peptide", "cat": "Peptide", "halfLife": 0.083,  "unit": "mcg", "tmax": 0.021, "defaultDose": 200,  "defaultDoseUnit": "mcg" },
+    "ghrp6":      { "name": "GHRP-6",           "short": "GHRP-6",           "type": "peptide", "cat": "Peptide", "halfLife": 0.083,  "unit": "mcg", "tmax": 0.021, "defaultDose": 200,  "defaultDoseUnit": "mcg" },
+    "sermorelin": { "name": "Sermorelin",       "short": "Sermorelin",       "type": "peptide", "cat": "Peptide", "halfLife": 0.0076, "unit": "mcg", "tmax": 0.003, "defaultDose": 300,  "defaultDoseUnit": "mcg" },
+    "ta1":        { "name": "Thymosin Alpha-1", "short": "Thymosin Alpha-1", "type": "peptide", "cat": "Peptide", "halfLife": 0.083,  "unit": "mcg", "tmax": 0.021, "defaultDose": 1000, "defaultDoseUnit": "mcg" }
+  },
+
+  "notCarried": {
+    "$comment": "Spec compounds iOS does NOT ship. Every one needs a tmax before CalculatorEngine.pkBuildEntries can draw it, and the live source has none — so adding them means sourcing a number, which is exactly what T-32 says it will not do casually: 'a compound is a HALF-LIFE and a tmax, and the web's own note refuses to invent them'. Listed here so `spec/compounds.json` growing a 32nd compound FAILS the generator instead of being silently ignored.",
+    "test-a":        "T-32 — ESTER_TO_CID maps 'Testosterone Acetate' here; the seed refuses cleanly today.",
+    "sustanon":      "T-32 — ESTER_TO_CID maps 'Sustanon 250' here; the seed refuses cleanly today.",
+    "hcg":           "T-32 — the hcg calculator shows the levels CTA and PlotterSeed refuses it.",
+    "methenolone-e": "T-32 — STEROID_TO_CID set; the steroid calculator does not show the CTA, so latent.",
+    "anavar":        "T-32 — STEROID_TO_CID set; latent.",
+    "dianabol":      "T-32 — STEROID_TO_CID set; latent.",
+    "winstrol-o":    "T-32 — STEROID_TO_CID set; latent. See also T-94.",
+    "pinealon":      "Never carried by iOS; not referenced by any calculator or seed map."
+  }
+}

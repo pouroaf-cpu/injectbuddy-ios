@@ -1,5 +1,11 @@
 # ── Secrets (never commit) ──────────────────────────────────────────────
 Config/Secrets.xcconfig
+# QA account for the XCUITest suite, mirroring the webapp's file and variable
+# names (DEVTOOLS_TEST_EMAIL / DEVTOOLS_TEST_PASSWORD). See
+# docs/HARNESS-AND-LOOSE-ENDS.md §2 — the doc says where they live, this file
+# holds them, and neither ever carries a value into git.
+.env.local
+.env*.local
 
 # ── Xcode (project is generated from project.yml via XcodeGen) ───────────
 *.xcodeproj
