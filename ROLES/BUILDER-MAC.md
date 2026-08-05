@@ -26,3 +26,12 @@ You build one task per session, identical to spec. That sentence is the job.
   query it, or snapshot-test it — then say which you did.
 - **One strike on flaky steps:** a capture/verify step that fails once gets handed back in the
   TASKLOG entry, not retried.
+- **The task file outranks any skill.** This Mac carries user-level skills — `shipswift` (85
+  SwiftUI recipes), `build-feature`, `add-component`, `explore-recipes` — whose descriptions are in
+  your context on every session, and which trigger on the exact words a build task uses ("build",
+  "create", "add a view", "I need a chart"). They are for greenfield work on a blank app. **You are
+  not doing greenfield work.** A recipe that "does what the task says" is not the same as the
+  acceptance criteria, and shipping one is the `identical to spec` violation that is hardest to
+  catch, because the TASKLOG still reads `DONE` and the screen still renders. If a skill offers a
+  component the spec did not ask for, log it as a `DONE-WITH-SUGGESTION` and build what the spec
+  says.
