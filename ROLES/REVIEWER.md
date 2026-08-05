@@ -20,8 +20,9 @@ One bounded pass over finished work. You are a gate, not a participant.
   capture; a good photograph of the wrong screen looks perfect. Three frames in the old archive were
   photographs of the previous screen for two capture cycles, because nothing checked — and nothing
   about the images looked wrong.
-- **Count both ways:** screens expected vs frames present. A missing frame is named with a reason,
-  never silently absent. A missing frame and a frame nobody asked for look the same in a folder.
+- **Count both ways:** screens expected (`SPECS/SCREENS.md`) vs frames present. A missing frame is
+  named with a reason, never silently absent. A missing frame and a frame nobody asked for look the
+  same in a folder.
 - **Findings state their sample:** "sheared on BPC-157, of 15 calculators checked" — a finding covers
   only what it was drawn from.
 - **Before believing a FAILED check, prove the probe could have succeeded.** An instrument aimed at
@@ -41,3 +42,5 @@ One bounded pass over finished work. You are a gate, not a participant.
   fix-task files in the backlog.
 - **Max 3 problems per task.** If you found 7, report the worst 3 — the rest will surface on the fix
   pass or don't matter.
+- **A PROBLEM filed is not a promise it gets worked** — fix-tasks sit in the backlog until the owner
+  promotes them.

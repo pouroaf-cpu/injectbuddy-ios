@@ -1,10 +1,9 @@
 # UX / UI rules
 
-> **Read-only to agents. Changes go through the owner.**
+> **Settled unless the owner strikes it. Read-only to agents — changes go through the owner.**
 
-Written 2026-08-04. Draft — the values are as verified in `Theme.swift` and the palette work of
-2026-08-01; the rules are what earned their place by catching something. Strike anything you
-disagree with; nothing here is settled until you say so.
+Written 2026-08-04. The values are as verified in `Theme.swift` and the palette work of 2026-08-01;
+the rules are what earned their place by catching something.
 
 **This is a dosing app.** The user acts on the numbers it shows. Every rule below exists because a
 number was hidden, clipped, unreachable or wrong-looking, not because of taste.

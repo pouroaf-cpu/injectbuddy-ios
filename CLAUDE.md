@@ -72,8 +72,10 @@ lies about.
 | `CLAUDE.md` | this file |
 | `ENVIRONMENT.md` | build costs, and every trap the toolchain hides |
 | `SPECS/DESIGN.md` | the UX/UI rules. Read-only — changes go through the owner |
+| `SPECS/SCREENS.md` | the canonical screen inventory a capture run is counted against |
 | `ROLES/` | `BUILDER-MAC.md` · `PLANNER.md` · `REVIEWER.md` — read the one you are |
 | `TASKS/queue/` | one file per open task. Read **only** the one assigned to you |
+| `TASKS/backlog/` | planner and reviewer write here; the owner promotes into the queue |
 | `TASKS/archive/` | closed tasks and their evidence |
 | `TASKLOG.md` | append-only outcome log |
 
