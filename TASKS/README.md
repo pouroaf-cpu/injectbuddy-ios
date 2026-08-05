@@ -60,5 +60,9 @@ These were written after the failures they describe. Rules 9a, 11, 12 and 13 are
     **And a silent tidy-up is indistinguishable from quietly dropping a task**, so a duplicate
     removed this way leaves a note saying what happened.
 
+    > *Footnote, 2026-08-05:* rule 13 is verbatim and names rules 9 and 10, which are no longer
+    > above it. 9's substance is now principle 5 in `CLAUDE.md` (GitHub is the source of truth);
+    > 10's block-allocated ID scheme is dead under the sequential model.
+
 **Priority** is out of 10 — 10 is a user is being harmed today, 1 is tidy-up.
 **Status:** `open` · `doing` · `blocked` · `done` · `filed` (real, deliberately not being worked).

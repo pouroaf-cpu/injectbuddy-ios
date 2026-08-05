@@ -37,6 +37,20 @@ Weight work by that, not by how bad a finding sounds.
    you), commit what compiles, stop. Do not retry flaky steps, do not improvise around the blocker,
    do not start other work.
 
+## Ship posture
+
+The owner's standing instruction: *things will not be perfect, get it out the door, fix up later.*
+
+**Three things block a ship. Nothing else does:**
+
+1. **It does the thing** — the core write and read paths work.
+2. **It does not mislead the user** — a dosing app never shows a dose as taken when it was not, and
+   never destroys a real log.
+3. **It passes App Store review** — account deletion, privacy policy, disclaimer.
+
+Everything else is filed and fixed after launch. **Do not open a new front while a ship-blocker is
+open.**
+
 ## Measure before closing
 
 Code correct by inspection has repeatedly been wrong against the running system. **Run it, query it,
